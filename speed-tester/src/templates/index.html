@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Speed tests</title>
+  </head>
+  <body>
+
+    <div>
+      {{range .Entries}}
+        <p>&#9202; {{printf "%d" .Latency.Milliseconds}}ms, ↓ {{printf "%.1f" .DownloadSpeed}}Mbps, ↑ {{printf "%.1f" .UploadSpeed}}Mbps
+        <p><dfn title="{{.Id}}">{{.Name}}</dfn> ({{printf "%.0f" .Distance}}km)
+      {{end}}
+    </div>
+  </body>
+</html>
