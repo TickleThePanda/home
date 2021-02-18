@@ -23,5 +23,5 @@ jobs:
       - name: build the image
         run: |
           docker buildx build --push \
-          --tag TickleThePanda/speed-tester:latest \
+          --tag ticklethepanda/speed-tester:latest \
           --platform linux/amd64,linux/arm/v7,linux/arm64 ./speed-tester/
