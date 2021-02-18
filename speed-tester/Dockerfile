@@ -7,5 +7,6 @@ RUN go mod download
 
 COPY src/ src/
 
-CMD go run src/main.go
+VOLUME /data
 
+CMD go run src/*.go
