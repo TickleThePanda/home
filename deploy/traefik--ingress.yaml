@@ -1,0 +1,26 @@
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: home-ingress
+  namespace: home
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    traefik.ingress.kubernetes.io/frontend-entry-points: http, https
+    traefik.ingress.kubernetes.io/redirect-entry-point: https
+spec:
+  tls:
+    - secretName: home-ticklethepanda-co-uk
+      hosts:
+        - home.ticklethepanda.co.uk
+  rules:
+    - host: home.ticklethepanda.co.uk
+      http:
+        paths:
+          - path: /speed-test
+            pathType: Prefix
+            backend:
+              service:
+                name: speed-test
+                port:
+                  number: 80

@@ -16,7 +16,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       - name: Login to DockerHub
-        uses: docker/login-action@v1 
+        uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -25,3 +25,17 @@ jobs:
           docker buildx build --push \
           --tag ticklethepanda/speed-tester:latest \
           --platform linux/amd64,linux/arm/v7,linux/arm64 ./speed-tester/
+  deploy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Setup k8s context
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: {{ secrets.KUBE_CONFIG }}
+      - name: Deploy
+        run: kubectl apply -f deploy

@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: speed-test
+  labels:
+    name: speed-test
+  namespace: home
+spec:
+  ports:
+    # the port that this service should serve on
+  - port: 80
+    targetPort: 10000
+  selector:
+    app: speed-test
