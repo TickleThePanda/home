@@ -23,7 +23,7 @@ type SpeedTestResultResponseData struct {
 
 func (sh *SpeedTestResultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Request URL: %s", r.URL)
-	if r.URL.Path != "" {
+	if r.URL.Path != sh.SiteRoot || r.URL.Path != sh.SiteRoot+"/" {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("Not found"))
 
@@ -49,7 +49,7 @@ func handleRequests(store *SpeedTestResultStore, siteRoot string) {
 
 	fs := http.FileServer(http.Dir("./src/static"))
 
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
-	http.Handle("/", handler)
+	http.Handle(siteRoot+"/static/", http.StripPrefix(siteRoot+"/static/", fs))
+	http.Handle(siteRoot+"/", handler)
 	log.Fatal(http.ListenAndServe(":10000", nil))
 }
