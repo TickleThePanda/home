@@ -40,4 +40,4 @@ jobs:
       - name: Deploy
         run: kubectl apply -f deploy
       - name: Rollout latest image
-        run: kubectl rollout restart deployment/speed-test
+        run: kubectl rollout restart deployment/speed-test-deployment --namespace=home
