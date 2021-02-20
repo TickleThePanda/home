@@ -1,8 +1,10 @@
-name: build our image
+name: Build and deploy speed-test
 
 on:
   push:
     branches: main
+  paths:
+    speed-tester/**
 
 jobs:
   build:
@@ -25,19 +27,10 @@ jobs:
           docker buildx build --push \
           --tag ticklethepanda/speed-tester:latest \
           --platform linux/amd64,linux/arm/v7,linux/arm64 ./speed-tester/
-  deploy:
-    needs: [build]
-    runs-on: ubuntu-latest
-    environment: prod
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
       - name: Setup k8s context
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
-      - name: Deploy
-        run: kubectl apply -f deploy
       - name: Rollout latest image
         run: kubectl rollout restart deployment/speed-test-deployment --namespace=home

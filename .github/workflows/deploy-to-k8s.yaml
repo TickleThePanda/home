@@ -1,0 +1,22 @@
+name: Update k8s
+
+on:
+  push:
+    branches: main
+  paths:
+    deploy/**
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Setup k8s context
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+      - name: Deploy
+        run: kubectl apply -f deploy
