@@ -26,7 +26,7 @@ func main() {
 
 	siteRoot := os.Getenv("SPEED_TEST_SITE_ROOT")
 	if siteRoot == "" {
-		siteRoot = "/"
+		siteRoot = ""
 	}
 
 	log.Printf("Test period: %d", testPeriod)
