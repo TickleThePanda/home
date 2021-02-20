@@ -39,3 +39,5 @@ jobs:
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
       - name: Deploy
         run: kubectl apply -f deploy
+      - name: Rollout latest image
+        run: kubectl rollout restart deployment/speed-test
