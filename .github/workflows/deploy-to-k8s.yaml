@@ -3,8 +3,8 @@ name: Update k8s
 on:
   push:
     branches: main
-  paths:
-    deploy/**
+    paths:
+      - deploy/**
 
 jobs:
   deploy:

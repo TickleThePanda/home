@@ -3,8 +3,8 @@ name: Build and deploy speed-test
 on:
   push:
     branches: main
-  paths:
-    speed-tester/**
+    paths:
+    - speed-tester/**
 
 jobs:
   build:
