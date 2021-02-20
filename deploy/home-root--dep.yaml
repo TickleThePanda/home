@@ -18,6 +18,9 @@ spec:
       containers:
       - name: home-root
         image: ticklethepanda/home-root:latest
+        env:
+        - name: SPEED_TEST_SITE_ROOT
+          value: "/speed-test/"
         securityContext:
           runAsNonRoot: true
           runAsUser: 101

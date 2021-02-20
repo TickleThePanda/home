@@ -24,9 +24,15 @@ func main() {
 		}
 	}
 
+	siteRoot := os.Getenv("SPEED_TEST_SITE_ROOT")
+	if siteRoot == "" {
+		siteRoot = "/"
+	}
+
 	log.Printf("Test period: %d", testPeriod)
+	log.Printf("Site root: %s", siteRoot)
 
 	go runTests(store, int32(testPeriod))
 
-	handleRequests(store)
+	handleRequests(store, siteRoot)
 }

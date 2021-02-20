@@ -2,44 +2,48 @@
 <html>
 	<head>
 		<title>Speed tests</title>
-		<link rel="stylesheet" href="/static/main.css">
+		<link rel="stylesheet" href="{{ .SiteInfo.SiteRoot }}static/speed-test.css">
 	</head>
 	<body>
 
 		<h1>Speed test results</h1>
 
-		<h2>Summary</h2>
-		<h3>Last Day</h3>
-		{{ with .Summary.LastDay }}
-			<p>{{printf "%d" .AveragePing.Milliseconds}}&#8201;ms,
-				↓ {{printf "%.1f" .AverageDownloadSpeed}}&#8201;Mbps,
-				↑ {{printf "%.1f" .AverageUploadSpeed}}&#8201;Mbps
-		{{ end }}
+		{{ with .Results }}
 
-		<h3>Last Week</h3>
-		{{ with .Summary.LastWeek }}
-			<p>{{printf "%d" .AveragePing.Milliseconds}}&#8201;ms,
-				↓ {{printf "%.1f" .AverageDownloadSpeed}}&#8201;Mbps,
-				↑ {{printf "%.1f" .AverageUploadSpeed}}&#8201;Mbps
-		{{ end }}
+			<h2>Summary</h2>
+			<h3>Last Day</h3>
+			{{ with .Summary.LastDay }}
+				<p>{{printf "%d" .AveragePing.Milliseconds}}&#8201;ms,
+					↓ {{printf "%.1f" .AverageDownloadSpeed}}&#8201;Mbps,
+					↑ {{printf "%.1f" .AverageUploadSpeed}}&#8201;Mbps
+			{{ end }}
 
-		<h3>Last Month</h3>
-		{{ with .Summary.LastMonth }}
-			<p>{{printf "%d" .AveragePing.Milliseconds}}&#8201;ms,
-				↓ {{printf "%.1f" .AverageDownloadSpeed}}&#8201;Mbps,
-				↑ {{printf "%.1f" .AverageUploadSpeed}}&#8201;Mbps
-		{{ end }}
+			<h3>Last Week</h3>
+			{{ with .Summary.LastWeek }}
+				<p>{{printf "%d" .AveragePing.Milliseconds}}&#8201;ms,
+					↓ {{printf "%.1f" .AverageDownloadSpeed}}&#8201;Mbps,
+					↑ {{printf "%.1f" .AverageUploadSpeed}}&#8201;Mbps
+			{{ end }}
 
-		<h2>Entries</h2>
-		{{range .Entries}}
-			<div class="test-result">
-				<h3>{{ .Time }}</h3>
-				<p>
-					{{printf "%d" .Latency.Milliseconds}}&#8201;ms,
-					↓ {{printf "%.1f" .DownloadSpeed}}&#8201;Mbps,
-					↑ {{printf "%.1f" .UploadSpeed}}&#8201;Mbps
-				<p class="server-info"><dfn title="{{.ServerId}}">{{.ServerName}}</dfn> ({{printf "%.0f" .Distance}}km)
-			</div>
+			<h3>Last Month</h3>
+			{{ with .Summary.LastMonth }}
+				<p>{{printf "%d" .AveragePing.Milliseconds}}&#8201;ms,
+					↓ {{printf "%.1f" .AverageDownloadSpeed}}&#8201;Mbps,
+					↑ {{printf "%.1f" .AverageUploadSpeed}}&#8201;Mbps
+			{{ end }}
+
+			<h2>Entries</h2>
+			{{range .Entries}}
+				<div class="test-result">
+					<h3>{{ .Time }}</h3>
+					<p>
+						{{printf "%d" .Latency.Milliseconds}}&#8201;ms,
+						↓ {{printf "%.1f" .DownloadSpeed}}&#8201;Mbps,
+						↑ {{printf "%.1f" .UploadSpeed}}&#8201;Mbps
+					<p class="server-info"><dfn title="{{.ServerId}}">{{.ServerName}}</dfn> ({{printf "%.0f" .Distance}}km)
+				</div>
+			{{end}}
+
 		{{end}}
 	</body>
 </html>
