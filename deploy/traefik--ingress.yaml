@@ -7,10 +7,9 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt
     kubernetes.io/ingress.class: traefik
-    ingress.kubernetes.io/frontend-entry-points: http, https
-    ingress.kubernetes.io/redirect-entry-point: https
+    traefik.ingress.kubernetes.io/frontend-entry-points: http, https
+    traefik.ingress.kubernetes.io/redirect-entry-point: https
     ingress.kubernetes.io/auth-type: basic
-    ingress.kubernetes.io/auth-realm: traefik
     ingress.kubernetes.io/auth-secret: ingress-auth
 spec:
   tls:
