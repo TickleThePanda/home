@@ -27,3 +27,10 @@ spec:
                 name: speed-test
                 port:
                   number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: home-root
+                port:
+                  number: 80
