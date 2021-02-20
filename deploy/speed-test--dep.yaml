@@ -18,6 +18,9 @@ spec:
       containers:
       - name: speed-test
         image: ticklethepanda/speed-tester:latest
+        env:
+        - name: SPEED_TEST_SITE_ROOT
+          value: "/speed-test"
         ports:
         - containerPort: 80
         securityContext:
