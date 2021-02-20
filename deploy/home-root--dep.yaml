@@ -20,23 +20,16 @@ spec:
         image: ticklethepanda/home-root:latest
         securityContext:
           runAsNonRoot: true
-          runAsUser: 10001
+          runAsUser: 101
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
               - all
             add:
               - NET_BIND_SERVICE
-          readOnlyRootFilesystem: true
-        env:
-        - name: NGINX_PORT
-          value: "8080"
         volumeMounts:
-        - mountPath: /var/cache/nginx/
+        - mountPath: /tmp/
           name: nginx-temp
-        - mountPath: /var/run/
-          name: nginx-run
       volumes:
         - emptyDir: {}
           name: nginx-temp
-        - emptyDir: {}
-          name: nginx-run
