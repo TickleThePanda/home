@@ -2,9 +2,80 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 )
+
+type SpeedTestResult struct {
+	Time          time.Time
+	ServerId      string
+	ServerName    string
+	Distance      float64
+	Latency       time.Duration
+	DownloadSpeed float64
+	UploadSpeed   float64
+}
+
+func (r *SpeedTestResult) String() string {
+	return fmt.Sprintf(
+		"%s, %s, %s, %f, %s, %f, %f",
+		r.Time,
+		r.ServerId, r.ServerName,
+		r.Distance, r.Latency,
+		r.DownloadSpeed, r.UploadSpeed,
+	)
+}
+
+func (r *SpeedTestResult) ToCsv() string {
+	return fmt.Sprintf(
+		"%s,%s,%s,%f,%s,%f,%f",
+		r.Time.Format(time.RFC3339),
+		r.ServerId, r.ServerName,
+		r.Distance, r.Latency.String(),
+		r.DownloadSpeed, r.UploadSpeed,
+	)
+}
+
+func SpeedTestResultFromCsv(csv string) *SpeedTestResult {
+	sp := strings.Split(csv, ",")
+
+	t, _ := time.Parse(time.RFC3339, sp[0])
+	dist, _ := strconv.ParseFloat(sp[3], 10)
+	latency, _ := time.ParseDuration(sp[4])
+	down, _ := strconv.ParseFloat(sp[5], 10)
+	up, _ := strconv.ParseFloat(sp[6], 10)
+
+	return &SpeedTestResult{
+		Time:          t,
+		ServerId:      sp[1],
+		ServerName:    sp[2],
+		Distance:      dist,
+		Latency:       latency,
+		DownloadSpeed: down,
+		UploadSpeed:   up,
+	}
+}
+
+type SpeedTestResults struct {
+	Entries []*SpeedTestResult
+	Summary SpeedTestSummary
+}
+
+func (rs *SpeedTestResults) RecentEntries() []*SpeedTestResult {
+	return FilterResultsWithinLast(rs.Entries, time.Duration(24)*time.Hour)
+}
+
+func (rs *SpeedTestResults) String() string {
+	var b strings.Builder
+	for _, r := range rs.Entries {
+		b.WriteString(r.String())
+		b.WriteString("\n")
+	}
+	return b.String()
+}
 
 type SpeedTestResultStore struct {
 	File string
@@ -80,7 +151,7 @@ func (store *SpeedTestResultStore) Add(result *SpeedTestResult) {
 	f.Close()
 }
 
-func (store *SpeedTestResultStore) GetAll() *SpeedTestResults {
+func (store *SpeedTestResultStore) GetResults() *SpeedTestResults {
 	f, err := os.OpenFile(store.File, os.O_RDWR|os.O_CREATE, 0644)
 
 	if err != nil {

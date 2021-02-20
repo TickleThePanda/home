@@ -30,8 +30,9 @@ func (sh *SpeedTestResultHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 		return
 	}
+
 	sh.Template.Execute(w, SpeedTestResultResponseData{
-		Results: sh.Store.GetAll(),
+		Results: sh.Store.GetResults(),
 		SiteInfo: &SiteInfo{
 			SiteRoot: sh.SiteRoot,
 		},
