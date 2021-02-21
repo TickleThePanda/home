@@ -29,10 +29,15 @@ func main() {
 		siteRoot = ""
 	}
 
+	sharedAssets := os.Getenv("SPEED_TEST_SHARED_ASSETS_SITE")
+	if siteRoot == "" {
+		sharedAssets = ""
+	}
+
 	log.Printf("Test period: %d", testPeriod)
 	log.Printf("Site root: %s", siteRoot)
 
 	go runTests(store, int32(testPeriod))
 
-	handleRequests(store, siteRoot)
+	handleRequests(store, siteRoot, sharedAssets)
 }

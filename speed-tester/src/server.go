@@ -4,16 +4,19 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"time"
 )
 
 type SpeedTestResultHandler struct {
-	Store    *SpeedTestResultStore
-	Template *template.Template
-	SiteRoot string
+	Store            *SpeedTestResultStore
+	Template         *template.Template
+	SiteRoot         string
+	SharedAssetsSite string
 }
 
 type SiteInfo struct {
-	SiteRoot string
+	SiteRoot         string
+	SharedAssetsSite string
 }
 
 type SpeedTestResultResponseData struct {
@@ -34,19 +37,35 @@ func (sh *SpeedTestResultHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	sh.Template.Execute(w, SpeedTestResultResponseData{
 		Results: sh.Store.GetResults(),
 		SiteInfo: &SiteInfo{
-			SiteRoot: sh.SiteRoot,
+			SiteRoot:         sh.SiteRoot,
+			SharedAssetsSite: sh.SharedAssetsSite,
 		},
 	})
 }
 
-func handleRequests(store *SpeedTestResultStore, siteRoot string) {
-	t := template.New("index")
-	t, _ = template.ParseFiles("./src/templates/index.html")
+func FormatDate(t time.Time) string {
+	suffix := "th"
+	switch t.Day() {
+	case 1, 21, 31:
+		suffix = "st"
+	case 2, 22:
+		suffix = "nd"
+	case 3, 23:
+		suffix = "rd"
+	}
+	return t.Format("Mon 2" + suffix + " Jan - 15:04")
+}
+
+func handleRequests(store *SpeedTestResultStore, siteRoot string, sharedAssets string) {
+	t := template.Must(template.New("index.html").Funcs(template.FuncMap{
+		"formatDate": FormatDate,
+	}).ParseFiles("./src/templates/index.html"))
 
 	handler := &SpeedTestResultHandler{
-		Store:    store,
-		Template: t,
-		SiteRoot: siteRoot,
+		Store:            store,
+		Template:         t,
+		SiteRoot:         siteRoot,
+		SharedAssetsSite: sharedAssets,
 	}
 
 	fs := http.FileServer(http.Dir("./src/static"))

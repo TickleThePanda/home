@@ -1,3 +1,12 @@
+:root {
+	--pale-background: #eee;
+	--darker-text: #111s;
+}
+
+html {
+	color: #222;
+}
+
 h1, h2, h3, h4, h5, h6 {
 	margin: 0;
 	margin-top: 1em;
@@ -21,6 +30,6 @@ p {
 }
 
 .content {
-	max-width: 40em;
+	max-width: 60em;
 	margin: 2em;
 }

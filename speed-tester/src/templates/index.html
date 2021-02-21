@@ -3,51 +3,51 @@
 	<head>
 		<title>Speed tests</title>
 		<link rel="stylesheet" href="{{ .SiteInfo.SiteRoot }}/static/speed-test.css">
-		<link rel="stylesheet" href="/main.css">
+		<link rel="stylesheet" href="{{ .SiteInfo.SharedAssetsSite }}/main.css">
 	</head>
 	<body>
 
 		<main class="content">
 			<h1>Speed test results</h1>
-
+			<p>The results of hourly speed tests.
 			{{ with .Results }}
+				<h2 class="summaries__title">Summary</h2>
 				<div class="summaries">
-					<h2 class="summaries__title">Summary</h2>
 					<div class="summary">
 						<h3>Last Day</h3>
 						{{ with .Summary.LastDay }}
-							<p>{{printf "%d" .AveragePing.Milliseconds}}&#8201;ms,
-								↓ {{printf "%.1f" .AverageDownloadSpeed}}&#8201;Mbps,
-								↑ {{printf "%.1f" .AverageUploadSpeed}}&#8201;Mbps
+							<p>{{printf "%d" .AveragePing.Milliseconds}}&#8239;ms,
+								↓&#8239;{{printf "%.1f" .AverageDownloadSpeed}}&#8239;Mbps,
+								↑&#8239;{{printf "%.1f" .AverageUploadSpeed}}&#8239;Mbps
 						{{ end }}
 					</div>
 					<div class="summary">
 						<h3>Last Week</h3>
 						{{ with .Summary.LastWeek }}
-							<p>{{printf "%d" .AveragePing.Milliseconds}}&#8201;ms,
-								↓ {{printf "%.1f" .AverageDownloadSpeed}}&#8201;Mbps,
-								↑ {{printf "%.1f" .AverageUploadSpeed}}&#8201;Mbps
+							<p>{{printf "%d" .AveragePing.Milliseconds}}&#8239;ms,
+								↓&#8239;{{printf "%.1f" .AverageDownloadSpeed}}&#8239;Mbps,
+								↑&#8239;{{printf "%.1f" .AverageUploadSpeed}}&#8239;Mbps
 						{{ end }}
 					</div>
 					<div class="summary">
 						<h3>Last Month</h3>
 						{{ with .Summary.LastMonth }}
-							<p>{{printf "%d" .AveragePing.Milliseconds}}&#8201;ms,
-								↓ {{printf "%.1f" .AverageDownloadSpeed}}&#8201;Mbps,
-								↑ {{printf "%.1f" .AverageUploadSpeed}}&#8201;Mbps
+							<p>{{printf "%d" .AveragePing.Milliseconds}}&#8239;ms,
+								↓&#8239;{{printf "%.1f" .AverageDownloadSpeed}}&#8239;Mbps,
+								↑&#8239;{{printf "%.1f" .AverageUploadSpeed}}&#8239;Mbps
 						{{ end }}
 					</div>
 
 				</div>
 
-				<h2>Entries</h2>
+				<h2>Today's entries</h2>
 				{{range .RecentEntries}}
 					<div class="test-result">
-						<h3>{{ .Time }}</h3>
 						<p>
-							{{printf "%d" .Latency.Milliseconds}}&#8201;ms,
-							↓ {{printf "%.1f" .DownloadSpeed}}&#8201;Mbps,
-							↑ {{printf "%.1f" .UploadSpeed}}&#8201;Mbps
+							<date>{{ .Time | formatDate }}</date>:
+							{{printf "%d" .Latency.Milliseconds}}&#8239;ms,
+							↓&#8239;{{printf "%.1f" .DownloadSpeed}}&#8239;Mbps,
+							↑&#8239;{{printf "%.1f" .UploadSpeed}}&#8239;Mbps
 						<p class="server-info"><dfn title="{{.ServerId}}">{{.ServerName}}</dfn> ({{printf "%.0f" .Distance}}km)
 					</div>
 				{{end}}
