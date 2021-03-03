@@ -37,7 +37,9 @@ func main() {
 	log.Printf("Test period: %d", testPeriod)
 	log.Printf("Site root: %s", siteRoot)
 
-	go runTests(store, int32(testPeriod))
+	tester := &SpeedTester{Store: store}
 
-	handleRequests(store, siteRoot, sharedAssets)
+	go tester.startTests(int32(testPeriod))
+
+	handleRequests(tester, siteRoot, sharedAssets)
 }

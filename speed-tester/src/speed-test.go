@@ -7,6 +7,10 @@ import (
 	"github.com/showwin/speedtest-go/speedtest"
 )
 
+type SpeedTester struct {
+	Store *SpeedTestResultStore
+}
+
 func testSpeed() *SpeedTestResult {
 
 	log.Print("Testing speed - fetching user info")
@@ -58,14 +62,19 @@ func testSpeed() *SpeedTestResult {
 	return speed
 }
 
-func runTests(store *SpeedTestResultStore, periodInSeconds int32) {
-	ticker := time.NewTicker(time.Duration(periodInSeconds) * time.Second)
+func (tester *SpeedTester) runTestNow() *SpeedTestResult {
 
 	result := testSpeed()
-	store.Add(result)
+	tester.Store.Add(result)
 
+	return result
+}
+
+func (tester *SpeedTester) startTests(periodInSeconds int32) {
+	ticker := time.NewTicker(time.Duration(periodInSeconds) * time.Second)
+
+	tester.runTestNow()
 	for range ticker.C {
-		result := testSpeed()
-		store.Add(result)
+		tester.runTestNow()
 	}
 }

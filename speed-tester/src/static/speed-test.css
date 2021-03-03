@@ -11,6 +11,10 @@
 	color: var(--stroke__high-contrast);
 }
 
+form {
+	float: right;
+}
+
 .summary h3 {
 	margin-top: 0;
 }
