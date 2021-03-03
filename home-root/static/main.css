@@ -34,3 +34,17 @@ p {
 	max-width: 60em;
 	margin: 2em;
 }
+
+a:link {
+	color: #ee5588;
+	font-weight: bold;
+	text-decoration: none;
+}
+
+a:visited {
+	color: #ee5588;
+}
+
+a:hover {
+	text-decoration: underline;
+}
