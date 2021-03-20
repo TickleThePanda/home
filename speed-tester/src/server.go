@@ -50,6 +50,10 @@ func (sh *SpeedTestResultHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 }
 
+func FormatDate8601(t time.Time) string {
+	return t.Format(time.RFC3339)
+}
+
 func FormatDate(t time.Time) string {
 	suffix := "th"
 	switch t.Day() {
@@ -65,7 +69,8 @@ func FormatDate(t time.Time) string {
 
 func handleRequests(tester *SpeedTester, siteRoot string, sharedAssets string) {
 	t := template.Must(template.New("index.html").Funcs(template.FuncMap{
-		"formatDate": FormatDate,
+		"formatDate":     FormatDate,
+		"formatDate8601": FormatDate8601,
 	}).ParseFiles("./src/templates/index.html"))
 
 	handler := &SpeedTestResultHandler{

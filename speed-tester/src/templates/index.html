@@ -6,9 +6,11 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="stylesheet" href="{{ .SiteInfo.SiteRoot }}/static/speed-test.css">
 		<link rel="stylesheet" href="{{ .SiteInfo.SharedAssetsSite }}/main.css">
+		<script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+		<script src="{{ .SiteInfo.SiteRoot }}/static/speed-test-chart.mjs" type="module"></script>
 	</head>
 	<body>
-
 		<main class="content">
 			<h1>Speed test results</h1>
 			<form action="." method="post">
@@ -46,8 +48,11 @@
 				</div>
 
 				<h2>Today's entries</h2>
+
+				<canvas class="js-speed-test-chart chart" width="600" height="400"></canvas>
+
 				{{range .RecentEntries}}
-					<div class="test-result">
+					<div class="test-result js-test-result" data-date="{{ .Time | formatDate8601 }}" data-download="{{printf "%.1f" .DownloadSpeed}}" data-upload="{{printf "%.1f" .UploadSpeed}}">
 						<p>
 							<date>{{ .Time | formatDate }}</date>:
 							{{printf "%d" .Latency.Milliseconds}}&#8239;ms,
