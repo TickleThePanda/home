@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+	<head>
+    <meta charset="utf-8">
+		<title>Raspberry Pi Timelapse Camera - Images</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="{{ .SiteInfo.SiteRoot }}/static/speed-test.css">
+		<link rel="stylesheet" href="{{ .SiteInfo.SharedAssetsSite }}/main.css">
+	</head>
+	<body>
+		<main class="content">
+            <a href="{{ .SiteInfo.SiteRoot }}/">Back</a>
+			<h1>Images</h1>
+
+            <a href="{{ .SiteInfo.SiteRoot }}/images/latest/">Latest</a>
+            <ul>
+                {{range .Images}}
+                    <li><a href="{{$.SiteInfo.SiteRoot}}/images/{{.Timestamp}}/">{{.Timestamp}}</a>
+                {{end}}
+            </ul>
+            
+		</main>
+	</body>
+</html>

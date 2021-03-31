@@ -1,8 +1,8 @@
 package main
 
 import (
+	"log"
 	"os"
-	"time"
 )
 
 func main() {
@@ -10,6 +10,10 @@ func main() {
 	siteRoot := os.Getenv("RPI_CAMERA_SITE_ROOT")
 	if siteRoot == "" {
 		siteRoot = ""
+	}
+	sharedAssets := os.Getenv("RPI_CAMERA_SHARED_ASSETS_SITE")
+	if siteRoot == "" {
+		sharedAssets = ""
 	}
 
 	storageDirectory := os.Getenv("RPI_CAMERA_STORAGE_DIR")
@@ -21,32 +25,26 @@ func main() {
 		StorageDirectory: storageDirectory,
 	}
 
-	capturer := &ImageCapturer{}
-
-	timelapse := &TimelapseSettings{
-		Name:     "test",
-		Interval: (time.Duration(30) * time.Second),
-		Camera: CameraSettings{
-			HFlip:  false,
-			VFlip:  false,
-			Width:  640,
-			Height: 480,
-		},
-	}
-
 	timelapseCamera := &TimelapseCamera{
-		ImageCapturer: capturer,
-		Store:         store,
+		Store: store,
 	}
 
 	store.Init()
-	store.SetCurrentTimelapse(timelapse)
 
-	timelapseCamera.StartTimelapse(timelapse)
+	timelapse, err := store.GetCurrentTimelapse()
+	if err != nil {
+		log.Printf("Unable to get current timelapse: %s", err.Error())
+	} else {
+		log.Printf("Starting existing timelapse %+v", timelapse)
+		go timelapseCamera.StartTimelapse(timelapse)
+	}
 
 	handleRequests(
-		siteRoot,
+		&SiteInfo{
+			SiteRoot:         siteRoot,
+			SharedAssetsSite: sharedAssets,
+		},
 		store,
-		capturer,
+		timelapseCamera,
 	)
 }

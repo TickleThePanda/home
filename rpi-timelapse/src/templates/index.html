@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+	<head>
+    <meta charset="utf-8">
+		<title>Raspberry Pi Timelapse Camera</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="{{ .SiteInfo.SiteRoot }}/static/speed-test.css">
+		<link rel="stylesheet" href="{{ .SiteInfo.SharedAssetsSite }}/main.css">
+	</head>
+	<body>
+		<main class="content">
+			<h1>Raspberry Pi Timelapse Camera</h1>
+			<h2>New timelapse</h2>
+			<form action="." method="post">
+				<label for="timelapse-name">Name</label>
+				<input type="text" name="timelapse-name" id="timelapse-name"></input>
+				<label for="timelapse-interval">Interval (seconds)</label>
+				<input type="number" step="1" min="0" id="timelapse-interval" name="timelapse-interval"></input>
+				<button type="submit">Create</button>
+			</form>
+
+			<h2>Current timelapse</h2>
+			<p><a href="{{ .SiteInfo.SiteRoot }}/images/">Current timelapse images</a>
+
+			<h2>Now</h2>
+			<img src="{{ .SiteInfo.SiteRoot }}/images/now/">
+		</main>
+	</body>
+</html>
