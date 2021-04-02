@@ -27,6 +27,13 @@ spec:
                 name: speed-test
                 port:
                   number: 80
+          - path: /timelapse
+            pathType: Prefix
+            backend:
+              service:
+                name: timelapse
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
