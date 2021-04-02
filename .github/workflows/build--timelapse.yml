@@ -26,7 +26,7 @@ jobs:
         run: |
           docker buildx build --push \
           --tag ticklethepanda/timelapse:latest \
-          --platform linux/amd64,linux/arm/v7,linux/arm64 ./rpi-timelapse
+          --platform linux/arm/v7 ./rpi-timelapse
       - name: Setup k8s context
         uses: azure/k8s-set-context@v1
         with:
