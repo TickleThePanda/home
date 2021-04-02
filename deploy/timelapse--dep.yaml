@@ -42,7 +42,7 @@ spec:
             claimName: timelapse-pvc
         - name: timelapse-vcsm-cma
           hostPath:
-            path: /dev/vcsm
+            path: /dev/vcsm-cma
         - name: timelapse-vchiq
           hostPath:
             path: /dev/vchiq
