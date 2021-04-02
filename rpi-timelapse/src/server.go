@@ -52,8 +52,8 @@ var DEFAULT_CAMERA_SETTINGS CameraSettings = CameraSettings{
 var NOW_CAMERA_SETTINGS CameraSettings = CameraSettings{
 	HFlip:    false,
 	VFlip:    false,
-	Width:    1600,
-	Height:   1080,
+	Width:    640,
+	Height:   480,
 	Rotation: 180,
 }
 
