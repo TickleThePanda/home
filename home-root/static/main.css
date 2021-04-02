@@ -48,3 +48,20 @@ a:visited {
 a:hover {
 	text-decoration: underline;
 }
+
+label, input, button {
+	display: block;
+}
+button {
+	margin-top: 1rem;
+}
+label {
+	margin-top: 0.5em;
+}
+input {
+	margin-top: 0.25em;
+}
+
+.button--tight {
+	margin: 0;
+}
