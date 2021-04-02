@@ -61,7 +61,7 @@ func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writ
 			fmt.Fprintf(os.Stderr, "%v\n", x)
 		}
 	}()
+	defer c.Mutex.Unlock()
 	c.Mutex.Lock()
 	raspicam.Capture(s, w, errCh)
-	c.Mutex.Unlock()
 }
