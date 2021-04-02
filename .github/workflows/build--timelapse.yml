@@ -5,6 +5,7 @@ on:
     branches: main
     paths:
     - rpi-timelapse/**
+    - .github/workflows/build--timelapse.yml
 
 jobs:
   build:
