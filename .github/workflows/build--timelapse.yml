@@ -48,6 +48,6 @@ jobs:
         run: kubectl rollout restart deployment/timelapse-deployment --namespace=home
       # prevent huge cache
       - name: Move cache
-        run:
+        run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
