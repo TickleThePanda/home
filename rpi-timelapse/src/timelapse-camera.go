@@ -50,7 +50,7 @@ func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writ
 	s.Camera.HFlip = cameraSettings.HFlip
 	s.Camera.Rotation = cameraSettings.Rotation
 	s.Args = []string{"--flicker", "50hz"}
-	s.Camera.MeteringMode = raspicam.MeteringAverage
+	s.Camera.MeteringMode = raspicam.MeteringSpot
 	s.Width = cameraSettings.Width
 	s.Height = cameraSettings.Height
 	s.Encoding = raspicam.EncodingPNG
