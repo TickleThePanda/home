@@ -49,10 +49,10 @@ func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writ
 	s.Camera.VFlip = cameraSettings.VFlip
 	s.Camera.HFlip = cameraSettings.HFlip
 	s.Camera.Rotation = cameraSettings.Rotation
-	s.Camera.MeteringMode = raspicam.MeteringMatrix
-	s.Camera.AWBMode = raspicam.AWBCloudy
+	s.Camera.MeteringMode = raspicam.MeteringAverage
+	s.Camera.AWBMode = raspicam.AWBOff
 	s.Camera.ISO = 200
-	s.Args = []string{"--flicker", "50hz"}
+	s.Args = []string{"--flicker", "50hz", "-awbg", "1.6,1.8", "--drc", "high"}
 	s.Width = cameraSettings.Width
 	s.Height = cameraSettings.Height
 	s.Encoding = raspicam.EncodingPNG
