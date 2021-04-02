@@ -33,7 +33,7 @@ spec:
         - mountPath: /dev/vchiq
           name: timelapse-vchiq
       securityContext:
-        runAsGroup: 44
+        privileged: true
       tolerations:
       - key: "pi-camera"
         operator: "Exists"
