@@ -32,6 +32,8 @@ spec:
           name: timelapse-vcsm-cma
         - mountPath: /dev/vchiq
           name: timelapse-vchiq
+      securityContext:
+        runAsGroup: 44
       tolerations:
       - key: "pi-camera"
         operator: "Exists"
