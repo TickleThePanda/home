@@ -23,11 +23,22 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: build the image
-        run: |
-          docker buildx build --push \
-          --tag ticklethepanda/rpi-timelapse:latest \
-          --platform linux/arm/v7 ./rpi-timelapse
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-timelapse-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-timelapse-
+      - name: Build and push
+        uses: 
+        with:
+          context: ./rpi-timelapse
+          platforms: linux/arm/v7
+          push: true
+          tags: ticklethepanda/rpi-timelapse:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
       - name: Setup k8s context
         uses: azure/k8s-set-context@v1
         with:
@@ -35,3 +46,8 @@ jobs:
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
       - name: Rollout latest image
         run: kubectl rollout restart deployment/timelapse-deployment --namespace=home
+      # prevent huge cache
+      - name: Move cache
+        run:
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
