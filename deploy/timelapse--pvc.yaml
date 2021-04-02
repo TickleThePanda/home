@@ -1,0 +1,14 @@
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: timelapse-pvc
+  namespace: home
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-storage
+  volumeName: timelapse-pv
+  resources:
+    requests:
+      storage: 16Gi

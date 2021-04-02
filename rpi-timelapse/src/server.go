@@ -46,15 +46,15 @@ var DEFAULT_CAMERA_SETTINGS CameraSettings = CameraSettings{
 	VFlip:    false,
 	Width:    1600,
 	Height:   1080,
-	Rotation: 270,
+	Rotation: 180,
 }
 
 var NOW_CAMERA_SETTINGS CameraSettings = CameraSettings{
 	HFlip:    false,
 	VFlip:    false,
-	Width:    320,
-	Height:   240,
-	Rotation: 270,
+	Width:    1600,
+	Height:   1080,
+	Rotation: 180,
 }
 
 func (ih *ImageResultHander) GetLatestImage(w http.ResponseWriter, r *http.Request) {
