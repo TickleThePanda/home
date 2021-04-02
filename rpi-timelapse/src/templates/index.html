@@ -10,6 +10,13 @@
 	<body>
 		<main class="content">
 			<h1>Raspberry Pi Timelapse Camera</h1>
+
+			<h2>Preview</h2>
+			<img src="{{ .SiteInfo.SiteRoot }}/images/now/">
+
+			<h2>Current timelapse</h2>
+			<p><a href="{{ .SiteInfo.SiteRoot }}/images/">Current timelapse images</a>
+
 			<h2>New timelapse</h2>
 			<form action="." method="post">
 				<label for="timelapse-name">Name</label>
@@ -19,11 +26,6 @@
 				<button type="submit">Create</button>
 			</form>
 
-			<h2>Current timelapse</h2>
-			<p><a href="{{ .SiteInfo.SiteRoot }}/images/">Current timelapse images</a>
-
-			<h2>Now</h2>
-			<img src="{{ .SiteInfo.SiteRoot }}/images/now/">
 		</main>
 	</body>
 </html>
