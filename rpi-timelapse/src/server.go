@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"html/template"
 	"log"
@@ -11,11 +12,14 @@ import (
 	"github.com/gorilla/mux"
 )
 
+//go:embed templates/*
+var templatesFs embed.FS
+
 type ImageResultHander struct {
 	SiteInfo  *SiteInfo
 	Store     *TimelapseStore
 	Camera    *TimelapseCamera
-	Templates *Templates
+	Templates *template.Template
 }
 
 type Templates struct {
@@ -78,7 +82,7 @@ func (ih *ImageResultHander) GetImageNamePage(w http.ResponseWriter, r *http.Req
 		})
 	}
 
-	ih.Templates.Images.Execute(w, ImagesPageResponseData{
+	ih.Templates.ExecuteTemplate(w, "images", ImagesPageResponseData{
 		Images:   images,
 		SiteInfo: ih.SiteInfo,
 	})
@@ -108,10 +112,7 @@ func (ih *ImageResultHander) GetCurrentImage(w http.ResponseWriter, r *http.Requ
 
 func handleRequests(siteInfo *SiteInfo, store *TimelapseStore, capturer *TimelapseCamera) {
 
-	templates := &Templates{
-		Index:  template.Must(template.ParseFiles("./src/templates/index.html")),
-		Images: template.Must(template.ParseFiles("./src/templates/images.html")),
-	}
+	templates := template.Must(template.ParseFS(templatesFs, "templates/*.html"))
 
 	handler := &ImageResultHander{
 		SiteInfo:  siteInfo,
@@ -129,7 +130,7 @@ func handleRequests(siteInfo *SiteInfo, store *TimelapseStore, capturer *Timelap
 		Path(siteInfo.SiteRoot + "/").
 		Methods("GET").
 		HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			templates.Index.Execute(rw, IndexPageResponseData{
+			templates.ExecuteTemplate(rw, "index", IndexPageResponseData{
 				SiteInfo: siteInfo,
 			})
 		})
