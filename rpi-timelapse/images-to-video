@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+TIME=$(date -I)
+DIR="./convert/$TIME"
+SERVER=k8s-camera-node-1.local
+REMOTE_DIR=/mnt/disk/timelapse/$1/images/*
+
+mkdir -p $DIR
+
+scp $SERVER:$REMOTE_DIR $DIR
+
+mencoder 'mf://$DIR/*.png' -mf w=800:h=600:fps=25:type=png -ovc copy -oac copy -o $DIR/output.avi
+
+
