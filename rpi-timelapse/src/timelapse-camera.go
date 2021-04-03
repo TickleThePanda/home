@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -12,12 +13,18 @@ import (
 )
 
 type TimelapseCamera struct {
-	Store         *TimelapseStore
-	CurrentTicker *time.Ticker
-	Mutex         sync.Mutex
+	Store            *TimelapseStore
+	CurrentTicker    *time.Ticker
+	Mutex            sync.Mutex
+	RequestsChannel  chan<- *CameraSettings
+	ResponsesChannel <-chan *bytes.Reader
 }
 
 func (tt *TimelapseCamera) StartTimelapse(t *TimelapseSettings) {
+
+	reqs, res := tt.CameraServer()
+	tt.RequestsChannel = reqs
+	tt.ResponsesChannel = res
 
 	if tt.CurrentTicker != nil {
 		tt.CurrentTicker.Stop()
@@ -43,33 +50,52 @@ func (tt *TimelapseCamera) StartTimelapse(t *TimelapseSettings) {
 
 }
 
-func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writer) {
-	log.Printf("Camera settings for capture: %+v", cameraSettings)
-	s := raspicam.NewStill()
-	s.Camera.VFlip = cameraSettings.VFlip
-	s.Camera.HFlip = cameraSettings.HFlip
-	s.Camera.Rotation = cameraSettings.Rotation
-	s.Camera.MeteringMode = raspicam.MeteringAverage
-	s.Camera.AWBMode = raspicam.AWBOff
-	s.Camera.ISO = 200
-	s.Args = []string{"--flicker", "50hz", "-awbg", "1.7,1.9", "--drc", "high"}
-	s.Width = cameraSettings.Width
-	s.Height = cameraSettings.Height
-	s.Encoding = raspicam.EncodingPNG
-	s.Timeout = time.Duration(1) * time.Minute
+func (c *TimelapseCamera) CameraServer() (requests chan<- *CameraSettings, responses <-chan *bytes.Reader) {
+	reqs := make(chan *CameraSettings, 1)
+	ress := make(chan *bytes.Reader, 1)
 
-	errCh := make(chan error)
 	go func() {
-		for x := range errCh {
-			fmt.Fprintf(os.Stderr, "%v\n", x)
+		for cameraSettings := range reqs {
+
+			s := raspicam.NewStill()
+			s.Camera.VFlip = cameraSettings.VFlip
+			s.Camera.HFlip = cameraSettings.HFlip
+			s.Camera.Rotation = cameraSettings.Rotation
+			s.Camera.MeteringMode = raspicam.MeteringAverage
+			s.Camera.AWBMode = raspicam.AWBOff
+			s.Camera.ISO = 200
+			s.Args = []string{"--flicker", "50hz", "-awbg", "1.7,1.9", "--drc", "high"}
+			s.Width = cameraSettings.Width
+			s.Height = cameraSettings.Height
+			s.Encoding = raspicam.EncodingPNG
+
+			errCh := make(chan error)
+			go func() {
+				for x := range errCh {
+					fmt.Fprintf(os.Stderr, "%v\n", x)
+				}
+			}()
+
+			var b *bytes.Buffer = &bytes.Buffer{}
+			log.Println("Capturing image")
+			raspicam.Capture(s, b, errCh)
+			log.Println("Returning image")
+			ress <- bytes.NewReader(b.Bytes())
 		}
 	}()
-	c.Mutex.Lock()
-	log.Println("Reserved camera - taking photo")
-	defer func() {
-		c.Mutex.Unlock()
-		log.Println("Freed camera")
-	}()
-	raspicam.Capture(s, w, errCh)
-	log.Println("Finished taking photo")
+
+	return reqs, ress
+}
+
+func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writer) {
+
+	log.Println("Requesting image")
+	c.RequestsChannel <- cameraSettings
+	reader := <-c.ResponsesChannel
+	log.Println("Receiving image")
+	_, err := io.Copy(w, reader)
+	if err != nil {
+		log.Printf("Error copying %s", err.Error())
+	}
+
 }
