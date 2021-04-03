@@ -1,4 +1,13 @@
-FROM alpine:3.12 AS camera-binaries
+# Version 3.13 on Raspberry Pi is not able to access network and the
+# easiest workaround is to use 3.12.
+# https://gitlab.alpinelinux.org/alpine/aports/-/issues/12091
+ARG ALPINE_VERSION=3.12
+
+# Build raspistill as part of the Raspberry PI userland binaries. We
+# build use alpine to do this to ensure that references to mtrace and
+# execinfo aren't included in the final binaries. mtrace and execinfo
+# aren't easily available on alpine.
+FROM alpine:${ALPINE_VERSION} AS camera-binaries
 
 RUN mkdir /build
 WORKDIR /build
@@ -16,11 +25,38 @@ RUN git clone https://github.com/raspberrypi/userland.git . && \
 
 RUN mkdir build && \
     cd build && \
-    CXX=g++ cmake -DHAVE_MTRACE=false -DSKIP_TAINTED_CHECK=true -DCMAKE_BUILD_TYPE=armv71 -DARM64=OFF ../ && \
-    make && \
+    CXX=g++ cmake \ 
+        -DSKIP_TAINTED_CHECK=true \
+        -DCMAKE_BUILD_TYPE=armv71 \
+        -DARM64=OFF \
+        --target raspistill \
+        ../ && \
+    make -j4 --output-sync=recurse && \
     make install
 
-FROM golang:alpine3.12
+
+# Build the timelapse binary.
+FROM golang:alpine${ALPINE_VERSION} as go-build
+
+RUN apk add --update --no-cache \
+    g++
+
+RUN mkdir /app
+WORKDIR /app
+
+COPY go.* ./
+RUN go mod download
+
+COPY src/ src/
+
+RUN go vet src/*.go
+RUN go build -o timelapse src/*.go
+
+
+# Build the web application image
+FROM alpine:${ALPINE_VERSION}
+
+WORKDIR /app
 
 RUN apk add --update --no-cache \
     libc6-compat \
@@ -31,16 +67,8 @@ COPY --from=camera-binaries /opt/vc /opt/vc
 ENV PATH="${PATH}:/opt/vc/bin"
 ENV LD_LIBRARY_PATH="/opt/vc/lib"
 
-RUN mkdir /app
-WORKDIR /app
-COPY go.* ./
-RUN go mod download
-
-COPY src/ src/
-
-RUN go vet *.go
+COPY --from=go-build /app/timelapse /app
 
 VOLUME /data
 
-CMD go run src/*.go
-
+CMD ./timelapse
