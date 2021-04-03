@@ -56,6 +56,7 @@ func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writ
 	s.Width = cameraSettings.Width
 	s.Height = cameraSettings.Height
 	s.Encoding = raspicam.EncodingPNG
+	s.Timeout = time.Duration(1) * time.Minute
 
 	errCh := make(chan error)
 	go func() {
