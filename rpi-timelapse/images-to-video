@@ -9,6 +9,4 @@ mkdir -p $DIR
 
 scp $SERVER:$REMOTE_DIR $DIR
 
-mencoder 'mf://$DIR/*.png' -mf w=800:h=600:fps=25:type=png -ovc copy -oac copy -o $DIR/output.avi
-
-
+mencoder 'mf://$DIR/*.png' -mf w=800:h=600:fps=25:type=png -ovc copy -oac copy -o "$DIR/output.avi"
