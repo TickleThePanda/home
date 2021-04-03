@@ -65,10 +65,11 @@ func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writ
 		}
 	}()
 	c.Mutex.Lock()
-	log.Println("Reserved camera")
+	log.Println("Reserved camera - taking photo")
 	defer func() {
 		c.Mutex.Unlock()
 		log.Println("Freed camera")
 	}()
 	raspicam.Capture(s, w, errCh)
+	log.Println("Finished taking photo")
 }
