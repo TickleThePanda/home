@@ -70,6 +70,12 @@ func (store *TimelapseStore) InitTimelapseDirs() error {
 
 func (store *TimelapseStore) SetCurrentTimelapse(t *TimelapseSettings) (*TimelapseSettings, error) {
 	file, err := os.OpenFile(store.StorageDirectory+"/current", os.O_RDWR|os.O_CREATE, 0755)
+	defer func ()  {
+		err := file.Close()
+		if err != nil {
+			log.Printf("Error closing timelapse file: ", err.Error())
+		}
+	}()
 	if err != nil {
 		return nil, fmt.Errorf("unable to start new timelapse: %w", err)
 	}
@@ -94,6 +100,12 @@ func (store *TimelapseStore) SetCurrentTimelapse(t *TimelapseSettings) (*Timelap
 func (store *TimelapseStore) GetCurrentTimelapse() (*TimelapseSettings, error) {
 	if store.CurrentTimelapse == nil {
 		file, err := os.OpenFile(store.StorageDirectory+"/current", os.O_RDWR|os.O_CREATE, 0755)
+		defer func ()  {
+			err := file.Close()
+			if err != nil {
+				log.Printf("Error closing timelapse file: ", err.Error())
+			}
+		}()
 		if err != nil {
 			return nil, fmt.Errorf("unable to get current timelapse: %w", err)
 		}
@@ -125,25 +137,22 @@ func (store *TimelapseStore) StoreImage(imageCapturer func(*CameraSettings, io.W
 	}
 
 	filePath := store.TimelapseImageDir(t) + "/" + time.Now().Format(time.RFC3339)
+
 	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0755)
 	store.OpenFiles[filePath] = true
+	defer func ()  {
+		delete(store.OpenFiles, filePath)
+		err := file.Close()
+		err != nil {
+			log.Printf("Unable to close file: %s", err.Error())
+		}
+	}()
 
 	if err != nil {
-		delete(store.OpenFiles, filePath)
-		closeErr := file.Close()
-		if closeErr != nil {
-			log.Printf("unable to close file: %s", err.Error())
-		}
 		return fmt.Errorf("unable to store new image: %w", err)
 	}
 
 	imageCapturer(&t.Camera, file)
-
-	closeErr := file.Close()
-	if closeErr != nil {
-		log.Printf("unable to close file: %s", err.Error())
-	}
-	delete(store.OpenFiles, filePath)
 
 	return nil
 }
@@ -159,6 +168,13 @@ func (store *TimelapseStore) ImageNames() ([]string, error) {
 	path := store.TimelapseImageDir(t)
 
 	dir, err := os.OpenFile(path, os.O_RDONLY, 0755)
+	defer func ()  {
+		err := dir.Close()
+		if err != nil {
+			log.Println("Unable to close timelapse dir: %s", err.Error())
+		}
+	}()
+
 	if err != nil {
 		return nil, fmt.Errorf("unable to get image names: %w", err)
 	}
@@ -196,22 +212,25 @@ func (store *TimelapseStore) ImageByName(name string, w io.Writer) error {
 
 	path := store.TimelapseImageDir(t) + "/" + name
 
+	log.Printf("Waiting for image to be written: %s", path)
 	for store.OpenFiles[path] {
 		time.Sleep(time.Duration(100) * time.Millisecond)
 	}
+	log.Printf("Finished waiting for image to be written: %s", path)
 
 	imageFile, err := os.OpenFile(path, os.O_RDONLY, 0755)
+	defer func(){
+		err := imageFile.Close()
+		if err != nil {
+			return log.Println("unable to close file: %s", err.Error())
+		}
+	}()
 
 	if err != nil {
 		return fmt.Errorf("unable to get latest timelapse: %w", err)
 	}
 
 	io.Copy(w, imageFile)
-
-	errClose := imageFile.Close()
-	if errClose != nil {
-		return fmt.Errorf("unable to close file file: %w", err)
-	}
 
 	return nil
 }

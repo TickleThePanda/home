@@ -52,7 +52,7 @@ func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writ
 	s.Camera.MeteringMode = raspicam.MeteringAverage
 	s.Camera.AWBMode = raspicam.AWBOff
 	s.Camera.ISO = 200
-	s.Args = []string{"--flicker", "50hz", "-awbg", "1.6,1.8", "--drc", "high"}
+	s.Args = []string{"--flicker", "50hz", "-awbg", "1.7,1.9", "--drc", "high"}
 	s.Width = cameraSettings.Width
 	s.Height = cameraSettings.Height
 	s.Encoding = raspicam.EncodingPNG
@@ -63,7 +63,11 @@ func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writ
 			fmt.Fprintf(os.Stderr, "%v\n", x)
 		}
 	}()
-	defer c.Mutex.Unlock()
 	c.Mutex.Lock()
+	log.Println("Reserved camera")
+	defer func() {
+		c.Mutex.Unlock()
+		log.Println("Freed camera")
+	}()
 	raspicam.Capture(s, w, errCh)
 }
