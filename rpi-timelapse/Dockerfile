@@ -16,14 +16,16 @@ RUN apk add --update --no-cache \
     cmake \
     gcc \
     g++ \
-    git \
     linux-headers \
     make
 
-RUN git clone https://github.com/raspberrypi/userland.git . && \
-    git checkout 3fd8527eefd8790b4e8393458efc5f94eb21a615 --quiet
+ARG USERLAND_COMMIT=3fd8527eefd8790b4e8393458efc5f94eb21a615
+RUN wget "https://github.com/raspberrypi/userland/archive/$USERLAND_COMMIT.zip" -O userland.zip && \
+    unzip userland.zip && \
+    rm userland.zip
 
-RUN mkdir build && \
+RUN cd userland-${USERLAND_COMMIT} && \
+    mkdir build && \
     cd build && \
     CXX=g++ cmake \ 
         -DSKIP_TAINTED_CHECK=true \
@@ -33,7 +35,6 @@ RUN mkdir build && \
         ../ && \
     make -j4 --output-sync=recurse && \
     make install
-
 
 # Build the timelapse binary.
 FROM golang:alpine${ALPINE_VERSION} as go-build
