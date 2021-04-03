@@ -82,7 +82,7 @@ func (ih *ImageResultHander) GetImageNamePage(w http.ResponseWriter, r *http.Req
 		})
 	}
 
-	ih.Templates.ExecuteTemplate(w, "images", ImagesPageResponseData{
+	ih.Templates.ExecuteTemplate(w, "images.html", ImagesPageResponseData{
 		Images:   images,
 		SiteInfo: ih.SiteInfo,
 	})
@@ -130,7 +130,7 @@ func handleRequests(siteInfo *SiteInfo, store *TimelapseStore, capturer *Timelap
 		Path(siteInfo.SiteRoot + "/").
 		Methods("GET").
 		HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			templates.ExecuteTemplate(rw, "index", IndexPageResponseData{
+			templates.ExecuteTemplate(rw, "index.html", IndexPageResponseData{
 				SiteInfo: siteInfo,
 			})
 		})
