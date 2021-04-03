@@ -38,6 +38,8 @@ RUN go mod download
 
 COPY src/ src/
 
+RUN go vet *.go
+
 VOLUME /data
 
 CMD go run src/*.go

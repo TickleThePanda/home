@@ -70,10 +70,10 @@ func (store *TimelapseStore) InitTimelapseDirs() error {
 
 func (store *TimelapseStore) SetCurrentTimelapse(t *TimelapseSettings) (*TimelapseSettings, error) {
 	file, err := os.OpenFile(store.StorageDirectory+"/current", os.O_RDWR|os.O_CREATE, 0755)
-	defer func ()  {
+	defer func() {
 		err := file.Close()
 		if err != nil {
-			log.Printf("Error closing timelapse file: ", err.Error())
+			log.Printf("Error closing timelapse file: %s", err.Error())
 		}
 	}()
 	if err != nil {
@@ -100,10 +100,10 @@ func (store *TimelapseStore) SetCurrentTimelapse(t *TimelapseSettings) (*Timelap
 func (store *TimelapseStore) GetCurrentTimelapse() (*TimelapseSettings, error) {
 	if store.CurrentTimelapse == nil {
 		file, err := os.OpenFile(store.StorageDirectory+"/current", os.O_RDWR|os.O_CREATE, 0755)
-		defer func ()  {
+		defer func() {
 			err := file.Close()
 			if err != nil {
-				log.Printf("Error closing timelapse file: ", err.Error())
+				log.Printf("Error closing timelapse file: %s", err.Error())
 			}
 		}()
 		if err != nil {
@@ -140,10 +140,10 @@ func (store *TimelapseStore) StoreImage(imageCapturer func(*CameraSettings, io.W
 
 	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0755)
 	store.OpenFiles[filePath] = true
-	defer func ()  {
+	defer func() {
 		delete(store.OpenFiles, filePath)
 		err := file.Close()
-		err != nil {
+		if err != nil {
 			log.Printf("Unable to close file: %s", err.Error())
 		}
 	}()
@@ -168,10 +168,10 @@ func (store *TimelapseStore) ImageNames() ([]string, error) {
 	path := store.TimelapseImageDir(t)
 
 	dir, err := os.OpenFile(path, os.O_RDONLY, 0755)
-	defer func ()  {
+	defer func() {
 		err := dir.Close()
 		if err != nil {
-			log.Println("Unable to close timelapse dir: %s", err.Error())
+			log.Printf("Unable to close timelapse dir: %s", err.Error())
 		}
 	}()
 
@@ -219,10 +219,10 @@ func (store *TimelapseStore) ImageByName(name string, w io.Writer) error {
 	log.Printf("Finished waiting for image to be written: %s", path)
 
 	imageFile, err := os.OpenFile(path, os.O_RDONLY, 0755)
-	defer func(){
+	defer func() {
 		err := imageFile.Close()
 		if err != nil {
-			return log.Println("unable to close file: %s", err.Error())
+			log.Printf("unable to close file: %s", err.Error())
 		}
 	}()
 
