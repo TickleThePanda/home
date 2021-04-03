@@ -124,7 +124,7 @@ func (store *TimelapseStore) GetCurrentTimelapse() (*TimelapseSettings, error) {
 	}
 }
 
-func (store *TimelapseStore) StoreImage(imageCapturer func(*CameraSettings, io.Writer)) error {
+func (store *TimelapseStore) StoreImage(imageCapturer func(*CameraSettings, io.Writer) error) error {
 
 	err := store.InitTimelapseDirs()
 	if err != nil {
@@ -152,7 +152,15 @@ func (store *TimelapseStore) StoreImage(imageCapturer func(*CameraSettings, io.W
 		return fmt.Errorf("unable to store new image: %w", err)
 	}
 
-	imageCapturer(&t.Camera, file)
+	captureErr := imageCapturer(&t.Camera, file)
+	if captureErr != nil {
+		log.Printf("Deleting failed image %v", filePath)
+		removeErr := os.Remove(filePath)
+		if removeErr != nil {
+			return fmt.Errorf("unable to capture image and clean up after: %w and %v", captureErr, removeErr)
+		}
+		return fmt.Errorf("unable to capture image: %w", captureErr)
+	}
 
 	return nil
 }
@@ -212,11 +220,13 @@ func (store *TimelapseStore) ImageByName(name string, w io.Writer) error {
 
 	path := store.TimelapseImageDir(t) + "/" + name
 
-	log.Printf("Waiting for image to be written: %s", path)
-	for store.OpenFiles[path] {
-		time.Sleep(time.Duration(100) * time.Millisecond)
+	if store.OpenFiles[path] {
+		log.Printf("Waiting for image to be written: %s", path)
+		for store.OpenFiles[path] {
+			time.Sleep(time.Duration(100) * time.Millisecond)
+		}
+		log.Printf("Finished waiting for image to be written: %s", path)
 	}
-	log.Printf("Finished waiting for image to be written: %s", path)
 
 	imageFile, err := os.OpenFile(path, os.O_RDONLY, 0755)
 	defer func() {
