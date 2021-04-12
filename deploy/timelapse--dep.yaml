@@ -60,4 +60,3 @@ spec:
         - name: timelapse-vchiq
           hostPath:
             path: /dev/vchiq
-  backoffLimit: 5
