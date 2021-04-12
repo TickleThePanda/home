@@ -34,6 +34,18 @@ spec:
           name: timelapse-vchiq
         securityContext:
           privileged: true
+        livenessProbe:
+          httpGet:
+            path: "/timelapse/images/now/"
+            port: 10000
+          timeoutSeconds: 60
+          periodSeconds: 3600
+        startupProbe:
+          httpGet:
+            path: "/timelapse/"
+            port: 10000
+          timeoutSeconds: 5
+          periodSeconds: 10
       tolerations:
       - key: "pi-camera"
         operator: "Exists"
