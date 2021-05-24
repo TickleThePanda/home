@@ -69,6 +69,7 @@ func (ih *ImageResultHander) GetLatestImage(w http.ResponseWriter, r *http.Reque
 		w.Write([]byte("Internal server error"))
 	} else {
 		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(http.StatusOK)
 		w.Write(bytes)
 	}
 
@@ -111,16 +112,13 @@ func (ih *ImageResultHander) GetImageByName(w http.ResponseWriter, r *http.Reque
 
 func (ih *ImageResultHander) GetCurrentImage(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Set("Content-Type", "image/png")
-
-	w.WriteHeader(http.StatusOK)
-
 	bytes, err := ih.Camera.CaptureImage(&NOW_CAMERA_SETTINGS)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Internal server error"))
 	} else {
 		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(http.StatusOK)
 		w.Write(bytes)
 	}
 }
