@@ -63,10 +63,15 @@ var NOW_CAMERA_SETTINGS CameraSettings = CameraSettings{
 
 func (ih *ImageResultHander) GetLatestImage(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Set("Content-Type", "image/png")
-	w.WriteHeader(http.StatusOK)
+	bytes, err := ih.Store.LatestImage()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+	} else {
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(bytes)
+	}
 
-	ih.Store.LatestImage(w)
 }
 
 func (ih *ImageResultHander) GetImageNamePage(w http.ResponseWriter, r *http.Request) {
@@ -94,11 +99,14 @@ func (ih *ImageResultHander) GetImageByName(w http.ResponseWriter, r *http.Reque
 
 	name := v["imageName"]
 
-	w.Header().Set("Content-Type", "image/png")
-
-	w.WriteHeader(http.StatusOK)
-
-	ih.Store.ImageByName(name, w)
+	bytes, err := ih.Store.ImageByName(name)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+	} else {
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(bytes)
+	}
 }
 
 func (ih *ImageResultHander) GetCurrentImage(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +115,14 @@ func (ih *ImageResultHander) GetCurrentImage(w http.ResponseWriter, r *http.Requ
 
 	w.WriteHeader(http.StatusOK)
 
-	ih.Camera.CaptureImage(&NOW_CAMERA_SETTINGS, w)
+	bytes, err := ih.Camera.CaptureImage(&NOW_CAMERA_SETTINGS)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal server error"))
+	} else {
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(bytes)
+	}
 }
 
 func handleRequests(siteInfo *SiteInfo, store *TimelapseStore, capturer *TimelapseCamera) {

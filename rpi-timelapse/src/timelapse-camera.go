@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"strings"
 	"sync"
@@ -37,6 +36,7 @@ func (tt *TimelapseCamera) StartTimelapse(t *TimelapseSettings) {
 	go func() {
 		for range tt.CurrentTicker.C {
 			log.Printf("Taking image at triggered interval")
+
 			err := tt.Store.StoreImage(tt.CaptureImage)
 			if err != nil {
 				log.Printf("Error storing image: %s", err.Error())
@@ -52,8 +52,8 @@ func (tt *TimelapseCamera) StartTimelapse(t *TimelapseSettings) {
 }
 
 type ImageResult struct {
-	Reader *bytes.Reader
-	Error  error
+	Bytes []byte
+	Error error
 }
 
 func (c *TimelapseCamera) CameraServer() (requests chan<- *CameraSettings, responses <-chan ImageResult) {
@@ -98,7 +98,7 @@ func (c *TimelapseCamera) CameraServer() (requests chan<- *CameraSettings, respo
 				}
 			} else {
 				ress <- ImageResult{
-					Reader: bytes.NewReader(b.Bytes()),
+					Bytes: b.Bytes(),
 				}
 			}
 		}
@@ -107,21 +107,15 @@ func (c *TimelapseCamera) CameraServer() (requests chan<- *CameraSettings, respo
 	return reqs, ress
 }
 
-func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings, w io.Writer) error {
+func (c *TimelapseCamera) CaptureImage(cameraSettings *CameraSettings) ([]byte, error) {
 
 	log.Println("Requesting image")
 	c.RequestsChannel <- cameraSettings
 	result := <-c.ResponsesChannel
 
 	if result.Error != nil {
-		return fmt.Errorf("error getting image: %w", result.Error)
+		return nil, fmt.Errorf("error getting image: %w", result.Error)
 	}
 
-	log.Println("Receiving image")
-	_, err := io.Copy(w, result.Reader)
-	if err != nil {
-		return fmt.Errorf("error copying: %w", err)
-	}
-
-	return nil
+	return result.Bytes, nil
 }

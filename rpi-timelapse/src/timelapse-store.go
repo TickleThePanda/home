@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/gob"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"sort"
@@ -124,7 +124,7 @@ func (store *TimelapseStore) GetCurrentTimelapse() (*TimelapseSettings, error) {
 	}
 }
 
-func (store *TimelapseStore) StoreImage(imageCapturer func(*CameraSettings, io.Writer) error) error {
+func (store *TimelapseStore) StoreImage(imageCapturer func(*CameraSettings) ([]byte, error)) error {
 
 	err := store.InitTimelapseDirs()
 	if err != nil {
@@ -152,8 +152,10 @@ func (store *TimelapseStore) StoreImage(imageCapturer func(*CameraSettings, io.W
 		return fmt.Errorf("unable to store new image: %w", err)
 	}
 
-	captureErr := imageCapturer(&t.Camera, file)
-	if captureErr != nil {
+	image, captureErr := imageCapturer(&t.Camera)
+	_, writeErr := file.Write(image)
+
+	if captureErr != nil || writeErr != nil {
 		log.Printf("Deleting failed image %v", filePath)
 		removeErr := os.Remove(filePath)
 		if removeErr != nil {
@@ -198,24 +200,24 @@ func (store *TimelapseStore) ImageNames() ([]string, error) {
 
 }
 
-func (store *TimelapseStore) LatestImage(w io.Writer) error {
+func (store *TimelapseStore) LatestImage() ([]byte, error) {
 
 	files, err := store.ImageNames()
 	if err != nil {
-		return fmt.Errorf("unable to get latest timelapse: %w", err)
+		return nil, fmt.Errorf("unable to get latest timelapse: %w", err)
 	}
 
 	lastFile := files[len(files)-1]
 
-	return store.ImageByName(lastFile, w)
+	return store.ImageByName(lastFile)
 
 }
 
-func (store *TimelapseStore) ImageByName(name string, w io.Writer) error {
+func (store *TimelapseStore) ImageByName(name string) ([]byte, error) {
 
 	t, err := store.GetCurrentTimelapse()
 	if err != nil {
-		return fmt.Errorf("unable to get latest timelapse: %w", err)
+		return nil, fmt.Errorf("unable to get latest timelapse: %w", err)
 	}
 
 	path := store.TimelapseImageDir(t) + "/" + name
@@ -237,10 +239,15 @@ func (store *TimelapseStore) ImageByName(name string, w io.Writer) error {
 	}()
 
 	if err != nil {
-		return fmt.Errorf("unable to get latest timelapse: %w", err)
+		return nil, fmt.Errorf("unable to get latest timelapse: %w", err)
 	}
 
-	io.Copy(w, imageFile)
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(imageFile)
 
-	return nil
+	if err != nil {
+		return nil, fmt.Errorf("unable to get latest timelapse: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
