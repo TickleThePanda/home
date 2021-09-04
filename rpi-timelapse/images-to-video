@@ -1,14 +1,38 @@
 #!/usr/bin/env bash
 
-TIME=$(date -I)
-DIR="convert/$TIME"
+TIMELAPSE_ID=$1
+IMAGE_GLOB=${2-"*"}
+INITIAL_DIR="convert/$TIMELAPSE_ID/initial-images"
+PROCESS_DIR="convert/$TIMELAPSE_ID/processed-images"
+VIDEO_DIR="convert/$TIMELAPSE_ID"
 SERVER=k8s-node-camera-1
-REMOTE_DIR=/mnt/disk/timelapse/$1/images/*
-FILE_TYPE='*'
-MENCODER_FILES="mf://$DIR/$FILE_TYPE"
+REMOTE_DIR=/mnt/disk/timelapse/$TIMELAPSE_ID/images/
+MENCODER_FILES="mf://$PROCESS_DIR/$IMAGE_GLOB"
+FPS=6
 
-mkdir -p $DIR
+mkdir -p $INITIAL_DIR $PROCESS_DIR $VIDEO_DIR
 
-rsync -au $SERVER:$REMOTE_DIR $DIR
+rsync -au $SERVER:$REMOTE_DIR/$IMAGE_GLOB $INITIAL_DIR
 
-mencoder $MENCODER_FILES -mf w=800:h=600:fps=2:type=png -ovc copy -oac copy -o "$DIR/output.avi"
+for FRAME in $INITIAL_DIR/$IMAGE_GLOB ; do
+  FILENAME=$(basename $FRAME)
+  if [ ! -f "$PROCESS_DIR/$FILENAME" ]; then
+    echo "Cropping and rotating $FILENAME"
+    convert $FRAME \
+      -alpha off \
+      -sharpen 0x1.0 \
+      -brightness-contrast -10x+20 \
+      $PROCESS_DIR/$FILENAME
+  fi
+done
+
+mencoder $MENCODER_FILES \
+    -mf w=800:h=600:fps=$FPS:type=png \
+    -ovc copy -oac copy \
+    -o "$VIDEO_DIR/output.avi"
+
+ffmpeg -y \
+    -i "$VIDEO_DIR/output.avi" \
+    -c:v libx264 -preset slow -crf 23 \
+    "$VIDEO_DIR/output.mp4"
+
