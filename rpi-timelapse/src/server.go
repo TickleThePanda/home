@@ -175,7 +175,7 @@ func handleRequests(siteInfo *SiteInfo, store *TimelapseStore, capturer *Timelap
   rootRoute := mux.NewRouter()
   rootRoute.
     PathPrefix(siteInfo.SiteRoot+"/static/").
-    Handler(fs)
+    Handler(http.StripPrefix(siteInfo.SiteRoot+"/", fs))
   rootRoute.HandleFunc(siteInfo.SiteRoot+"/images/", handler.GetImageNamePage)
   rootRoute.HandleFunc(siteInfo.SiteRoot+"/images/latest/", handler.GetLatestImage)
   rootRoute.HandleFunc(siteInfo.SiteRoot+"/images/now/", handler.GetCurrentImage)
