@@ -15,6 +15,9 @@ import (
 //go:embed templates/*
 var templatesFs embed.FS
 
+//go:embed static/*
+var staticFs embed.FS
+
 type ImageResultHander struct {
   SiteInfo  *SiteInfo
   Store     *TimelapseStore
@@ -167,12 +170,12 @@ func handleRequests(siteInfo *SiteInfo, store *TimelapseStore, capturer *Timelap
     Templates: templates,
   }
 
-  fs := http.FileServer(http.Dir("./src/static"))
+  fs := http.FileServer(http.FS(staticFs))
 
   rootRoute := mux.NewRouter()
   rootRoute.
     PathPrefix(siteInfo.SiteRoot+"/static/").
-    Handler(http.StripPrefix(siteInfo.SiteRoot+"/static/", fs))
+    Handler(fs)
   rootRoute.HandleFunc(siteInfo.SiteRoot+"/images/", handler.GetImageNamePage)
   rootRoute.HandleFunc(siteInfo.SiteRoot+"/images/latest/", handler.GetLatestImage)
   rootRoute.HandleFunc(siteInfo.SiteRoot+"/images/now/", handler.GetCurrentImage)
