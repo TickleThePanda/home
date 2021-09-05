@@ -39,3 +39,8 @@ form {
 .chart {
 	margin-top: 1em;
 }
+
+.charts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(20em, 100%), 1fr));
+}

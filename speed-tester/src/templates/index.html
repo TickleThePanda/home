@@ -48,14 +48,24 @@
 
 				</div>
 
-				<h2>Last year's entries</h2>
-				<canvas class="js-speed-test-chart--year chart" width="600" height="400"></canvas>
+				<h2>Charts</h2>
 
-				<h2>Last month's entries</h2>
-				<canvas class="js-speed-test-chart--month chart" width="600" height="400"></canvas>
+				<div class="charts">
+					<div class="chart-wrapper">
+						<h3>Today</h3>
+						<canvas class="js-speed-test-chart--day chart" width="600" height="400"></canvas>
+					</div>
+					<div class="chart-wrapper">
+						<h3>Last month</h3>
+						<canvas class="js-speed-test-chart--month chart" width="600" height="400"></canvas>
+					</div>
+					<div class="chart-wrapper">
+						<h3>Last year</h3>
+						<canvas class="js-speed-test-chart--year chart" width="600" height="400"></canvas>
+					</div>
+				</div>
 
-				<h2>Today's entries</h2>
-				<canvas class="js-speed-test-chart--day chart" width="600" height="400"></canvas>
+				<h2>Recent entries</h2>
 
 				{{range .RecentEntries}}
 					<div class="test-result js-test-result" data-date="{{ .Time | formatDate8601 }}" data-download="{{printf "%.1f" .DownloadSpeed}}" data-upload="{{printf "%.1f" .UploadSpeed}}">
