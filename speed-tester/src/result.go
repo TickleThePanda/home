@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type SpeedTestAggregate struct {
+	Time          time.Time
+	Distance      float64
+	Latency       time.Duration
+	DownloadSpeed float64
+	UploadSpeed   float64
+}
+
 type SpeedTestResult struct {
 	Time          time.Time
 	ServerId      string

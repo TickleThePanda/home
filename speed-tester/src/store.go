@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os"
 	"sort"
@@ -18,6 +19,107 @@ func (rs *SpeedTestResults) RecentEntries() []*SpeedTestResult {
 	recentEntries := FilterResultsWithinLast(rs.Entries, time.Duration(24)*time.Hour)
 	sort.Sort(sort.Reverse(ByDate(recentEntries)))
 	return recentEntries
+}
+
+func (rs *SpeedTestResults) LastMonth() []*SpeedTestAggregate {
+
+	recentEntries := FilterResultsWithinLast(rs.Entries, time.Duration(24*30)*time.Hour)
+
+	daysToEntries := make(map[string][]*SpeedTestResult)
+
+	for _, recentEntry := range recentEntries {
+
+		key := recentEntry.Time.Format("2006-01-02")
+
+		if daysToEntries[key] == nil {
+			daysToEntries[key] = make([]*SpeedTestResult, 0)
+		}
+
+		daysToEntries[key] = append(daysToEntries[key], recentEntry)
+
+	}
+
+	monthEntries := make([]*SpeedTestAggregate, 0)
+
+	for key, entries := range daysToEntries {
+		date, err := time.Parse("2006-01-02", key)
+		if err != nil {
+			panic(fmt.Sprintf("Error parsing date: %v", err))
+		}
+		distanceSum := float64(0)
+		latencySum := time.Duration(0)
+		downloadSpeedSum := float64(0)
+		uploadSpeedSum := float64(0)
+
+		for _, entry := range entries {
+			distanceSum += entry.Distance
+			latencySum += entry.Latency
+			downloadSpeedSum += entry.DownloadSpeed
+			uploadSpeedSum += entry.UploadSpeed
+		}
+
+		var count = float64(len(entries))
+
+		monthEntries = append(monthEntries, &SpeedTestAggregate{
+			Time:          date,
+			Distance:      distanceSum / count,
+			Latency:       time.Duration(float64(latencySum.Microseconds())/count) * time.Microsecond,
+			DownloadSpeed: downloadSpeedSum / float64(len(entries)),
+			UploadSpeed:   uploadSpeedSum / float64(len(entries)),
+		})
+	}
+
+	return monthEntries
+}
+
+func (rs *SpeedTestResults) LastYear() []*SpeedTestAggregate {
+	recentEntries := FilterResultsWithinLast(rs.Entries, time.Duration(24*365)*time.Hour)
+
+	daysToEntries := make(map[string][]*SpeedTestResult)
+
+	for _, recentEntry := range recentEntries {
+
+		key := recentEntry.Time.Format("2006-01")
+
+		if daysToEntries[key] == nil {
+			daysToEntries[key] = make([]*SpeedTestResult, 0)
+		}
+
+		daysToEntries[key] = append(daysToEntries[key], recentEntry)
+
+	}
+
+	monthEntries := make([]*SpeedTestAggregate, 0)
+
+	for key, entries := range daysToEntries {
+		date, err := time.Parse("2006-01", key)
+		if err != nil {
+			panic(fmt.Sprintf("Error parsing date: %v", err))
+		}
+		distanceSum := float64(0)
+		latencySum := time.Duration(0)
+		downloadSpeedSum := float64(0)
+		uploadSpeedSum := float64(0)
+
+		for _, entry := range entries {
+			distanceSum += entry.Distance
+			latencySum += entry.Latency
+			downloadSpeedSum += entry.DownloadSpeed
+			uploadSpeedSum += entry.UploadSpeed
+		}
+
+		var count = float64(len(entries))
+
+		monthEntries = append(monthEntries, &SpeedTestAggregate{
+			Time:          date,
+			Distance:      distanceSum / count,
+			Latency:       time.Duration(float64(latencySum.Microseconds())/count) * time.Microsecond,
+			DownloadSpeed: downloadSpeedSum / float64(len(entries)),
+			UploadSpeed:   uploadSpeedSum / float64(len(entries)),
+		})
+	}
+
+	return monthEntries
 }
 
 func (rs *SpeedTestResults) String() string {

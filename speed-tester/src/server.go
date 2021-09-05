@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
@@ -50,6 +51,16 @@ func (sh *SpeedTestResultHandler) Export(w http.ResponseWriter, r *http.Request)
 	sh.Tester.Store.Export(w)
 }
 
+func (sh *SpeedTestResultHandler) GetLastMonth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(sh.Tester.Store.GetResults().LastMonth())
+}
+
+func (sh *SpeedTestResultHandler) GetLastYear(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(sh.Tester.Store.GetResults().LastYear())
+}
+
 func FormatDate8601(t time.Time) string {
 	return t.Format(time.RFC3339)
 }
@@ -93,6 +104,12 @@ func handleRequests(tester *SpeedTester, siteRoot string, sharedAssets string) {
 	r.Path(siteRoot + "/").
 		Methods(http.MethodPost).
 		HandlerFunc(handler.TestNow)
+
+	r.Path(siteRoot + "/history/lastMonth/").
+		HandlerFunc(handler.GetLastMonth)
+
+	r.Path(siteRoot + "/history/lastYear/").
+		HandlerFunc(handler.GetLastYear)
 
 	r.Path(siteRoot + "/export/").
 		HandlerFunc(handler.Export)
