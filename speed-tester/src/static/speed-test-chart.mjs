@@ -4,52 +4,72 @@ buildCharts();
 
 async function buildCharts() {
 
-  {
-    const dayCtx = document.querySelector('.js-speed-test-chart--day').getContext('2d');
-    const data = Array.from(document.querySelectorAll('.js-test-result'))
-      .map(r => ({
-        t: new Date(r.dataset.date),
-        y: parseFloat(r.dataset.download)
-      }));
+  const charts = [
+    {
+      context: document.querySelector('.js-speed-test-chart--day').getContext('2d'),
+      data: () => {
+        const data = Array.from(document.querySelectorAll('.js-test-result'))
+          .map(r => ({
+            t: new Date(r.dataset.date),
+            y: parseFloat(r.dataset.download)
+          }));
 
-    data.reverse();
+        data.reverse();
 
-    generateChart(data, dayCtx);
-  }
+        return data;
+      },
+      unit: 'hour'
+    },
+    {
+      context: document.querySelector('.js-speed-test-chart--month').getContext('2d'),
+      data: async () => {
+        const response = await fetch(`${SITE_ROOT}/history/lastMonth/`);
+        const data = await response.json();
+        const mapped = data.map(r => ({
+          t: new Date(r.Time),
+          y: parseFloat(r.DownloadSpeed)
+        }));
 
-  {
-    const monthCtx = document.querySelector('.js-speed-test-chart--month').getContext('2d');
-    const response = await fetch(`${SITE_ROOT}/history/lastMonth/`);
-    const data = await response.json();
-    const mapped = data.map(r => ({
-      t: new Date(r.Time),
-      y: parseFloat(r.DownloadSpeed)
-    }));
+        mapped.sort((a, b) => a.t - b.t);
 
-    mapped.sort((a, b) => a.t - b.t);
+        return mapped;
+      },
+      unit: 'day'
+    },
+    {
+      context: document.querySelector('.js-speed-test-chart--year').getContext('2d'),
+      data: async () => {
+        const response = await fetch(`${SITE_ROOT}/history/lastYear/`);
+        const data = await response.json();
+        const mapped = data.map(r => ({
+          t: new Date(r.Time),
+          y: parseFloat(r.DownloadSpeed)
+        }));
 
-    generateChart(mapped, monthCtx);
-  }
+        mapped.sort((a, b) => a.t - b.t);
 
+        return mapped;
+      },
+      unit: 'month'
+    }
 
-  {
-    const yearCtx = document.querySelector('.js-speed-test-chart--year').getContext('2d');
-    const response = await fetch(`${SITE_ROOT}/history/lastYear/`);
-    const data = await response.json();
-    const mapped = data.map(r => ({
-      t: new Date(r.Time),
-      y: parseFloat(r.DownloadSpeed)
-    }));
+  ]
 
-    mapped.sort((a, b) => a.t - b.t);
-
-    generateChart(mapped, yearCtx);
-  }
-
-
+  charts.forEach(async (c) => {
+    const data = await c.data();
+    generateChart({
+      data,
+      context: c.context,
+      unit: c.unit
+    });
+  })
 }
 
-async function generateChart(data, context) {
+async function generateChart({
+  data,
+  unit,
+  context
+}) {
   const chartParameters = {
     type: 'line',
     data: {
@@ -77,6 +97,9 @@ async function generateChart(data, context) {
           },
           ticks: {
             fontColor: '#eee'
+          },
+          time: {
+            unit
           }
         }],
         yAxes: [{
