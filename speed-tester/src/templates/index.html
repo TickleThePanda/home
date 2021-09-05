@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 	<head>
-    <meta charset="utf-8">
+		<meta charset="utf-8">
 		<title>Speed tests</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="stylesheet" href="{{ .SiteInfo.SiteRoot }}/static/speed-test.css">
@@ -13,6 +13,7 @@
 	<body>
 		<main class="content">
 			<h1>Speed test results</h1>
+			<a href="{{ .SiteInfo.SiteRoot }}/export/">Export</a>
 			<form action="." method="post">
 				<button class="button--tight">Test now</button>
 			</form>
@@ -47,9 +48,14 @@
 
 				</div>
 
-				<h2>Today's entries</h2>
+				<h2>Last year's entries</h2>
+				<canvas class="js-speed-test-chart--year chart" width="600" height="400"></canvas>
 
-				<canvas class="js-speed-test-chart chart" width="600" height="400"></canvas>
+				<h2>Last month's entries</h2>
+				<canvas class="js-speed-test-chart--month chart" width="600" height="400"></canvas>
+
+				<h2>Today's entries</h2>
+				<canvas class="js-speed-test-chart--day chart" width="600" height="400"></canvas>
 
 				{{range .RecentEntries}}
 					<div class="test-result js-test-result" data-date="{{ .Time | formatDate8601 }}" data-download="{{printf "%.1f" .DownloadSpeed}}" data-upload="{{printf "%.1f" .UploadSpeed}}">

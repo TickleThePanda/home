@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
 type SpeedTestResultHandler struct {
@@ -24,30 +26,28 @@ type SpeedTestResultResponseData struct {
 	SiteInfo *SiteInfo
 }
 
-func (sh *SpeedTestResultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Request URL: %s", r.URL)
-	log.Printf("Site root %s", sh.SiteRoot+"/")
-	if r.URL.Path != sh.SiteRoot+"/" {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("Not found"))
+func (sh *SpeedTestResultHandler) Index(w http.ResponseWriter, r *http.Request) {
 
-		return
-	}
+	log.Printf("URL: %v", r.URL)
 
-	if r.Method == http.MethodPost {
-		go sh.Tester.runTestNow()
-		http.Redirect(w, r, sh.SiteRoot+"/", http.StatusFound)
-	} else {
-		sh.Template.Execute(w, SpeedTestResultResponseData{
-			Results: sh.Tester.Store.GetResults(),
-			SiteInfo: &SiteInfo{
-				SiteRoot:         sh.SiteRoot,
-				SharedAssetsSite: sh.SharedAssetsSite,
-			},
-		})
+	sh.Template.Execute(w, SpeedTestResultResponseData{
+		Results: sh.Tester.Store.GetResults(),
+		SiteInfo: &SiteInfo{
+			SiteRoot:         sh.SiteRoot,
+			SharedAssetsSite: sh.SharedAssetsSite,
+		},
+	})
 
-	}
+}
 
+func (sh *SpeedTestResultHandler) TestNow(w http.ResponseWriter, r *http.Request) {
+	go sh.Tester.runTestNow()
+	http.Redirect(w, r, sh.SiteRoot+"/", http.StatusFound)
+}
+
+func (sh *SpeedTestResultHandler) Export(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/csv")
+	sh.Tester.Store.Export(w)
 }
 
 func FormatDate8601(t time.Time) string {
@@ -80,9 +80,29 @@ func handleRequests(tester *SpeedTester, siteRoot string, sharedAssets string) {
 		SharedAssetsSite: sharedAssets,
 	}
 
+	r := mux.NewRouter()
+
 	fs := http.FileServer(http.Dir("./src/static"))
 
-	http.Handle(siteRoot+"/static/", http.StripPrefix(siteRoot+"/static/", fs))
-	http.Handle(siteRoot+"/", handler)
-	log.Fatal(http.ListenAndServe(":10000", nil))
+	r.PathPrefix(siteRoot + "/static/").Handler(http.StripPrefix(siteRoot+"/static/", fs))
+
+	r.Path(siteRoot + "/").
+		Methods(http.MethodGet).
+		HandlerFunc(handler.Index)
+
+	r.Path(siteRoot + "/").
+		Methods(http.MethodPost).
+		HandlerFunc(handler.TestNow)
+
+	r.Path(siteRoot + "/export/").
+		HandlerFunc(handler.Export)
+
+	srv := &http.Server{
+		Handler:      r,
+		Addr:         ":10000",
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	log.Fatal(srv.ListenAndServe())
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -122,4 +123,14 @@ func (store *SpeedTestResultStore) GetResults() *SpeedTestResults {
 		Entries: results,
 		Summary: GenerateSummary(results),
 	}
+}
+
+func (store *SpeedTestResultStore) Export(writer io.Writer) {
+	f, err := os.OpenFile(store.File, os.O_RDWR|os.O_CREATE, 0644)
+
+	if err != nil {
+		panic(store.File + " did not exist")
+	}
+
+	io.Copy(writer, f)
 }

@@ -8,8 +8,14 @@ import (
 
 func main() {
 
+	storeFile := os.Getenv("SPEED_TEST_STORE")
+
+	if storeFile == "" {
+		storeFile = "/data/store.csv"
+	}
+
 	store := &SpeedTestResultStore{
-		File: "/data/store.csv",
+		File: storeFile,
 	}
 
 	testPeriodText := os.Getenv("SPEED_TEST_PERIOD")
