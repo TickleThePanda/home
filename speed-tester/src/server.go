@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"html/template"
 	"log"
@@ -9,6 +10,12 @@ import (
 
 	"github.com/gorilla/mux"
 )
+
+//go:embed templates/*
+var templatesFs embed.FS
+
+//go:embed static/*
+var staticFs embed.FS
 
 type SpeedTestResultHandler struct {
 	Tester           *SpeedTester
@@ -82,7 +89,7 @@ func handleRequests(tester *SpeedTester, siteRoot string, sharedAssets string) {
 	t := template.Must(template.New("index.html").Funcs(template.FuncMap{
 		"formatDate":     FormatDate,
 		"formatDate8601": FormatDate8601,
-	}).ParseFiles("./src/templates/index.html"))
+	}).ParseFS(templatesFs, "templates/index.html"))
 
 	handler := &SpeedTestResultHandler{
 		Tester:           tester,
@@ -93,9 +100,9 @@ func handleRequests(tester *SpeedTester, siteRoot string, sharedAssets string) {
 
 	r := mux.NewRouter()
 
-	fs := http.FileServer(http.Dir("./src/static"))
+	fs := http.FileServer(http.FS(staticFs))
 
-	r.PathPrefix(siteRoot + "/static/").Handler(http.StripPrefix(siteRoot+"/static/", fs))
+	r.PathPrefix(siteRoot + "/static/").Handler(http.StripPrefix(siteRoot, fs))
 
 	r.Path(siteRoot + "/").
 		Methods(http.MethodGet).
