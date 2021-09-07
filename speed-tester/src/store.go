@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -21,28 +20,31 @@ func (rs *SpeedTestResults) RecentEntries() []*SpeedTestResult {
 	return recentEntries
 }
 
-func (rs *SpeedTestResults) LastMonth() []*SpeedTestAggregate {
+func (rs *SpeedTestResults) AggregateBy(format string, since time.Duration) []*SpeedTestAggregate {
 
-	recentEntries := FilterResultsWithinLast(rs.Entries, time.Duration(24*30)*time.Hour)
+	recentEntries := FilterResultsWithinLast(rs.Entries, since)
 
-	daysToEntries := make(map[string][]*SpeedTestResult)
+	groupToEntries := make(map[string][]*SpeedTestResult)
 
 	for _, recentEntry := range recentEntries {
 
-		key := recentEntry.Time.Format("2006-01-02")
+		key := recentEntry.Time.Format(format)
 
-		if daysToEntries[key] == nil {
-			daysToEntries[key] = make([]*SpeedTestResult, 0)
+		if groupToEntries[key] == nil {
+			groupToEntries[key] = make([]*SpeedTestResult, 0)
 		}
 
-		daysToEntries[key] = append(daysToEntries[key], recentEntry)
+		groupToEntries[key] = append(groupToEntries[key], recentEntry)
 
 	}
 
-	monthEntries := make([]*SpeedTestAggregate, 0)
+	aggregates := make([]*SpeedTestAggregate, 0)
 
-	for key, entries := range daysToEntries {
-		date, err := time.Parse("2006-01-02", key)
+	for key, entries := range groupToEntries {
+
+		sort.Sort(ByDownloadSpeed(entries))
+
+		date, err := time.Parse(format, key)
 		if err != nil {
 			panic(fmt.Sprintf("Error parsing date: %v", err))
 		}
@@ -58,77 +60,32 @@ func (rs *SpeedTestResults) LastMonth() []*SpeedTestAggregate {
 			uploadSpeedSum += entry.UploadSpeed
 		}
 
+		downloadSpeedMedian := entries[int(float64(len(entries))*0.5)].DownloadSpeed
+		downloadSpeed90th := entries[int(float64(len(entries))*0.9)].DownloadSpeed
+
 		var count = float64(len(entries))
 
-		monthEntries = append(monthEntries, &SpeedTestAggregate{
-			Time:          date,
-			Distance:      distanceSum / count,
-			Latency:       time.Duration(float64(latencySum.Microseconds())/count) * time.Microsecond,
-			DownloadSpeed: downloadSpeedSum / float64(len(entries)),
-			UploadSpeed:   uploadSpeedSum / float64(len(entries)),
+		aggregates = append(aggregates, &SpeedTestAggregate{
+			Time:                date,
+			DistanceMean:        distanceSum / count,
+			LatencyMean:         time.Duration(float64(latencySum.Microseconds())/count) * time.Microsecond,
+			DownloadSpeedMean:   downloadSpeedSum / float64(len(entries)),
+			DownloadSpeedMedian: downloadSpeedMedian,
+			DownloadSpeed90th:   downloadSpeed90th,
+			UploadSpeedMean:     uploadSpeedSum / float64(len(entries)),
 		})
 	}
 
-	return monthEntries
+	return aggregates
+
+}
+
+func (rs *SpeedTestResults) LastMonth() []*SpeedTestAggregate {
+	return rs.AggregateBy("2006-01-02", time.Duration(24*30)*time.Hour)
 }
 
 func (rs *SpeedTestResults) LastYear() []*SpeedTestAggregate {
-	recentEntries := FilterResultsWithinLast(rs.Entries, time.Duration(24*365)*time.Hour)
-
-	daysToEntries := make(map[string][]*SpeedTestResult)
-
-	for _, recentEntry := range recentEntries {
-
-		key := recentEntry.Time.Format("2006-01")
-
-		if daysToEntries[key] == nil {
-			daysToEntries[key] = make([]*SpeedTestResult, 0)
-		}
-
-		daysToEntries[key] = append(daysToEntries[key], recentEntry)
-
-	}
-
-	monthEntries := make([]*SpeedTestAggregate, 0)
-
-	for key, entries := range daysToEntries {
-		date, err := time.Parse("2006-01", key)
-		if err != nil {
-			panic(fmt.Sprintf("Error parsing date: %v", err))
-		}
-		distanceSum := float64(0)
-		latencySum := time.Duration(0)
-		downloadSpeedSum := float64(0)
-		uploadSpeedSum := float64(0)
-
-		for _, entry := range entries {
-			distanceSum += entry.Distance
-			latencySum += entry.Latency
-			downloadSpeedSum += entry.DownloadSpeed
-			uploadSpeedSum += entry.UploadSpeed
-		}
-
-		var count = float64(len(entries))
-
-		monthEntries = append(monthEntries, &SpeedTestAggregate{
-			Time:          date,
-			Distance:      distanceSum / count,
-			Latency:       time.Duration(float64(latencySum.Microseconds())/count) * time.Microsecond,
-			DownloadSpeed: downloadSpeedSum / float64(len(entries)),
-			UploadSpeed:   uploadSpeedSum / float64(len(entries)),
-		})
-	}
-
-	return monthEntries
-}
-
-func (rs *SpeedTestResults) String() string {
-	var b strings.Builder
-	for _, r := range rs.Entries {
-		b.WriteString(r.String())
-		b.WriteString("\n")
-	}
-	return b.String()
+	return rs.AggregateBy("2006-01", time.Duration(24*365)*time.Hour)
 }
 
 type SpeedTestResultStore struct {

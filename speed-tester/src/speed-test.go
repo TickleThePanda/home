@@ -57,8 +57,6 @@ func testSpeed() *SpeedTestResult {
 
 	}
 
-	log.Println(speed.String())
-
 	return speed
 }
 

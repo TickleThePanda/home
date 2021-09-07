@@ -8,11 +8,13 @@ import (
 )
 
 type SpeedTestAggregate struct {
-	Time          time.Time
-	Distance      float64
-	Latency       time.Duration
-	DownloadSpeed float64
-	UploadSpeed   float64
+	Time                time.Time
+	DistanceMean        float64
+	LatencyMean         time.Duration
+	DownloadSpeedMean   float64
+	DownloadSpeedMedian float64
+	DownloadSpeed90th   float64
+	UploadSpeedMean     float64
 }
 
 type SpeedTestResult struct {
@@ -25,17 +27,7 @@ type SpeedTestResult struct {
 	UploadSpeed   float64
 }
 
-func (r *SpeedTestResult) String() string {
-	return fmt.Sprintf(
-		"%s, %s, %s, %f, %s, %f, %f",
-		r.Time,
-		r.ServerId, r.ServerName,
-		r.Distance, r.Latency,
-		r.DownloadSpeed, r.UploadSpeed,
-	)
-}
-
-func (r *SpeedTestResult) ToCsv() string {
+func (r SpeedTestResult) ToCsv() string {
 	return fmt.Sprintf(
 		"%s,%s,%s,%f,%s,%f,%f",
 		r.Time.Format(time.RFC3339),
@@ -70,3 +62,9 @@ type ByDate []*SpeedTestResult
 func (a ByDate) Len() int           { return len(a) }
 func (a ByDate) Less(i, j int) bool { return a[i].Time.Before(a[j].Time) }
 func (a ByDate) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+type ByDownloadSpeed []*SpeedTestResult
+
+func (a ByDownloadSpeed) Len() int           { return len(a) }
+func (a ByDownloadSpeed) Less(i, j int) bool { return a[i].DownloadSpeed < a[j].DownloadSpeed }
+func (a ByDownloadSpeed) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
