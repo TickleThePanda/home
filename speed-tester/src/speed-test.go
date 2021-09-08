@@ -1,14 +1,33 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/showwin/speedtest-go/speedtest"
+
+	"github.com/sendgrid/sendgrid-go"
+	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
 
+type EmailConfig struct {
+	EmailThreshold float64
+	SendGridApiKey string
+	EmailTo        string
+	EmailFrom      string
+}
+
 type SpeedTester struct {
-	Store *SpeedTestResultStore
+	Store       *SpeedTestResultStore
+	EmailConfig *EmailConfig
+}
+
+func (ec *EmailConfig) Complete() bool {
+	return ec.EmailThreshold != 0.0 &&
+		ec.SendGridApiKey != "" &&
+		ec.EmailFrom != "" &&
+		ec.EmailTo != ""
 }
 
 func testSpeed() *SpeedTestResult {
@@ -74,5 +93,49 @@ func (tester *SpeedTester) startTests(periodInSeconds int32) {
 	tester.runTestNow()
 	for range ticker.C {
 		tester.runTestNow()
+	}
+}
+
+func (tester *SpeedTester) handleAlerts() {
+
+	if !tester.EmailConfig.Complete() {
+		println("Not sending email, config not completed")
+		return
+	}
+
+	recentSpeed := tester.Store.GetResults().RecentSpeed()
+	println("Checking recent speed")
+	if recentSpeed.DownloadSpeed90th < tester.EmailConfig.EmailThreshold {
+		println("Speed below threshold, sending email")
+
+		content := fmt.Sprintf("Speed below threshold. %v.", recentSpeed.DownloadSpeed90th)
+
+		from := mail.NewEmail("Speed test alerts", tester.EmailConfig.EmailFrom)
+		subject := content
+		to := mail.NewEmail(tester.EmailConfig.EmailTo, tester.EmailConfig.EmailTo)
+		plainTextContent := content
+		htmlContent := content
+		message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
+		client := sendgrid.NewSendClient(tester.EmailConfig.SendGridApiKey)
+		response, err := client.Send(message)
+
+		if err != nil {
+			log.Printf("Failed to send email: %v", err)
+		} else {
+			if response.StatusCode != 202 {
+				println("Failed to send email: %v, %v, %v", response.StatusCode, response.Body, response.Headers)
+			} else {
+				fmt.Printf("Sent email")
+			}
+		}
+	}
+}
+
+func (tester *SpeedTester) startEmailer(periodInSeconds int32) {
+	ticker := time.NewTicker(time.Duration(periodInSeconds) * time.Second)
+
+	tester.handleAlerts()
+	for range ticker.C {
+		tester.handleAlerts()
 	}
 }

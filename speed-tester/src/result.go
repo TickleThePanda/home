@@ -41,10 +41,10 @@ func SpeedTestResultFromCsv(csv string) *SpeedTestResult {
 	sp := strings.Split(csv, ",")
 
 	t, _ := time.Parse(time.RFC3339, sp[0])
-	dist, _ := strconv.ParseFloat(sp[3], 10)
+	dist, _ := strconv.ParseFloat(sp[3], 64)
 	latency, _ := time.ParseDuration(sp[4])
-	down, _ := strconv.ParseFloat(sp[5], 10)
-	up, _ := strconv.ParseFloat(sp[6], 10)
+	down, _ := strconv.ParseFloat(sp[5], 64)
+	up, _ := strconv.ParseFloat(sp[6], 64)
 
 	return &SpeedTestResult{
 		Time:          t,

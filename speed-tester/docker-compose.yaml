@@ -11,6 +11,8 @@ services:
     environment:
     - SPEED_TEST_SITE_ROOT=/speed-test
     - SPEED_TEST_SHARED_ASSETS_SITE=http://localhost:8080
+    - SPEED_TEST_EMAIL_PERIOD=86400
+    env_file: .env
     ports:
     - 10000:10000
     - 2345:2345

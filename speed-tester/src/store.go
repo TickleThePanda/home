@@ -20,6 +20,39 @@ func (rs *SpeedTestResults) RecentEntries() []*SpeedTestResult {
 	return recentEntries
 }
 
+func (rs *SpeedTestResults) RecentSpeed() *SpeedTestAggregate {
+	return AggregateForEntries(time.Now(), rs.RecentEntries())
+}
+
+func AggregateForEntries(date time.Time, entries []*SpeedTestResult) *SpeedTestAggregate {
+	distanceSum := float64(0)
+	latencySum := time.Duration(0)
+	downloadSpeedSum := float64(0)
+	uploadSpeedSum := float64(0)
+
+	for _, entry := range entries {
+		distanceSum += entry.Distance
+		latencySum += entry.Latency
+		downloadSpeedSum += entry.DownloadSpeed
+		uploadSpeedSum += entry.UploadSpeed
+	}
+
+	downloadSpeedMedian := entries[int(float64(len(entries))*0.5)].DownloadSpeed
+	downloadSpeed90th := entries[int(float64(len(entries))*0.9)].DownloadSpeed
+
+	var count = float64(len(entries))
+
+	return &SpeedTestAggregate{
+		Time:                date,
+		DistanceMean:        distanceSum / count,
+		LatencyMean:         time.Duration(float64(latencySum.Microseconds())/count) * time.Microsecond,
+		DownloadSpeedMean:   downloadSpeedSum / float64(len(entries)),
+		DownloadSpeedMedian: downloadSpeedMedian,
+		DownloadSpeed90th:   downloadSpeed90th,
+		UploadSpeedMean:     uploadSpeedSum / float64(len(entries)),
+	}
+}
+
 func (rs *SpeedTestResults) AggregateBy(format string, since time.Duration) []*SpeedTestAggregate {
 
 	recentEntries := FilterResultsWithinLast(rs.Entries, since)
@@ -48,32 +81,7 @@ func (rs *SpeedTestResults) AggregateBy(format string, since time.Duration) []*S
 		if err != nil {
 			panic(fmt.Sprintf("Error parsing date: %v", err))
 		}
-		distanceSum := float64(0)
-		latencySum := time.Duration(0)
-		downloadSpeedSum := float64(0)
-		uploadSpeedSum := float64(0)
-
-		for _, entry := range entries {
-			distanceSum += entry.Distance
-			latencySum += entry.Latency
-			downloadSpeedSum += entry.DownloadSpeed
-			uploadSpeedSum += entry.UploadSpeed
-		}
-
-		downloadSpeedMedian := entries[int(float64(len(entries))*0.5)].DownloadSpeed
-		downloadSpeed90th := entries[int(float64(len(entries))*0.9)].DownloadSpeed
-
-		var count = float64(len(entries))
-
-		aggregates = append(aggregates, &SpeedTestAggregate{
-			Time:                date,
-			DistanceMean:        distanceSum / count,
-			LatencyMean:         time.Duration(float64(latencySum.Microseconds())/count) * time.Microsecond,
-			DownloadSpeedMean:   downloadSpeedSum / float64(len(entries)),
-			DownloadSpeedMedian: downloadSpeedMedian,
-			DownloadSpeed90th:   downloadSpeed90th,
-			UploadSpeedMean:     uploadSpeedSum / float64(len(entries)),
-		})
+		aggregates = append(aggregates, AggregateForEntries(date, entries))
 	}
 
 	return aggregates

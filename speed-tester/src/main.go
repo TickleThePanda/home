@@ -1,51 +1,71 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"strconv"
 )
 
 func main() {
 
-	storeFile := os.Getenv("SPEED_TEST_STORE")
-
-	if storeFile == "" {
-		storeFile = "/data/store.csv"
-	}
-
 	store := &SpeedTestResultStore{
-		File: storeFile,
-	}
-
-	testPeriodText := os.Getenv("SPEED_TEST_PERIOD")
-
-	var testPeriod int64
-	testPeriod = 60 * 60
-	if testPeriodText != "" {
-		var err error
-		testPeriod, err = strconv.ParseInt(testPeriodText, 10, 64)
-		if err != nil {
-			panic("Unable to parse SPEED_TEST_PERIOD to integer")
-		}
+		File: GetEnvOrDefault("SPEED_TEST_STORE", "/data/store.csv"),
 	}
 
 	siteRoot := os.Getenv("SPEED_TEST_SITE_ROOT")
-	if siteRoot == "" {
-		siteRoot = ""
-	}
-
 	sharedAssets := os.Getenv("SPEED_TEST_SHARED_ASSETS_SITE")
-	if siteRoot == "" {
-		sharedAssets = ""
+
+	tester := &SpeedTester{
+		Store: store,
+		EmailConfig: &EmailConfig{
+			SendGridApiKey: os.Getenv("SPEED_TEST_SENDGRID_API_KEY"),
+			EmailThreshold: GetEnvAsFloat("SPEED_TEST_EMAIL_THRESHOLD", 0),
+			EmailTo:        os.Getenv("SPEED_TEST_EMAIL_TO"),
+			EmailFrom:      os.Getenv("SPEED_TEST_EMAIL_FROM"),
+		},
 	}
 
-	log.Printf("Test period: %d", testPeriod)
-	log.Printf("Site root: %s", siteRoot)
-
-	tester := &SpeedTester{Store: store}
-
-	go tester.startTests(int32(testPeriod))
+	go tester.startTests(int32(GetEnvAsInt("SPEED_TEST_PERIOD", 60*60)))
+	go tester.startEmailer(int32(GetEnvAsInt("SPEED_TEST_EMAIL_PERIOD", 60*60*24)))
 
 	handleRequests(tester, siteRoot, sharedAssets)
+}
+
+func GetEnvAsInt(env string, defaultValue int64) int64 {
+
+	valueAsText := os.Getenv(env)
+
+	if valueAsText == "" {
+		return defaultValue
+	}
+
+	value, err := strconv.ParseInt(valueAsText, 10, 64)
+	if err != nil {
+		panic(fmt.Sprintf("Unable to parse %v to integer", env))
+	}
+	return value
+}
+
+func GetEnvAsFloat(env string, defaultValue float64) float64 {
+
+	valueAsText := os.Getenv(env)
+
+	if valueAsText == "" {
+		return defaultValue
+	}
+
+	value, err := strconv.ParseFloat(valueAsText, 64)
+	if err != nil {
+		panic(fmt.Sprintf("Unable to parse %v to float", env))
+	}
+	return value
+}
+
+func GetEnvOrDefault(env string, defaultValue string) string {
+	value := os.Getenv(env)
+	if value != "" {
+		return value
+	} else {
+		return defaultValue
+	}
 }

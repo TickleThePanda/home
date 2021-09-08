@@ -21,6 +21,23 @@ spec:
         env:
         - name: SPEED_TEST_SITE_ROOT
           value: "/speed-test"
+        - name: SPEED_TEST_EMAIL_THRESHOLD
+          value: "25"
+        - name: SPEED_TEST_SENDGRID_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sendgrid-api-key
+              key: key
+        - name: SPEED_TEST_EMAIL_FROM
+          valueFrom:
+            secretKeyRef:
+              name: speed-test-emails
+              key: from
+        - name: SPEED_TEST_EMAIL_TO
+          valueFrom:
+            secretKeyRef:
+              name: speed-test-emails
+              key: to
         ports:
         - containerPort: 80
         securityContext:
