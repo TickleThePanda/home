@@ -25,6 +25,9 @@ func (rs *SpeedTestResults) RecentSpeed() *SpeedTestAggregate {
 }
 
 func AggregateForEntries(date time.Time, entries []*SpeedTestResult) *SpeedTestAggregate {
+
+	sort.Sort(ByDownloadSpeed(entries))
+
 	distanceSum := float64(0)
 	latencySum := time.Duration(0)
 	downloadSpeedSum := float64(0)
@@ -74,8 +77,6 @@ func (rs *SpeedTestResults) AggregateBy(format string, since time.Duration) []*S
 	aggregates := make([]*SpeedTestAggregate, 0)
 
 	for key, entries := range groupToEntries {
-
-		sort.Sort(ByDownloadSpeed(entries))
 
 		date, err := time.Parse(format, key)
 		if err != nil {
