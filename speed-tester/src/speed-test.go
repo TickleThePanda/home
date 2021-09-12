@@ -110,10 +110,10 @@ func (tester *SpeedTester) handleAlerts() {
 	if recentSpeed.DownloadSpeed90th < tester.EmailConfig.EmailThreshold {
 		println("Speed below threshold, sending email")
 
+		subject := "Speed below threshold"
 		content := fmt.Sprintf("Speed below threshold. %v.", recentSpeed.DownloadSpeed90th)
 
 		from := mail.NewEmail("Speed test alerts", tester.EmailConfig.EmailFrom)
-		subject := content
 		to := mail.NewEmail(tester.EmailConfig.EmailTo, tester.EmailConfig.EmailTo)
 		plainTextContent := content
 		htmlContent := content
