@@ -38,6 +38,8 @@ spec:
             secretKeyRef:
               name: speed-test-emails
               key: to
+        - name: SPEED_TEST_EMAIL_CRON
+          value: "00 21 * * *"
         ports:
         - containerPort: 80
         securityContext:

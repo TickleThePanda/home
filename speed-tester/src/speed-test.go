@@ -9,6 +9,8 @@ import (
 
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
+
+	"github.com/robfig/cron/v3"
 )
 
 type EmailConfig struct {
@@ -131,11 +133,10 @@ func (tester *SpeedTester) handleAlerts() {
 	}
 }
 
-func (tester *SpeedTester) startEmailer(periodInSeconds int32) {
-	ticker := time.NewTicker(time.Duration(periodInSeconds) * time.Second)
+func (tester *SpeedTester) startEmailer(cronExpression string) {
+	c := cron.New()
 
-	tester.handleAlerts()
-	for range ticker.C {
-		tester.handleAlerts()
-	}
+	c.AddFunc(cronExpression, tester.handleAlerts)
+	c.Start()
+
 }

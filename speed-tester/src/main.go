@@ -26,7 +26,7 @@ func main() {
 	}
 
 	go tester.startTests(int32(GetEnvAsInt("SPEED_TEST_PERIOD", 60*60)))
-	go tester.startEmailer(int32(GetEnvAsInt("SPEED_TEST_EMAIL_PERIOD", 60*60*24)))
+	go tester.startEmailer(GetEnvOrDefault("SPEED_TEST_EMAIL_CRON", "@daily"))
 
 	handleRequests(tester, siteRoot, sharedAssets)
 }

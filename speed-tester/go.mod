@@ -9,4 +9,7 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 )
 
-require github.com/sendgrid/rest v2.6.4+incompatible // indirect
+require (
+	github.com/robfig/cron/v3 v3.0.1 // indirect
+	github.com/sendgrid/rest v2.6.4+incompatible // indirect
+)
