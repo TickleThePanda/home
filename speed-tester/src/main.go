@@ -2,33 +2,40 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 )
 
 func main() {
 
-	store := &SpeedTestResultStore{
-		File: GetEnvOrDefault("SPEED_TEST_STORE", "/data/store.csv"),
-	}
-
-	siteRoot := os.Getenv("SPEED_TEST_SITE_ROOT")
-	sharedAssets := os.Getenv("SPEED_TEST_SHARED_ASSETS_SITE")
-
 	tester := &SpeedTester{
-		Store: store,
+		Store: &SpeedTestResultStore{
+			File: GetEnvOrDefault("SPEED_TEST_STORE", "/data/store.csv"),
+		},
 		EmailConfig: &EmailConfig{
 			SendGridApiKey: os.Getenv("SPEED_TEST_SENDGRID_API_KEY"),
 			EmailThreshold: GetEnvAsFloat("SPEED_TEST_EMAIL_THRESHOLD", 0),
 			EmailTo:        os.Getenv("SPEED_TEST_EMAIL_TO"),
 			EmailFrom:      os.Getenv("SPEED_TEST_EMAIL_FROM"),
 		},
+		TestPeriod: int32(GetEnvAsInt("SPEED_TEST_PERIOD", 60*60)),
+		AlertConfig: &AlertConfig{
+			CronExpresion: GetEnvOrDefault("SPEED_TEST_EMAIL_CRON", "@monthly"),
+			AlertType:     GetEnvOrDefault("SPEED_TEST_REPORT_PERIOD", "month"),
+		},
 	}
 
-	go tester.startTests(int32(GetEnvAsInt("SPEED_TEST_PERIOD", 60*60)))
-	go tester.startEmailer(GetEnvOrDefault("SPEED_TEST_EMAIL_CRON", "@daily"))
+	log.Printf("Tester config %+v\n", tester)
 
-	handleRequests(tester, siteRoot, sharedAssets)
+	go tester.startTests()
+	go tester.startEmailer()
+
+	handleRequests(
+		tester,
+		os.Getenv("SPEED_TEST_SITE_ROOT"),
+		os.Getenv("SPEED_TEST_SHARED_ASSETS_SITE"),
+	)
 }
 
 func GetEnvAsInt(env string, defaultValue int64) int64 {

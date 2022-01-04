@@ -20,9 +20,43 @@ type EmailConfig struct {
 	EmailFrom      string
 }
 
+func (e EmailConfig) String() string {
+	return fmt.Sprintf(
+		"[EmailThreshold: %v, SenderGridApiKey: ..., EmailTo: %v, EmailFrom %v]",
+		e.EmailThreshold,
+		e.EmailTo,
+		e.EmailFrom,
+	)
+}
+
+type AlertConfig struct {
+	CronExpresion string
+	AlertType     string
+}
+
+func (a AlertConfig) String() string {
+	return fmt.Sprintf(
+		"[CronExpression: %v, AlertType: %v]",
+		a.CronExpresion,
+		a.AlertType,
+	)
+}
+
 type SpeedTester struct {
 	Store       *SpeedTestResultStore
 	EmailConfig *EmailConfig
+	TestPeriod  int32
+	AlertConfig *AlertConfig
+}
+
+func (s SpeedTester) String() string {
+	return fmt.Sprintf(
+		"[Store: %v, EmailConfig: %v, TestPeriod: %v, AlertConfig: %v]",
+		s.Store,
+		s.EmailConfig,
+		s.TestPeriod,
+		s.AlertConfig,
+	)
 }
 
 func (ec *EmailConfig) Complete() bool {
@@ -89,8 +123,8 @@ func (tester *SpeedTester) runTestNow() *SpeedTestResult {
 	return result
 }
 
-func (tester *SpeedTester) startTests(periodInSeconds int32) {
-	ticker := time.NewTicker(time.Duration(periodInSeconds) * time.Second)
+func (tester *SpeedTester) startTests() {
+	ticker := time.NewTicker(time.Duration(tester.TestPeriod) * time.Second)
 
 	tester.runTestNow()
 	for range ticker.C {
@@ -100,18 +134,29 @@ func (tester *SpeedTester) startTests(periodInSeconds int32) {
 
 func (tester *SpeedTester) handleAlerts() {
 
-	if !tester.EmailConfig.Complete() {
-		println("Not sending email, config not completed")
-		return
+	log.Println("Running alert handler")
+
+	p, err := RecentPeriodFromString(tester.AlertConfig.AlertType)
+
+	if err != nil {
+		panic(err)
 	}
 
-	recentSpeed := tester.Store.GetResults().RecentSpeed()
-	println("Checking recent speed")
+	recentSpeed := tester.Store.GetResults().RecentSpeed(p)
+	log.Println("Checking recent speed")
 	if recentSpeed.DownloadSpeed90th < tester.EmailConfig.EmailThreshold {
-		println("Speed below threshold, sending email")
+		log.Println("Speed below threshold, sending email")
 
-		subject := "Speed below threshold"
-		content := fmt.Sprintf("Speed below threshold. %v.", recentSpeed.DownloadSpeed90th)
+		subject := fmt.Sprintf(
+			"Warning: speed below threshold (%v)",
+			p.FormatDate(time.Now()),
+		)
+
+		content := fmt.Sprintf(
+			"Actual speed %v was below %v.",
+			recentSpeed.DownloadSpeed90th,
+			tester.EmailConfig.EmailThreshold,
+		)
 
 		from := mail.NewEmail("Speed test alerts", tester.EmailConfig.EmailFrom)
 		to := mail.NewEmail(tester.EmailConfig.EmailTo, tester.EmailConfig.EmailTo)
@@ -122,21 +167,33 @@ func (tester *SpeedTester) handleAlerts() {
 		response, err := client.Send(message)
 
 		if err != nil {
-			log.Printf("Failed to send email: %v", err)
+			log.Printf("Failed to send email: %v\n", err)
 		} else {
 			if response.StatusCode != 202 {
-				println("Failed to send email: %v, %v, %v", response.StatusCode, response.Body, response.Headers)
+				log.Printf("Failed to send email: %v, %v, %v\n", response.StatusCode, response.Body, response.Headers)
 			} else {
-				fmt.Printf("Sent email")
+				log.Println("Sent email")
 			}
 		}
 	}
 }
 
-func (tester *SpeedTester) startEmailer(cronExpression string) {
+func (tester *SpeedTester) startEmailer() {
+
+	log.Printf("Running emailer %v", tester.AlertConfig)
+
 	c := cron.New()
 
-	c.AddFunc(cronExpression, tester.handleAlerts)
-	c.Start()
+	if !tester.EmailConfig.Complete() {
+		log.Println("Not sending email, config not completed")
+		return
+	}
+
+	_, e := c.AddFunc(tester.AlertConfig.CronExpresion, tester.handleAlerts)
+
+	if e != nil {
+		log.Printf("Error creating emailer %v", e)
+	}
+	c.Run()
 
 }

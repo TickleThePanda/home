@@ -14,14 +14,65 @@ type SpeedTestResults struct {
 	Summary SpeedTestSummary
 }
 
-func (rs *SpeedTestResults) RecentEntries() []*SpeedTestResult {
-	recentEntries := FilterResultsWithinLast(rs.Entries, time.Duration(24)*time.Hour)
+//go:generate stringer -type=RecentPeriod
+type RecentPeriod int
+
+const (
+	Month RecentPeriod = iota
+	Week
+	Day
+)
+
+func (p *RecentPeriod) GetDuration() time.Duration {
+	switch *p {
+	case Month:
+		return time.Duration(24*30) * time.Hour
+	case Week:
+		return time.Duration(24*7) * time.Hour
+	case Day:
+		return time.Duration(24) * time.Hour
+	default:
+		panic("recent period not recognised")
+	}
+}
+
+func (p *RecentPeriod) FormatDate(t time.Time) string {
+	switch *p {
+	case Month:
+		return t.Format("Jan 2006")
+	case Week:
+		return t.Format("2 Jan 2006")
+	case Day:
+		return t.Format("2 Jan 2006")
+	default:
+		panic("recent period not recognised")
+	}
+}
+
+func RecentPeriodFromString(p string) (RecentPeriod, error) {
+	switch p {
+	case "":
+		return Day, nil
+	case "month":
+		return Month, nil
+	case "week":
+		return Week, nil
+	case "day":
+		return Day, nil
+	default:
+		return -1, fmt.Errorf("no recent period called %s", p)
+	}
+}
+
+func (rs *SpeedTestResults) RecentEntries(period RecentPeriod) []*SpeedTestResult {
+
+	recentEntries := FilterResultsWithinLast(rs.Entries, period.GetDuration())
 	sort.Sort(sort.Reverse(ByDate(recentEntries)))
 	return recentEntries
 }
 
-func (rs *SpeedTestResults) RecentSpeed() *SpeedTestAggregate {
-	return AggregateForEntries(time.Now(), rs.RecentEntries())
+func (rs *SpeedTestResults) RecentSpeed(period RecentPeriod) *SpeedTestAggregate {
+	return AggregateForEntries(time.Now(), rs.RecentEntries(period))
 }
 
 func AggregateForEntries(date time.Time, entries []*SpeedTestResult) *SpeedTestAggregate {
