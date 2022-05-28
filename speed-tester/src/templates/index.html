@@ -67,7 +67,7 @@
 
 				<h2>Recent entries</h2>
 
-				{{range .RecentEntries}}
+				{{range .EntriesForLastDay}}
 					<div class="test-result js-test-result" data-date="{{ .Time | formatDate8601 }}" data-download="{{printf "%.1f" .DownloadSpeed}}" data-upload="{{printf "%.1f" .UploadSpeed}}">
 						<p>
 							<date>{{ .Time | formatDate }}</date>:

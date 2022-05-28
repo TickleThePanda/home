@@ -10,6 +10,7 @@ require (
 )
 
 require (
-	github.com/robfig/cron/v3 v3.0.1 // indirect
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/sendgrid/rest v2.6.4+incompatible // indirect
+	golang.org/x/net v0.0.0-20220526153639-5463443f8c37 // indirect
 )

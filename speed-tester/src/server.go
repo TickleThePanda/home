@@ -38,8 +38,12 @@ func (sh *SpeedTestResultHandler) Index(w http.ResponseWriter, r *http.Request) 
 
 	log.Printf("URL: %v", r.URL)
 
+	results := sh.Tester.Store.GetResults()
+
+	log.Printf("Results: %v", results.Entries)
+
 	sh.Template.Execute(w, SpeedTestResultResponseData{
-		Results: sh.Tester.Store.GetResults(),
+		Results: results,
 		SiteInfo: &SiteInfo{
 			SiteRoot:         sh.SiteRoot,
 			SharedAssetsSite: sh.SharedAssetsSite,

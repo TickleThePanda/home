@@ -27,6 +27,10 @@ type SpeedTestResult struct {
 	UploadSpeed   float64
 }
 
+func (r SpeedTestResult) String() string {
+	return r.ToCsv()
+}
+
 func (r SpeedTestResult) ToCsv() string {
 	return fmt.Sprintf(
 		"%s,%s,%s,%f,%s,%f,%f",

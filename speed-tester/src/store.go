@@ -64,6 +64,10 @@ func RecentPeriodFromString(p string) (RecentPeriod, error) {
 	}
 }
 
+func (rs *SpeedTestResults) EntriesForLastDay() []*SpeedTestResult {
+	return rs.RecentEntries(Day)
+}
+
 func (rs *SpeedTestResults) RecentEntries(period RecentPeriod) []*SpeedTestResult {
 
 	recentEntries := FilterResultsWithinLast(rs.Entries, period.GetDuration())
