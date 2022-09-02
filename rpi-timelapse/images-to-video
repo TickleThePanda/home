@@ -8,11 +8,14 @@ VIDEO_DIR="convert/$TIMELAPSE_ID"
 SERVER=k8s-node-camera-1
 REMOTE_DIR=/mnt/disk/timelapse/$TIMELAPSE_ID/images/
 MENCODER_FILES="mf://$PROCESS_DIR/$IMAGE_GLOB"
-FPS=6
+FPS=8
 
 mkdir -p $INITIAL_DIR $PROCESS_DIR $VIDEO_DIR
 
-rsync -au $SERVER:$REMOTE_DIR/$IMAGE_GLOB $INITIAL_DIR
+echo ""
+echo "Fetching files"
+
+rsync -Pau --delete $SERVER:$REMOTE_DIR/$IMAGE_GLOB $INITIAL_DIR
 
 for FRAME in $INITIAL_DIR/$IMAGE_GLOB ; do
   FILENAME=$(basename $FRAME)
@@ -26,13 +29,42 @@ for FRAME in $INITIAL_DIR/$IMAGE_GLOB ; do
   fi
 done
 
+echo ""
+echo "Convert images to video"
+
 mencoder $MENCODER_FILES \
+    -really-quiet \
     -mf w=800:h=600:fps=$FPS:type=png \
     -ovc copy -oac copy \
     -o "$VIDEO_DIR/output.avi"
 
+echo ""
+echo "Convert to mp4"
+
 ffmpeg -y \
+    -hide_banner -loglevel warning \
     -i "$VIDEO_DIR/output.avi" \
     -c:v libx264 -preset slow -crf 23 \
+    -vf "format=yuv420p, tpad=stop_mode=clone:stop_duration=2" \
     "$VIDEO_DIR/output.mp4"
+
+echo ""
+echo "Analyse video for stablisation"
+
+ffmpeg -y \
+    -hide_banner -loglevel warning \
+    -i "$VIDEO_DIR/output.mp4" \
+    -vf vidstabdetect=accuracy=15:tripod=0:result="$VIDEO_DIR/transform.trf" \
+    -f null \
+    -
+
+echo ""
+echo "Stabilise video"
+
+ffmpeg -y \
+    -hide_banner -loglevel warning \
+    -i "$VIDEO_DIR/output.mp4" \
+    -vf vidstabtransform=tripod=1:input="$VIDEO_DIR/transform.trf" \
+    "$VIDEO_DIR/stabilised.mp4"
+
 

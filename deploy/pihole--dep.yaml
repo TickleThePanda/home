@@ -1,0 +1,46 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole
+  namespace: pihole
+  labels:
+    app: pihole
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pihole
+  template:
+    metadata:
+      labels:
+        app: pihole
+        name: pihole
+    spec:
+      containers:
+        - name: pihole
+          image: pihole/pihole:latest
+          imagePullPolicy: Always
+          env:
+            - name: TZ
+              value: "Europe/London"
+            - name: WEBPASSWORD
+              value: "test"
+            - name: SERVER_ADDR
+              value: "pihole.home.ticklethepanda.co.uk"
+            - name: FTLCONF_LOCAL_IPV4
+              value: "192.168.1.66"
+            - name: VIRTUAL_HOST
+              value: "k8s-manager-1:8000"
+          volumeMounts:
+            - name: pihole-etc-pv
+              mountPath: "/etc/pihole"
+            - name: pihole-dns-pv
+              mountPath: "/etc/dnsmasq.d"
+      volumes:
+        - name: pihole-etc-pv
+          persistentVolumeClaim:
+            claimName: pihole-etc
+        - name: pihole-dns-pv
+          persistentVolumeClaim:
+            claimName: pihole-dns

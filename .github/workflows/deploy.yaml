@@ -18,5 +18,7 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
-      - name: Deploy
+      - name: Deploy cert-manager
+        run: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
+      - name: Deploy apps
         run: kubectl apply -f deploy
