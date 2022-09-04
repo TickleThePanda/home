@@ -20,7 +20,7 @@ spec:
       containers:
         - name: pihole
           image: pihole/pihole:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           env:
             - name: TZ
               value: "Europe/London"
@@ -33,7 +33,7 @@ spec:
             - name: SERVER_ADDR
               value: "pihole.home.ticklethepanda.co.uk"
             - name: FTLCONF_LOCAL_IPV4
-              value: "192.168.1.66"
+              value: "192.168.1.10"
             - name: VIRTUAL_HOST
               value: "pi.hole"
           volumeMounts:
