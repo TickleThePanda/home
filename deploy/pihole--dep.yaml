@@ -25,13 +25,17 @@ spec:
             - name: TZ
               value: "Europe/London"
             - name: WEBPASSWORD
-              value: "test"
+              valueFrom:
+                secretKeyRef:
+                  name: pihole
+                  key: webpass
+                  optional: false
             - name: SERVER_ADDR
               value: "pihole.home.ticklethepanda.co.uk"
             - name: FTLCONF_LOCAL_IPV4
               value: "192.168.1.66"
             - name: VIRTUAL_HOST
-              value: "k8s-manager-1:8000"
+              value: "pi.hole"
           volumeMounts:
             - name: pihole-etc-pv
               mountPath: "/etc/pihole"
