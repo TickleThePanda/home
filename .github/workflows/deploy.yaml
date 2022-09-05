@@ -19,9 +19,7 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
-      - name: Deploy cert-manager
-        run: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
-      - name: Deploy metallb
-        run: kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.5/config/manifests/metallb-native.yaml
+      - name: Deploy cluster setup
+        run: kubectl apply -k deploy/setup
       - name: Deploy apps
         run: kubectl apply -f deploy

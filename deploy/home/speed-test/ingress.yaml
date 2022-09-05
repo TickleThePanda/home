@@ -1,0 +1,19 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ingress
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`home.ticklethepanda.co.uk`) && PathPrefix(`/speed-test`)
+      middlewares:
+        - name: auth
+          namespace: home
+      services:
+        - name: speed-test-service
+          namespace: home
+          port: 80
+  tls:
+    secretName: home-ticklethepanda-co-uk

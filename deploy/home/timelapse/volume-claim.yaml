@@ -2,13 +2,12 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: speed-test-pvc
-  namespace: home
+  name: pvc
 spec:
   accessModes:
-  - ReadWriteOnce
+    - ReadWriteOnce
   storageClassName: local-storage
-  volumeName: speed-test-pv
+  volumeName: timelapse-pv
   resources:
     requests:
-      storage: 128Mi
+      storage: 16Gi

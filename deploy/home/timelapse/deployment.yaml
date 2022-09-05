@@ -1,0 +1,53 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment
+spec:
+  template:
+    spec:
+      containers:
+        - name: timelapse
+          image: ticklethepanda/rpi-timelapse:latest
+          env:
+            - name: RPI_CAMERA_SITE_ROOT
+              value: "/timelapse"
+            - name: RPI_CAMERA_STORAGE_DIR
+              value: "/data"
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - mountPath: /data
+              name: timelapse-volume
+            - mountPath: /dev/vcsm-cma
+              name: timelapse-vcsm-cma
+            - mountPath: /dev/vchiq
+              name: timelapse-vchiq
+          securityContext:
+            privileged: true
+          livenessProbe:
+            httpGet:
+              path: "/timelapse/images/now/"
+              port: 10000
+            timeoutSeconds: 60
+            periodSeconds: 3600
+          startupProbe:
+            httpGet:
+              path: "/timelapse/"
+              port: 10000
+            timeoutSeconds: 5
+            periodSeconds: 10
+      tolerations:
+        - key: "pi-camera"
+          operator: "Exists"
+          effect: "NoSchedule"
+      volumes:
+        - name: timelapse-volume
+          persistentVolumeClaim:
+            claimName: timelapse-pvc
+        - name: timelapse-vcsm-cma
+          hostPath:
+            path: /dev/vcsm-cma
+        - name: timelapse-vchiq
+          hostPath:
+            path: /dev/vchiq

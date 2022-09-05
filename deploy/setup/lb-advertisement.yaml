@@ -3,3 +3,7 @@ kind: L2Advertisement
 metadata:
   name: advertisement
   namespace: metallb-system
+spec:
+  ipAddressPools:
+    - pihole
+    - traefik

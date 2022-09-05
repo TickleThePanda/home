@@ -1,9 +1,8 @@
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
-  name: pihole
+  name: traefik
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.1.10-192.168.1.10
-    - 192.168.1.66-192.168.1.66
+    - 192.168.1.20-192.168.1.20
