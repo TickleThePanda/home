@@ -4,11 +4,22 @@ A monorepo for my home services, running on a Raspberry PI Kubernetes
 cluster.
 
 The cluster is installed using [k3s](https://k3s.io/). To set this up:
- - Install k3s on the primary node
- - Install k3s on the camera node
-   - Taint the node with "pi-camera=true:NoSchedule"
- - Install cert manager onto cluster
- - Add port forwarding rules to cluster
+
+- Install k3s on the primary node
+
+  ```
+  curl -sfL https://get.k3s.io | sh -s - server --disable servicelb --node-external-ip 192.168.1.2
+  ```
+
+- Install k3s on the camera node
+
+  - Taint the node with "pi-camera=true:NoSchedule"
+
+- Add port forwarding rules to cluster:
+  - 22 -> 192.168.1.2:22
+  - 8443 -> 192.168.1.2:8443
+  - 80 -> 192.168.1.10:80
+  - 443 -> 192.168.1.10:443
 
 ### `deploy`
 
@@ -24,7 +35,7 @@ A web controlled timelapse camera, based around the [Raspberry PI Camera].
 
 ### `speed-tester`
 
-A broadband speed test monitor, using [Speedtest by Ookla]. 
+A broadband speed test monitor, using [Speedtest by Ookla].
 
-[Raspberry PI Camera]: https://www.raspberrypi.org/products/camera-module-v2/
-[Speedtest by Ookla]: https://www.speedtest.net/
+[raspberry pi camera]: https://www.raspberrypi.org/products/camera-module-v2/
+[speedtest by ookla]: https://www.speedtest.net/
