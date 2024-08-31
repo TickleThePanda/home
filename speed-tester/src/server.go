@@ -72,6 +72,18 @@ func (sh *SpeedTestResultHandler) GetLastYear(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(sh.Tester.Store.GetResults().LastYear())
 }
 
+func (sh *SpeedTestResultHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	error := r.ParseForm()
+	if error != nil {
+		http.Error(w, "Failed to parse form", http.StatusInternalServerError)
+	}
+
+	toDeleteTimestamp := r.FormValue("to_delete_timestamp")
+	go sh.Tester.Store.Delete(toDeleteTimestamp)
+	http.Redirect(w, r, sh.SiteRoot+"/", http.StatusFound)
+
+}
+
 func FormatDate8601(t time.Time) string {
 	return t.Format(time.RFC3339)
 }
@@ -124,6 +136,10 @@ func handleRequests(tester *SpeedTester, siteRoot string, sharedAssets string) {
 
 	r.Path(siteRoot + "/export/").
 		HandlerFunc(handler.Export)
+
+	r.Path(siteRoot + "/history/delete/").
+		Methods(http.MethodPost).
+		HandlerFunc(handler.Delete)
 
 	srv := &http.Server{
 		Handler:      r,

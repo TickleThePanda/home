@@ -21,19 +21,25 @@ form {
 
 
 .test-result {
+	display: grid;
 	margin-top: 1em;
+	grid-template-columns: auto 1fr;
+	grid-template-areas: "result delete" "server-info server-info";
+	column-gap: 1em;
+	row-gap: 0.25em;
 }
 
 .test-result date {
 	font-size: 1em;
+	margin: 0;
 	font-weight: 700;
-	display: inline;
+	grid-area: result;
 }
 
 .server-info {
-	display: block;
-	margin-top: 0;
-	font-size: 0.9em;
+
+	margin: 0;
+	grid-area: server-info;
 }
 
 .chart {
@@ -43,4 +49,9 @@ form {
 .charts {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(20em, 100%), 1fr));
+}
+
+.delete {
+	grid-area: delete;
+	align-self: center;
 }

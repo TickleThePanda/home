@@ -226,6 +226,23 @@ func (store *SpeedTestResultStore) Add(result *SpeedTestResult) {
 	f.Close()
 }
 
+func (store *SpeedTestResultStore) Delete(toDeleteTimestamp string) {
+	results := store.GetResults()
+
+	filtered := make([]*SpeedTestResult, 0)
+	for _, result := range results.Entries {
+		if result.Time.Format(time.RFC3339) != toDeleteTimestamp {
+			filtered = append(filtered, result)
+		}
+	}
+
+	f, _ := os.OpenFile(store.File, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	for _, result := range filtered {
+		f.Write([]byte(result.ToCsv() + "\n"))
+	}
+	f.Close()
+}
+
 func (store *SpeedTestResultStore) GetResults() *SpeedTestResults {
 	f, err := os.OpenFile(store.File, os.O_RDWR|os.O_CREATE, 0644)
 

@@ -1,4 +1,4 @@
-FROM golang:1.17-alpine AS base
+FROM golang:1.22-alpine AS base
 WORKDIR /app
 
 ENV GO111MODULE="on"
@@ -18,7 +18,7 @@ FROM base AS dev
 WORKDIR /app
 
 # Hot reloading mod
-RUN go get -u github.com/cosmtrek/air && go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/air-verse/air@latest
 EXPOSE 8080
 EXPOSE 2345
 

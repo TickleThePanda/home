@@ -11,6 +11,7 @@
 		<script src="{{ .SiteInfo.SiteRoot }}/static/speed-test-chart.mjs" type="module"></script>
 	</head>
 	<body>
+		<form id="delete-form" action="{{ .SiteInfo.SiteRoot }}/history/delete/" method="post"></form>
 		<main class="content">
 			<h1>Speed test results</h1>
 			<a href="{{ .SiteInfo.SiteRoot }}/export/">Export</a>
@@ -74,7 +75,11 @@
 							{{printf "%d" .Latency.Milliseconds}}&#8239;ms,
 							↓&#8239;{{printf "%.1f" .DownloadSpeed}}&#8239;Mbps,
 							↑&#8239;{{printf "%.1f" .UploadSpeed}}&#8239;Mbps
+							
 						<p class="server-info"><dfn title="{{.ServerId}}">{{.ServerName}}</dfn> ({{printf "%.0f" .Distance}}km)
+						<div class="delete">
+							<button class="button--tight" form="delete-form" name="to_delete_timestamp" value="{{ .Time | formatDate8601 }}">Delete</button>
+						</div>
 					</div>
 				{{end}}
 
