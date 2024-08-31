@@ -8,5 +8,15 @@ spec:
     service:
       annotations:
         metallb.universe.tf/address-pool: traefik
-    access:
-      enabled: true
+    ingressRoute:
+      dashboard:
+        enabled: true
+        service:
+          name: traefik
+          port: 9000
+    logs:
+      access:
+        enabled: true
+    ports:
+      traefik:
+        expose: true
