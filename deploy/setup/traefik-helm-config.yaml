@@ -8,3 +8,5 @@ spec:
     service:
       annotations:
         metallb.universe.tf/address-pool: traefik
+    access:
+      enabled: true
