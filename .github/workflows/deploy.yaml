@@ -13,6 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     steps:
+      - name: Connect to Cloudflare Warp
+        uses: Boostport/setup-cloudflare-warp@v1
+        with:
+          organization: your-organization
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
       - name: Checkout code
         uses: actions/checkout@v2
       - name: Setup k8s context
