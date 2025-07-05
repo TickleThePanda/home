@@ -5,6 +5,7 @@ on:
     branches: main
     paths:
     - speed-tester/**
+    - .github/workflows/build--speed-test.yml
 
 jobs:
   build:

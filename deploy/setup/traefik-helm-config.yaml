@@ -11,12 +11,11 @@ spec:
     ingressRoute:
       dashboard:
         enabled: true
-        service:
-          name: traefik
-          port: 9000
     logs:
       access:
         enabled: true
     ports:
       traefik:
-        expose: true
+        exposedPort: 9000
+        expose:
+          default: true

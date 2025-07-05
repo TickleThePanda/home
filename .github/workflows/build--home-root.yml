@@ -5,6 +5,7 @@ on:
     branches: main
     paths:
     - home-root/**
+    - .github/workflows/build--home-root.yml
 
 jobs:
   build:
