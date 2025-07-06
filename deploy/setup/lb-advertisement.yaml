@@ -7,3 +7,4 @@ spec:
   ipAddressPools:
     - pihole
     - traefik
+    - kube-api

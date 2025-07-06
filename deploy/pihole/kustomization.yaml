@@ -8,5 +8,4 @@ resources:
   - ./volume-conf.yaml
   - ./volume-dns.yaml
   - ./deployment.yaml
-  - ./service.yaml
   - ./service-lb.yaml

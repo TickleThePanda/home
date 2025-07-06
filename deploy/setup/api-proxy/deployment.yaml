@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-api-proxy
+spec:
+  selector:
+    matchLabels:
+      app: kube-api-proxy
+  template:
+    metadata:
+      labels:
+        app: kube-api-proxy
+    spec:
+      hostNetwork: true
+      containers:
+      - name: proxy
+        image: alpine/socat
+        args:
+          - "TCP-LISTEN:8443,fork,reuseaddr"
+          - "TCP:127.0.0.1:6443"
+        ports:
+          - containerPort: 8443
