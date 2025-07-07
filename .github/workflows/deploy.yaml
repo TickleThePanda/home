@@ -27,4 +27,4 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
       - name: Deploy cluster
-        run: kubectl apply -k deploy
+        run: kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize
