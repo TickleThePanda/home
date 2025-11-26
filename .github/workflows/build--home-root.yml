@@ -6,6 +6,7 @@ on:
     paths:
     - home-root/**
     - .github/workflows/build--home-root.yml
+  workflow_dispatch:
 
 jobs:
   build:

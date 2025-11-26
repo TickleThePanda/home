@@ -6,6 +6,7 @@ on:
     paths:
     - speed-tester/**
     - .github/workflows/build--speed-test.yml
+  workflow_dispatch:
 
 jobs:
   build:

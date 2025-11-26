@@ -6,6 +6,7 @@ on:
     paths:
     - odinbot/**
     - .github/workflows/build--odinbot.yml
+  workflow_dispatch:
 
 jobs:
   build:
