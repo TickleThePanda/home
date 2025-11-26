@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en-GB" data-site-root="{{ .SiteInfo.SiteRoot }}">
+	<head>
+		<meta charset="utf-8">
+		<title>Odin Bot</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="{{ .SiteInfo.SiteRoot }}/static/odinbot.css">
+		<link rel="stylesheet" href="{{ .SiteInfo.SharedAssetsSite }}/main.css">
+	</head>
+	<body>
+		<main class="content">
+			<h1>Odin Bot</h1>
+			<p>Hi! I'm Odin Bot. I love looking at pictures of Odin the cat! I visit the Odin of the Day page all the time to see what he's up to. 🐱</p>
+
+			<section class="today">
+				<h2>Today</h2>
+				<p class="count">I've looked at Odin {{ .TodayCount }} times today!</p>
+			</section>
+
+			<section class="history">
+				<h2>My History</h2>
+				<p>Here's how many times I've visited Odin each day:</p>
+				<p><a href="{{ .SiteInfo.SiteRoot }}/export/">Export my data as CSV</a></p>
+				<table>
+					<thead>
+						<tr>
+							<th>Date</th>
+							<th>Times I Looked</th>
+						</tr>
+					</thead>
+					<tbody>
+						{{range .DailyCounts}}
+						<tr>
+							<td>{{ .Date }}</td>
+							<td>{{ .Count }}</td>
+						</tr>
+						{{end}}
+					</tbody>
+				</table>
+			</section>
+		</main>
+	</body>
+</html>

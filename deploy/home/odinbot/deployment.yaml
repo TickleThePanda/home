@@ -1,0 +1,44 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment
+spec:
+  template:
+    spec:
+      containers:
+        - name: odinbot
+          image: ticklethepanda/odinbot:latest
+          env:
+            - name: ODINBOT_SITE_ROOT
+              value: "/odinbot"
+            - name: ODINBOT_TARGET_URL
+              value: "https://matt-vps.com/odin_of_the_day/"
+            - name: ODINBOT_FETCH_INTERVAL
+              value: "10"
+          ports:
+            - containerPort: 10000
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - all
+              add:
+                - NET_BIND_SERVICE
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /data
+              name: odinbot-volume
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /.cache
+              name: cache
+      volumes:
+        - name: odinbot-volume
+          persistentVolumeClaim:
+            claimName: odinbot-pvc
+        - emptyDir: {}
+          name: tmp
+        - emptyDir: {}
+          name: cache
