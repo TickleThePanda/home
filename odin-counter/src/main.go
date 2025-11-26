@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
 )
 
 func main() {
@@ -39,33 +40,12 @@ func GetEnvAsInt(env string, defaultValue int64) int64 {
 		return defaultValue
 	}
 
-	var value int64
-	_, err := parseIntFromString(valueAsText, &value)
+	value, err := strconv.ParseInt(valueAsText, 10, 64)
 	if err != nil {
 		log.Printf("Warning: Unable to parse %v to integer, using default %d", env, defaultValue)
 		return defaultValue
 	}
 	return value
-}
-
-func parseIntFromString(s string, result *int64) (int, error) {
-	n, err := parseInt(s)
-	if err != nil {
-		return 0, err
-	}
-	*result = n
-	return 1, nil
-}
-
-func parseInt(s string) (int64, error) {
-	var result int64
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return 0, nil
-		}
-		result = result*10 + int64(c-'0')
-	}
-	return result, nil
 }
 
 func GetEnvOrDefault(env string, defaultValue string) string {

@@ -90,15 +90,18 @@ func (store *OdinCounterStore) GetDailyCounts() ([]DailyCount, error) {
 }
 
 func (store *OdinCounterStore) GetTodayCount() (int, error) {
-	records, err := store.GetAllRecords()
+	f, err := os.OpenFile(store.File, os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return 0, err
 	}
+	defer f.Close()
 
 	today := time.Now().Format("2006-01-02")
 	count := 0
-	for _, record := range records {
-		if record.Time.Format("2006-01-02") == today {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		record := FetchRecordFromCsv(scanner.Text())
+		if record != nil && record.Time.Format("2006-01-02") == today {
 			count++
 		}
 	}
@@ -107,23 +110,21 @@ func (store *OdinCounterStore) GetTodayCount() (int, error) {
 }
 
 func (store *OdinCounterStore) Export(writer io.Writer) error {
-	f, err := os.OpenFile(store.File, os.O_RDONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	// Write header
-	writer.Write([]byte("date,count\n"))
-
 	counts, err := store.GetDailyCounts()
 	if err != nil {
 		return err
 	}
 
+	// Write header
+	if _, err := writer.Write([]byte("date,count\n")); err != nil {
+		return err
+	}
+
 	for _, count := range counts {
 		line := fmt.Sprintf("%s,%s\n", count.Date, strconv.Itoa(count.Count))
-		writer.Write([]byte(line))
+		if _, err := writer.Write([]byte(line)); err != nil {
+			return err
+		}
 	}
 
 	return nil
