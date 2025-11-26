@@ -13,6 +13,7 @@ resources:
   - ./root
   - ./timelapse
   - ./speed-test
+  - ./odin-counter
 
 secretGenerator:
   - name: ingress-auth

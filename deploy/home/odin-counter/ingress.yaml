@@ -1,0 +1,17 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ingress
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`home.ticklethepanda.co.uk`) && PathPrefix(`/odin-counter`)
+      middlewares:
+        - name: auth
+          namespace: home
+      services:
+        - name: odin-counter-service
+          namespace: home
+          port: 80

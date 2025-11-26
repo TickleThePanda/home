@@ -1,0 +1,44 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment
+spec:
+  template:
+    spec:
+      containers:
+        - name: odin-counter
+          image: ticklethepanda/odin-counter:latest
+          env:
+            - name: ODIN_COUNTER_SITE_ROOT
+              value: "/odin-counter"
+            - name: ODIN_COUNTER_TARGET_URL
+              value: "https://matt-vps.com/odin_of_the_day/"
+            - name: ODIN_COUNTER_FETCH_INTERVAL
+              value: "10"
+          ports:
+            - containerPort: 10000
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - all
+              add:
+                - NET_BIND_SERVICE
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /data
+              name: odin-counter-volume
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /.cache
+              name: cache
+      volumes:
+        - name: odin-counter-volume
+          persistentVolumeClaim:
+            claimName: odin-counter-pvc
+        - emptyDir: {}
+          name: tmp
+        - emptyDir: {}
+          name: cache
