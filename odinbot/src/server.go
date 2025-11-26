@@ -17,13 +17,15 @@ var templatesFs embed.FS
 var staticFs embed.FS
 
 type OdinBotHandler struct {
-	Store    *OdinBotStore
-	Template *template.Template
-	SiteRoot string
+	Store            *OdinBotStore
+	Template         *template.Template
+	SiteRoot         string
+	SharedAssetsSite string
 }
 
 type SiteInfo struct {
-	SiteRoot string
+	SiteRoot         string
+	SharedAssetsSite string
 }
 
 type OdinBotResponseData struct {
@@ -53,7 +55,8 @@ func (h *OdinBotHandler) Index(w http.ResponseWriter, r *http.Request) {
 		TodayCount:  todayCount,
 		DailyCounts: dailyCounts,
 		SiteInfo: &SiteInfo{
-			SiteRoot: h.SiteRoot,
+			SiteRoot:         h.SiteRoot,
+			SharedAssetsSite: h.SharedAssetsSite,
 		},
 	}
 
@@ -70,13 +73,14 @@ func (h *OdinBotHandler) Export(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleRequests(store *OdinBotStore, siteRoot string) {
+func handleRequests(store *OdinBotStore, siteRoot string, sharedAssetsSite string) {
 	t := template.Must(template.New("index.html").ParseFS(templatesFs, "templates/index.html"))
 
 	handler := &OdinBotHandler{
-		Store:    store,
-		Template: t,
-		SiteRoot: siteRoot,
+		Store:            store,
+		Template:         t,
+		SiteRoot:         siteRoot,
+		SharedAssetsSite: sharedAssetsSite,
 	}
 
 	r := mux.NewRouter()

@@ -9,6 +9,7 @@ import (
 func main() {
 	storeFile := GetEnvOrDefault("ODINBOT_STORE", "/data/store.csv")
 	siteRoot := os.Getenv("ODINBOT_SITE_ROOT")
+	sharedAssetsSite := os.Getenv("ODINBOT_SHARED_ASSETS_SITE")
 	targetURL := GetEnvOrDefault("ODINBOT_TARGET_URL", "https://matt-vps.com/odin_of_the_day/")
 	fetchInterval := GetEnvAsInt("ODINBOT_FETCH_INTERVAL", 10)
 
@@ -22,7 +23,7 @@ func main() {
 		FetchInterval: int(fetchInterval),
 	}
 
-	log.Printf("OdinBot starting...")
+	log.Printf("Odin Bot starting...")
 	log.Printf("Store file: %s", storeFile)
 	log.Printf("Target URL: %s", targetURL)
 	log.Printf("Fetch interval: %d seconds", fetchInterval)
@@ -30,7 +31,7 @@ func main() {
 
 	go fetcher.Start()
 
-	handleRequests(store, siteRoot)
+	handleRequests(store, siteRoot, sharedAssetsSite)
 }
 
 func GetEnvAsInt(env string, defaultValue int64) int64 {
