@@ -7,14 +7,14 @@ spec:
   template:
     spec:
       containers:
-        - name: odin-counter
-          image: ticklethepanda/odin-counter:latest
+        - name: odinbot
+          image: ticklethepanda/odinbot:latest
           env:
-            - name: ODIN_COUNTER_SITE_ROOT
-              value: "/odin-counter"
-            - name: ODIN_COUNTER_TARGET_URL
+            - name: ODINBOT_SITE_ROOT
+              value: "/odinbot"
+            - name: ODINBOT_TARGET_URL
               value: "https://matt-vps.com/odin_of_the_day/"
-            - name: ODIN_COUNTER_FETCH_INTERVAL
+            - name: ODINBOT_FETCH_INTERVAL
               value: "10"
           ports:
             - containerPort: 10000
@@ -29,15 +29,15 @@ spec:
             readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /data
-              name: odin-counter-volume
+              name: odinbot-volume
             - mountPath: /tmp
               name: tmp
             - mountPath: /.cache
               name: cache
       volumes:
-        - name: odin-counter-volume
+        - name: odinbot-volume
           persistentVolumeClaim:
-            claimName: odin-counter-pvc
+            claimName: odinbot-pvc
         - emptyDir: {}
           name: tmp
         - emptyDir: {}

@@ -20,7 +20,7 @@ type DailyCount struct {
 	Count int
 }
 
-type OdinCounterStore struct {
+type OdinBotStore struct {
 	File string
 }
 
@@ -36,7 +36,7 @@ func FetchRecordFromCsv(line string) *FetchRecord {
 	return &FetchRecord{Time: t}
 }
 
-func (store *OdinCounterStore) Add(record *FetchRecord) error {
+func (store *OdinBotStore) Add(record *FetchRecord) error {
 	f, err := os.OpenFile(store.File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -46,7 +46,7 @@ func (store *OdinCounterStore) Add(record *FetchRecord) error {
 	return err
 }
 
-func (store *OdinCounterStore) GetAllRecords() ([]*FetchRecord, error) {
+func (store *OdinBotStore) GetAllRecords() ([]*FetchRecord, error) {
 	f, err := os.OpenFile(store.File, os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (store *OdinCounterStore) GetAllRecords() ([]*FetchRecord, error) {
 	return records, nil
 }
 
-func (store *OdinCounterStore) GetDailyCounts() ([]DailyCount, error) {
+func (store *OdinBotStore) GetDailyCounts() ([]DailyCount, error) {
 	records, err := store.GetAllRecords()
 	if err != nil {
 		return nil, err
@@ -89,7 +89,7 @@ func (store *OdinCounterStore) GetDailyCounts() ([]DailyCount, error) {
 	return counts, nil
 }
 
-func (store *OdinCounterStore) GetTodayCount() (int, error) {
+func (store *OdinBotStore) GetTodayCount() (int, error) {
 	f, err := os.OpenFile(store.File, os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return 0, err
@@ -109,7 +109,7 @@ func (store *OdinCounterStore) GetTodayCount() (int, error) {
 	return count, nil
 }
 
-func (store *OdinCounterStore) Export(writer io.Writer) error {
+func (store *OdinBotStore) Export(writer io.Writer) error {
 	counts, err := store.GetDailyCounts()
 	if err != nil {
 		return err

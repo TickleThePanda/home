@@ -34,7 +34,7 @@ COPY . /app
 RUN go mod download \
     && go mod verify
 
-RUN go build -o odin-counter src/*.go
+RUN go build -o odinbot src/*.go
 
 
 FROM alpine:latest
@@ -47,7 +47,7 @@ RUN apk update \
     && update-ca-certificates
 
 # Copy executable
-COPY --from=builder /app/odin-counter /usr/local/bin/odin-counter
+COPY --from=builder /app/odinbot /usr/local/bin/odinbot
 EXPOSE 10000
 
-ENTRYPOINT ["/usr/local/bin/odin-counter"]
+ENTRYPOINT ["/usr/local/bin/odinbot"]

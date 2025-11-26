@@ -7,12 +7,12 @@ import (
 )
 
 func main() {
-	storeFile := GetEnvOrDefault("ODIN_COUNTER_STORE", "/data/store.csv")
-	siteRoot := os.Getenv("ODIN_COUNTER_SITE_ROOT")
-	targetURL := GetEnvOrDefault("ODIN_COUNTER_TARGET_URL", "https://matt-vps.com/odin_of_the_day/")
-	fetchInterval := GetEnvAsInt("ODIN_COUNTER_FETCH_INTERVAL", 10)
+	storeFile := GetEnvOrDefault("ODINBOT_STORE", "/data/store.csv")
+	siteRoot := os.Getenv("ODINBOT_SITE_ROOT")
+	targetURL := GetEnvOrDefault("ODINBOT_TARGET_URL", "https://matt-vps.com/odin_of_the_day/")
+	fetchInterval := GetEnvAsInt("ODINBOT_FETCH_INTERVAL", 10)
 
-	store := &OdinCounterStore{
+	store := &OdinBotStore{
 		File: storeFile,
 	}
 
@@ -22,7 +22,7 @@ func main() {
 		FetchInterval: int(fetchInterval),
 	}
 
-	log.Printf("Odin Counter starting...")
+	log.Printf("OdinBot starting...")
 	log.Printf("Store file: %s", storeFile)
 	log.Printf("Target URL: %s", targetURL)
 	log.Printf("Fetch interval: %d seconds", fetchInterval)

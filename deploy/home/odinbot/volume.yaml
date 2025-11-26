@@ -12,7 +12,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: local-storage
   local:
-    path: /mnt/disk/odin-counter
+    path: /mnt/disk/odinbot
   nodeAffinity:
     required:
       nodeSelectorTerms:

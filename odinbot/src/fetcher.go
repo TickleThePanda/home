@@ -7,7 +7,7 @@ import (
 )
 
 type OdinFetcher struct {
-	Store         *OdinCounterStore
+	Store         *OdinBotStore
 	TargetURL     string
 	FetchInterval int
 }

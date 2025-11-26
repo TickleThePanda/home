@@ -7,11 +7,8 @@ spec:
     - web
   routes:
     - kind: Rule
-      match: Host(`home.ticklethepanda.co.uk`) && PathPrefix(`/odin-counter`)
-      middlewares:
-        - name: auth
-          namespace: home
+      match: Host(`home.ticklethepanda.co.uk`) && PathPrefix(`/odinbot`)
       services:
-        - name: odin-counter-service
+        - name: odinbot-service
           namespace: home
           port: 80

@@ -16,8 +16,8 @@ var templatesFs embed.FS
 //go:embed static/*
 var staticFs embed.FS
 
-type OdinCounterHandler struct {
-	Store    *OdinCounterStore
+type OdinBotHandler struct {
+	Store    *OdinBotStore
 	Template *template.Template
 	SiteRoot string
 }
@@ -26,13 +26,13 @@ type SiteInfo struct {
 	SiteRoot string
 }
 
-type OdinCounterResponseData struct {
+type OdinBotResponseData struct {
 	TodayCount  int
 	DailyCounts []DailyCount
 	SiteInfo    *SiteInfo
 }
 
-func (h *OdinCounterHandler) Index(w http.ResponseWriter, r *http.Request) {
+func (h *OdinBotHandler) Index(w http.ResponseWriter, r *http.Request) {
 	log.Printf("URL: %v", r.URL)
 
 	todayCount, err := h.Store.GetTodayCount()
@@ -49,7 +49,7 @@ func (h *OdinCounterHandler) Index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := OdinCounterResponseData{
+	data := OdinBotResponseData{
 		TodayCount:  todayCount,
 		DailyCounts: dailyCounts,
 		SiteInfo: &SiteInfo{
@@ -62,7 +62,7 @@ func (h *OdinCounterHandler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *OdinCounterHandler) Export(w http.ResponseWriter, r *http.Request) {
+func (h *OdinBotHandler) Export(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/csv")
 	if err := h.Store.Export(w); err != nil {
 		log.Printf("Error exporting data: %v", err)
@@ -70,10 +70,10 @@ func (h *OdinCounterHandler) Export(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleRequests(store *OdinCounterStore, siteRoot string) {
+func handleRequests(store *OdinBotStore, siteRoot string) {
 	t := template.Must(template.New("index.html").ParseFS(templatesFs, "templates/index.html"))
 
-	handler := &OdinCounterHandler{
+	handler := &OdinBotHandler{
 		Store:    store,
 		Template: t,
 		SiteRoot: siteRoot,
