@@ -15,3 +15,9 @@ spec:
         - name: home-root-service
           namespace: home
           port: 80
+    - kind: Rule
+      match: Host(`odinbot.ticklethepanda.co.uk`) && Path(`/main.css`)
+      services:
+        - name: home-root-service
+          namespace: home
+          port: 80
