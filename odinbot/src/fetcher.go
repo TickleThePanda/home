@@ -29,7 +29,14 @@ func (f *OdinFetcher) fetch() {
 		Timeout: 30 * time.Second,
 	}
 
-	resp, err := client.Get(f.TargetURL)
+	req, err := http.NewRequest(http.MethodGet, f.TargetURL, nil)
+	if err != nil {
+		log.Printf("Error creating request for %s: %v", f.TargetURL, err)
+		return
+	}
+	req.Header.Set("User-Agent", "OdinBot https://home.ticklethepanda.co.uk/odinbot/")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("Error fetching %s: %v", f.TargetURL, err)
 		return
