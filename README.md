@@ -15,11 +15,6 @@ The cluster is installed using [k3s](https://k3s.io/). To set this up:
 
   - Taint the node with "pi-camera=true:NoSchedule"
 
-- Add port forwarding rules to cluster:
-  - 8443 -> 192.168.1.2:8443 (k8s control plane)
-  - 80 -> 192.168.1.20:80 (certificate management)
-  - 443 -> 192.168.1.20:443 (web ingress)
-
 ### `deploy`
 
 The declarative Kubernetes configuration for deploying the applications.
