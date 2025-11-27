@@ -2,4 +2,5 @@ data/
 tmp/
 .vscode/
 .env
+src/src
 
