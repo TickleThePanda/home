@@ -33,6 +33,7 @@ type OdinBotResponseData struct {
 	DailyCounts    []DailyCount
 	SiteInfo       *SiteInfo
 	LatestImageURL string
+	LatestFailure  string
 	LastChecked    string
 }
 
@@ -61,10 +62,14 @@ func (h *OdinBotHandler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	latestImageURL := ""
+	latestFailure := ""
 	lastChecked := ""
 	if latestRecord != nil {
 		if latestRecord.ImageURL != "" {
 			latestImageURL = latestRecord.ImageURL
+		}
+		if latestRecord.FailureReason != "" {
+			latestFailure = latestRecord.FailureReason
 		}
 		lastChecked = latestRecord.Time.Local().Format("02 Jan 2006 15:04 MST")
 	}
@@ -73,6 +78,7 @@ func (h *OdinBotHandler) Index(w http.ResponseWriter, r *http.Request) {
 		TodayCount:     todayCount,
 		DailyCounts:    dailyCounts,
 		LatestImageURL: latestImageURL,
+		LatestFailure:  latestFailure,
 		LastChecked:    lastChecked,
 		SiteInfo: &SiteInfo{
 			SiteRoot:         h.SiteRoot,

@@ -19,6 +19,18 @@
 	box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 
+.status {
+	margin-top: 1rem;
+	padding: 0.75rem 1rem;
+	border-radius: 0.5rem;
+	font-weight: 600;
+}
+
+.status-warning {
+	background-color: rgba(255, 193, 7, 0.15);
+	color: #a15c00;
+}
+
 table {
 	width: 100%;
 	border-collapse: collapse;

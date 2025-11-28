@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -34,6 +35,12 @@ func (f *OdinFetcher) Start() {
 func (f *OdinFetcher) fetch() {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) == 0 {
+				return nil
+			}
+			return http.ErrUseLastResponse
+		},
 	}
 
 	req, err := http.NewRequest(http.MethodGet, f.TargetURL, nil)
@@ -45,38 +52,93 @@ func (f *OdinFetcher) fetch() {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("Error fetching %s: %v", f.TargetURL, err)
+		reason := fmt.Sprintf("request failed: %v", err)
+		log.Printf("Error fetching %s: %s", f.TargetURL, reason)
+		f.recordFailure(reason)
 		return
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		location := resp.Header.Get("Location")
+		resolved := resolveRedirectLocation(location, resp.Request.URL)
+		reason := "redirected without a location"
+		if resolved != "" {
+			reason = "redirected to " + resolved
+		}
+		f.recordFailure(reason)
+		log.Printf("Redirect detected while fetching %s (status: %d, location: %s)", f.TargetURL, resp.StatusCode, resolved)
+		return
+	}
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
+		reason := fmt.Sprintf("unexpected status %d", resp.StatusCode)
+		f.recordFailure(reason)
+		log.Printf("Unexpected status while fetching %s: %s", f.TargetURL, reason)
+		return
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error reading response body: %v", err)
+		reason := fmt.Sprintf("error reading response body: %v", err)
+		log.Println(reason)
+		f.recordFailure(reason)
 		return
 	}
 
 	imageURL, err := extractCatImageURL(body, resp.Request.URL)
 	if err != nil {
-		log.Printf("Unable to determine cat image URL: %v", err)
+		reason := fmt.Sprintf("unable to determine cat image URL: %v", err)
+		log.Println(reason)
+		f.recordFailure(reason)
+		return
 	}
 
-	record := &FetchRecord{
-		Time:     time.Now(),
-		ImageURL: imageURL,
+	if imageURL == "" {
+		reason := "page loaded but no image URL was found"
+		log.Println(reason)
+		f.recordFailure(reason)
+		return
 	}
 
-	if err := f.Store.Add(record); err != nil {
+	if err := f.Store.Add(&FetchRecord{Time: time.Now(), ImageURL: imageURL}); err != nil {
 		log.Printf("Error storing fetch record: %v", err)
 		return
 	}
 
-	if imageURL != "" {
-		log.Printf("Successfully fetched %s (status: %d, image: %s)", f.TargetURL, resp.StatusCode, imageURL)
-		return
-	}
+	log.Printf("Successfully fetched %s (status: %d, image: %s)", f.TargetURL, resp.StatusCode, imageURL)
+}
 
-	log.Printf("Successfully fetched %s (status: %d) but no image was recorded", f.TargetURL, resp.StatusCode)
+func (f *OdinFetcher) recordFailure(reason string) {
+	trimmed := strings.TrimSpace(reason)
+	if trimmed == "" {
+		trimmed = "unknown error"
+	}
+	record := &FetchRecord{
+		Time:          time.Now(),
+		FailureReason: trimmed,
+	}
+	if err := f.Store.Add(record); err != nil {
+		log.Printf("Error storing failure record: %v", err)
+	}
+}
+
+func resolveRedirectLocation(location string, base *url.URL) string {
+	trimmed := strings.TrimSpace(location)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return trimmed
+	}
+	if parsed.IsAbs() {
+		return parsed.String()
+	}
+	if base == nil {
+		return parsed.String()
+	}
+	return base.ResolveReference(parsed).String()
 }
 
 func extractCatImageURL(body []byte, base *url.URL) (string, error) {

@@ -23,6 +23,8 @@
 				<figure>
 					<img src="{{ .LatestImageURL }}" alt="Current Odin of the Day photo" loading="lazy">
 				</figure>
+				{{else if .LatestFailure}}
+				<p class="status status-warning">I ran into a problem while looking for Odin — {{ .LatestFailure }}.</p>
 				{{end}}
 			</section>
 			{{end}}

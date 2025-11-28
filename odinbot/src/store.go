@@ -12,8 +12,9 @@ import (
 )
 
 type FetchRecord struct {
-	Time     time.Time
-	ImageURL string
+	Time          time.Time
+	ImageURL      string
+	FailureReason string
 }
 
 type DailyCount struct {
@@ -26,11 +27,11 @@ type OdinBotStore struct {
 }
 
 func (r *FetchRecord) ToCsv() string {
-	return fmt.Sprintf("%s,%s", r.Time.Format(time.RFC3339), r.ImageURL)
+	return fmt.Sprintf("%s,%s,%s", r.Time.Format(time.RFC3339), sanitizeCsvValue(r.ImageURL), sanitizeCsvValue(r.FailureReason))
 }
 
 func FetchRecordFromCsv(line string) *FetchRecord {
-	parts := strings.SplitN(strings.TrimSpace(line), ",", 2)
+	parts := strings.SplitN(strings.TrimSpace(line), ",", 3)
 	if len(parts) == 0 {
 		return nil
 	}
@@ -41,11 +42,19 @@ func FetchRecordFromCsv(line string) *FetchRecord {
 	}
 
 	record := &FetchRecord{Time: t}
-	if len(parts) == 2 {
+	if len(parts) >= 2 {
 		record.ImageURL = strings.TrimSpace(parts[1])
+	}
+	if len(parts) == 3 {
+		record.FailureReason = strings.TrimSpace(parts[2])
 	}
 
 	return record
+}
+
+func sanitizeCsvValue(v string) string {
+	withoutNewlines := strings.ReplaceAll(v, "\n", " ")
+	return strings.ReplaceAll(withoutNewlines, ",", " ")
 }
 
 func (store *OdinBotStore) Add(record *FetchRecord) error {
