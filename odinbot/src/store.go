@@ -12,7 +12,8 @@ import (
 )
 
 type FetchRecord struct {
-	Time time.Time
+	Time     time.Time
+	ImageURL string
 }
 
 type DailyCount struct {
@@ -25,15 +26,26 @@ type OdinBotStore struct {
 }
 
 func (r *FetchRecord) ToCsv() string {
-	return r.Time.Format(time.RFC3339)
+	return fmt.Sprintf("%s,%s", r.Time.Format(time.RFC3339), r.ImageURL)
 }
 
 func FetchRecordFromCsv(line string) *FetchRecord {
-	t, err := time.Parse(time.RFC3339, strings.TrimSpace(line))
+	parts := strings.SplitN(strings.TrimSpace(line), ",", 2)
+	if len(parts) == 0 {
+		return nil
+	}
+
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(parts[0]))
 	if err != nil {
 		return nil
 	}
-	return &FetchRecord{Time: t}
+
+	record := &FetchRecord{Time: t}
+	if len(parts) == 2 {
+		record.ImageURL = strings.TrimSpace(parts[1])
+	}
+
+	return record
 }
 
 func (store *OdinBotStore) Add(record *FetchRecord) error {
@@ -63,6 +75,19 @@ func (store *OdinBotStore) GetAllRecords() ([]*FetchRecord, error) {
 	}
 
 	return records, nil
+}
+
+func (store *OdinBotStore) GetMostRecentRecord() (*FetchRecord, error) {
+	records, err := store.GetAllRecords()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	return records[len(records)-1], nil
 }
 
 func (store *OdinBotStore) GetDailyCounts() ([]DailyCount, error) {

@@ -16,6 +16,17 @@
 				<p class="count">I've looked at Odin {{ .TodayCount }} times today!</p>
 			</section>
 
+			{{if .LastChecked}}
+			<section class="latest-image">
+				<h2>Latest Odin Sighting</h2>
+				{{if .LatestImageURL}}
+				<figure>
+					<img src="{{ .LatestImageURL }}" alt="Current Odin of the Day photo" loading="lazy">
+				</figure>
+				{{end}}
+			</section>
+			{{end}}
+
 			<section class="history">
 				<h2>My History</h2>
 				<p>Here's how many times I've visited Odin each day:</p>
