@@ -34,7 +34,7 @@ services:
     environment:
       ODINBOT_STORE: /data/store.csv
       ODINBOT_SITE_ROOT: /odinbot
-      ODINBOT_SHARED_ASSETS_SITE: http://localhost:8080/
+      ODINBOT_SHARED_ASSETS_SITE: http://localhost:8080
       ODINBOT_TARGET_URL: https://matt-vps.com/odin_of_the_day/
       ODINBOT_FETCH_INTERVAL: 10
     volumes:
@@ -60,7 +60,7 @@ services:
     environment:
       SPEED_TEST_STORE: /data/store.csv
       SPEED_TEST_SITE_ROOT: /speed-test
-      SPEED_TEST_SHARED_ASSETS_SITE: http://reverse-proxy:8080
+      SPEED_TEST_SHARED_ASSETS_SITE: http://localhost:8080
       SPEED_TEST_EMAIL_CRON: "* * * * *"
     volumes:
       - ./speed-tester/data:/data
@@ -82,7 +82,7 @@ services:
     restart: unless-stopped
     environment:
       RPI_CAMERA_SITE_ROOT: /timelapse
-      RPI_CAMERA_SHARED_ASSETS_SITE: http://reverse-proxy:8080
+      RPI_CAMERA_SHARED_ASSETS_SITE: http://localhost:8080
       RPI_CAMERA_STORAGE_DIR: /data
     volumes:
       - ./rpi-timelapse/data:/data
