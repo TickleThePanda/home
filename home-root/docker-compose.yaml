@@ -1,8 +1,0 @@
-version: "3.8"
-services:
-  home-root:
-    container_name: home-root
-    build:
-      context: .
-    ports:
-    - 8080:8080

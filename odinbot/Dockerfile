@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS base
+FROM golang:1.24-alpine AS base
 WORKDIR /app
 
 ENV GO111MODULE="on"

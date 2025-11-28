@@ -1,0 +1,105 @@
+version: "3.9"
+
+services:
+  reverse-proxy:
+    image: traefik:v3.1
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
+    networks:
+      - shared
+
+  home-root:
+    build:
+      context: ./home-root
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.home-root.rule=PathPrefix(`/`)
+      - traefik.http.routers.home-root.priority=1
+      - traefik.http.routers.home-root.entrypoints=web
+      - traefik.http.services.home-root.loadbalancer.server.port=8080
+    networks:
+      - shared
+
+  odinbot:
+    build:
+      context: ./odinbot
+    restart: unless-stopped
+    environment:
+      ODINBOT_STORE: /data/store.csv
+      ODINBOT_SITE_ROOT: /odinbot
+      ODINBOT_SHARED_ASSETS_SITE: http://localhost:8080/
+      ODINBOT_TARGET_URL: https://matt-vps.com/odin_of_the_day/
+      ODINBOT_FETCH_INTERVAL: 10
+    volumes:
+      - ./odinbot/data:/data
+    depends_on:
+      - reverse-proxy
+      - home-root
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.odinbot.rule=PathPrefix(`/odinbot`)
+      - traefik.http.routers.odinbot.priority=10
+      - traefik.http.routers.odinbot.entrypoints=web
+      - traefik.http.services.odinbot.loadbalancer.server.port=10000
+    networks:
+      - shared
+
+  speed-tester:
+    build:
+      context: ./speed-tester
+    restart: unless-stopped
+    env_file:
+      - ./speed-tester/.env
+    environment:
+      SPEED_TEST_STORE: /data/store.csv
+      SPEED_TEST_SITE_ROOT: /speed-test
+      SPEED_TEST_SHARED_ASSETS_SITE: http://reverse-proxy:8080
+      SPEED_TEST_EMAIL_CRON: "* * * * *"
+    volumes:
+      - ./speed-tester/data:/data
+    depends_on:
+      - reverse-proxy
+      - home-root
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.speed-tester.rule=PathPrefix(`/speed-test`)
+      - traefik.http.routers.speed-tester.priority=10
+      - traefik.http.routers.speed-tester.entrypoints=web
+      - traefik.http.services.speed-tester.loadbalancer.server.port=10000
+    networks:
+      - shared
+
+  timelapse:
+    build:
+      context: ./rpi-timelapse
+    restart: unless-stopped
+    environment:
+      RPI_CAMERA_SITE_ROOT: /timelapse
+      RPI_CAMERA_SHARED_ASSETS_SITE: http://reverse-proxy:8080
+      RPI_CAMERA_STORAGE_DIR: /data
+    volumes:
+      - ./rpi-timelapse/data:/data
+    depends_on:
+      - reverse-proxy
+      - home-root
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.timelapse.rule=PathPrefix(`/timelapse`)
+      - traefik.http.routers.timelapse.priority=10
+      - traefik.http.routers.timelapse.entrypoints=web
+      - traefik.http.services.timelapse.loadbalancer.server.port=10000
+    networks:
+      - shared
+
+networks:
+  shared:
+    mode: bridge
+
+
