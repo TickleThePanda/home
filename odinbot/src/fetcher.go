@@ -15,9 +15,10 @@ import (
 )
 
 type OdinFetcher struct {
-	Store         *OdinBotStore
-	TargetURL     string
-	FetchInterval int
+	Store          *OdinBotStore
+	TargetURL      string
+	FetchInterval  int
+	FloofEvaluator *FloofMajestyEvaluator
 }
 
 func (f *OdinFetcher) Start() {
@@ -104,6 +105,14 @@ func (f *OdinFetcher) fetch() {
 	if err := f.Store.Add(&FetchRecord{Time: time.Now(), ImageURL: imageURL}); err != nil {
 		log.Printf("Error storing fetch record: %v", err)
 		return
+	}
+
+	if f.FloofEvaluator != nil {
+		if score, err := f.FloofEvaluator.Score(imageURL); err != nil {
+			log.Printf("Error computing Floof Majesty Index for %s: %v", imageURL, err)
+		} else {
+			log.Printf("Floof Majesty Index for %s: %.3f", imageURL, score)
+		}
 	}
 
 	log.Printf("Successfully fetched %s (status: %d, image: %s)", f.TargetURL, resp.StatusCode, imageURL)

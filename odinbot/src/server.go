@@ -18,6 +18,7 @@ var staticFs embed.FS
 
 type OdinBotHandler struct {
 	Store            *OdinBotStore
+	FloofStore       *FloofMajestyStore
 	Template         *template.Template
 	SiteRoot         string
 	SharedAssetsSite string
@@ -35,6 +36,9 @@ type OdinBotResponseData struct {
 	LatestImageURL string
 	LatestFailure  string
 	LastChecked    string
+	HasFloofFav    bool
+	FavouriteImage string
+	FavouriteScore float64
 }
 
 func (h *OdinBotHandler) Index(w http.ResponseWriter, r *http.Request) {
@@ -74,12 +78,26 @@ func (h *OdinBotHandler) Index(w http.ResponseWriter, r *http.Request) {
 		lastChecked = latestRecord.Time.Local().Format("02 Jan 2006 15:04 MST")
 	}
 
+	favouriteURL := ""
+	favouriteScore := 0.0
+	hasFavourite := false
+	if h.FloofStore != nil {
+		if url, score, ok := h.FloofStore.TopScore(); ok {
+			favouriteURL = url
+			favouriteScore = score
+			hasFavourite = true
+		}
+	}
+
 	data := OdinBotResponseData{
 		TodayCount:     todayCount,
 		DailyCounts:    dailyCounts,
 		LatestImageURL: latestImageURL,
 		LatestFailure:  latestFailure,
 		LastChecked:    lastChecked,
+		HasFloofFav:    hasFavourite,
+		FavouriteImage: favouriteURL,
+		FavouriteScore: favouriteScore,
 		SiteInfo: &SiteInfo{
 			SiteRoot:         h.SiteRoot,
 			SharedAssetsSite: h.SharedAssetsSite,
@@ -99,11 +117,12 @@ func (h *OdinBotHandler) Export(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleRequests(store *OdinBotStore, siteRoot string, sharedAssetsSite string) {
+func handleRequests(store *OdinBotStore, floofStore *FloofMajestyStore, siteRoot string, sharedAssetsSite string) {
 	t := template.Must(template.New("index.html").ParseFS(templatesFs, "templates/index.html"))
 
 	handler := &OdinBotHandler{
 		Store:            store,
+		FloofStore:       floofStore,
 		Template:         t,
 		SiteRoot:         siteRoot,
 		SharedAssetsSite: sharedAssetsSite,

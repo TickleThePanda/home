@@ -8,6 +8,7 @@ import (
 
 func main() {
 	storeFile := GetEnvOrDefault("ODINBOT_STORE", "/data/store.csv")
+	floofStoreFile := GetEnvOrDefault("ODINBOT_FLOOF_STORE", "/data/floof_scores.csv")
 	siteRoot := os.Getenv("ODINBOT_SITE_ROOT")
 	sharedAssetsSite := os.Getenv("ODINBOT_SHARED_ASSETS_SITE")
 	targetURL := GetEnvOrDefault("ODINBOT_TARGET_URL", "https://matt-vps.com/odin_of_the_day/")
@@ -17,21 +18,30 @@ func main() {
 		File: storeFile,
 	}
 
+	floofStore, err := NewFloofMajestyStore(floofStoreFile)
+	if err != nil {
+		log.Fatalf("Failed to initialise Floof Majesty store: %v", err)
+	}
+
+	floofEvaluator := NewFloofMajestyEvaluator(floofStore)
+
 	fetcher := &OdinFetcher{
-		Store:         store,
-		TargetURL:     targetURL,
-		FetchInterval: int(fetchInterval),
+		Store:          store,
+		TargetURL:      targetURL,
+		FetchInterval:  int(fetchInterval),
+		FloofEvaluator: floofEvaluator,
 	}
 
 	log.Printf("Odin Bot starting...")
 	log.Printf("Store file: %s", storeFile)
+	log.Printf("Floof Majesty store file: %s", floofStoreFile)
 	log.Printf("Target URL: %s", targetURL)
 	log.Printf("Fetch interval: %d seconds", fetchInterval)
 	log.Printf("Site root: %s", siteRoot)
 
 	go fetcher.Start()
 
-	handleRequests(store, siteRoot, sharedAssetsSite)
+	handleRequests(store, floofStore, siteRoot, sharedAssetsSite)
 }
 
 func GetEnvAsInt(env string, defaultValue int64) int64 {

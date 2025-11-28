@@ -16,6 +16,18 @@
 				<p class="count">I've looked at Odin {{ .TodayCount }} times today!</p>
 			</section>
 
+			{{if .HasFloofFav}}
+			<section class="floof-favourite">
+				<h2>Floof Majesty Favourite</h2>
+				<p>My fluffiest find so far scores {{ printf "%.2f" .FavouriteScore }} on the Floof Majesty Index.</p>
+				{{if .FavouriteImage}}
+				<figure>
+					<img src="{{ .FavouriteImage }}" alt="Odin at peak floof" loading="lazy">
+				</figure>
+				{{end}}
+			</section>
+			{{end}}
+
 			{{if .LastChecked}}
 			<section class="latest-image">
 				<h2>Latest Odin Sighting</h2>
