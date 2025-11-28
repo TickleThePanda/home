@@ -18,13 +18,23 @@ const (
 	furBrightnessThreshold    = 0.55
 	furSaturationThreshold    = 0.25
 	textureNormalizationRange = 0.2
-	furAreaWeight             = 0.65
-	furTextureWeight          = 0.35
+	furTextureEdgeThreshold   = 0.005
+	furAreaWeight             = 0.15
+	furTextureWeight          = 0.2
+	furCoverageWeight         = 0.65
 )
 
 type FloofMajestyEvaluator struct {
 	Store  *FloofMajestyStore
 	client *http.Client
+}
+
+type floofMetrics struct {
+	furPixels       int
+	totalPixels     int
+	furFraction     float64
+	textureScore    float64
+	textureCoverage float64
 }
 
 func NewFloofMajestyEvaluator(store *FloofMajestyStore) *FloofMajestyEvaluator {
@@ -37,6 +47,14 @@ func NewFloofMajestyEvaluator(store *FloofMajestyStore) *FloofMajestyEvaluator {
 }
 
 func (e *FloofMajestyEvaluator) Score(imageURL string) (float64, error) {
+	return e.scoreInternal(imageURL, false)
+}
+
+func (e *FloofMajestyEvaluator) ForceRefresh(imageURL string) (float64, error) {
+	return e.scoreInternal(imageURL, true)
+}
+
+func (e *FloofMajestyEvaluator) scoreInternal(imageURL string, force bool) (float64, error) {
 	if e == nil || e.Store == nil {
 		return 0, errors.New("floof evaluator not configured")
 	}
@@ -44,8 +62,10 @@ func (e *FloofMajestyEvaluator) Score(imageURL string) (float64, error) {
 		return 0, errors.New("image URL cannot be empty")
 	}
 
-	if score, ok := e.Store.Get(imageURL); ok {
-		return score, nil
+	if !force {
+		if entry, ok := e.Store.Get(imageURL); ok && entry.Version >= FloofScoreVersion {
+			return entry.Score, nil
+		}
 	}
 
 	img, err := e.fetchImage(imageURL)
@@ -56,7 +76,7 @@ func (e *FloofMajestyEvaluator) Score(imageURL string) (float64, error) {
 	normalized := resizeForFloof(img)
 	score := calculateFloofMajesty(normalized)
 
-	if err := e.Store.Set(imageURL, score); err != nil {
+	if err := e.Store.Set(imageURL, score, FloofScoreVersion); err != nil {
 		return 0, err
 	}
 
@@ -108,18 +128,23 @@ func resizeForFloof(src image.Image) *image.NRGBA {
 }
 
 func calculateFloofMajesty(img *image.NRGBA) float64 {
+	metrics := calculateFloofMetrics(img)
+	combined := (metrics.furFraction * furAreaWeight) + (metrics.textureScore * furTextureWeight) + (metrics.textureCoverage * furCoverageWeight)
+	return clamp(combined, 0, 1)
+}
+
+func calculateFloofMetrics(img *image.NRGBA) floofMetrics {
 	bounds := img.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
 	totalPixels := width * height
+	metrics := floofMetrics{totalPixels: totalPixels}
 	if totalPixels == 0 {
-		return 0
+		return metrics
 	}
 
 	grayscale := make([]float64, totalPixels)
 	furMask := make([]bool, totalPixels)
-
-	var furPixels int
 
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
@@ -142,17 +167,18 @@ func calculateFloofMajesty(img *image.NRGBA) float64 {
 
 			if brightness >= furBrightnessThreshold && saturation <= furSaturationThreshold {
 				furMask[idx] = true
-				furPixels++
+				metrics.furPixels++
 			}
 		}
 	}
 
-	if furPixels == 0 {
-		return 0
+	if metrics.furPixels == 0 {
+		return metrics
 	}
 
 	var gradientSum float64
 	var gradientCount int
+	var activeEdges int
 
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
@@ -163,29 +189,38 @@ func calculateFloofMajesty(img *image.NRGBA) float64 {
 			if x+1 < width {
 				neighbourIdx := y*width + (x + 1)
 				if furMask[neighbourIdx] {
-					gradientSum += math.Abs(grayscale[idx] - grayscale[neighbourIdx])
+					diff := math.Abs(grayscale[idx] - grayscale[neighbourIdx])
+					gradientSum += diff
 					gradientCount++
+					if diff >= furTextureEdgeThreshold {
+						activeEdges++
+					}
 				}
 			}
 			if y+1 < height {
 				neighbourIdx := (y+1)*width + x
 				if furMask[neighbourIdx] {
-					gradientSum += math.Abs(grayscale[idx] - grayscale[neighbourIdx])
+					diff := math.Abs(grayscale[idx] - grayscale[neighbourIdx])
+					gradientSum += diff
 					gradientCount++
+					if diff >= furTextureEdgeThreshold {
+						activeEdges++
+					}
 				}
 			}
 		}
 	}
 
-	var textureScore float64
 	if gradientCount > 0 {
 		avgDiff := gradientSum / float64(gradientCount)
-		textureScore = clamp(avgDiff/textureNormalizationRange, 0, 1)
+		metrics.textureScore = clamp(avgDiff/textureNormalizationRange, 0, 1)
 	}
-
-	furFraction := float64(furPixels) / float64(totalPixels)
-	combined := (furFraction * furAreaWeight) + (textureScore * furTextureWeight)
-	return clamp(combined, 0, 1)
+	maxPossibleEdges := metrics.furPixels * 2
+	if maxPossibleEdges > 0 {
+		metrics.textureCoverage = clamp(float64(activeEdges)/float64(maxPossibleEdges), 0, 1)
+	}
+	metrics.furFraction = float64(metrics.furPixels) / float64(totalPixels)
+	return metrics
 }
 
 func clamp(value, min, max float64) float64 {

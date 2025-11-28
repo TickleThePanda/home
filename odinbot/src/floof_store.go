@@ -17,13 +17,18 @@ import (
 type FloofMajestyStore struct {
 	File   string
 	mu     sync.RWMutex
-	scores map[string]float64
+	scores map[string]FloofScoreEntry
+}
+
+type FloofScoreEntry struct {
+	Score   float64
+	Version int
 }
 
 func NewFloofMajestyStore(file string) (*FloofMajestyStore, error) {
 	store := &FloofMajestyStore{
 		File:   file,
-		scores: make(map[string]float64),
+		scores: make(map[string]FloofScoreEntry),
 	}
 
 	if err := store.ensureDir(); err != nil {
@@ -70,34 +75,48 @@ func (s *FloofMajestyStore) load() error {
 			continue
 		}
 		imageURL := strings.TrimSpace(record[0])
-		score, err := strconv.ParseFloat(strings.TrimSpace(record[1]), 64)
+		if imageURL == "" {
+			continue
+		}
+		scoreText := strings.TrimSpace(record[len(record)-1])
+		score, err := strconv.ParseFloat(scoreText, 64)
 		if err != nil {
 			continue
 		}
-		s.scores[imageURL] = score
+		entry := FloofScoreEntry{Score: score}
+		if len(record) >= 3 {
+			if version, err := strconv.Atoi(strings.TrimSpace(record[1])); err == nil {
+				entry.Version = version
+			}
+		}
+		if entry.Version < FloofScoreVersion {
+			continue
+		}
+		s.scores[imageURL] = entry
 	}
 
 	return nil
 }
 
-func (s *FloofMajestyStore) Get(imageURL string) (float64, bool) {
+func (s *FloofMajestyStore) Get(imageURL string) (FloofScoreEntry, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	score, ok := s.scores[imageURL]
-	return score, ok
+	entry, ok := s.scores[imageURL]
+	return entry, ok
 }
 
-func (s *FloofMajestyStore) Set(imageURL string, score float64) error {
+func (s *FloofMajestyStore) Set(imageURL string, score float64, version int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	entry := FloofScoreEntry{Score: score, Version: version}
 	if existing, ok := s.scores[imageURL]; ok {
-		if existing == score {
+		if existing.Score == score && existing.Version == version {
 			return nil
 		}
 	}
 
-	s.scores[imageURL] = score
+	s.scores[imageURL] = entry
 	return s.saveLocked()
 }
 
@@ -122,7 +141,8 @@ func (s *FloofMajestyStore) saveLocked() error {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		line := []string{key, fmt.Sprintf("%.6f", s.scores[key])}
+		entry := s.scores[key]
+		line := []string{key, strconv.Itoa(entry.Version), fmt.Sprintf("%.6f", entry.Score)}
 		if err := writer.Write(line); err != nil {
 			return err
 		}
@@ -139,10 +159,10 @@ func (s *FloofMajestyStore) TopScore() (string, float64, bool) {
 	var topScore float64
 	var found bool
 
-	for url, score := range s.scores {
-		if !found || score > topScore {
+	for url, entry := range s.scores {
+		if !found || entry.Score > topScore {
 			topURL = url
-			topScore = score
+			topScore = entry.Score
 			found = true
 		}
 	}
