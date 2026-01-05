@@ -5,4 +5,5 @@ kind: Kustomization
 resources:
 - ./index
 - ./lldap
+- ./mosquitto
 - ./pihole

@@ -39,6 +39,13 @@ spec:
           default: false
           internal: true
         protocol: TCP
+      int-mqtt:
+        exposedPort: 1883
+        port: 1883
+        expose:
+          default: false
+          internal: true
+        protocol: TCP
       ext-web:
         exposedPort: 80
         port: 8080
