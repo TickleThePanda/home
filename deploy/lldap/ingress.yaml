@@ -4,11 +4,11 @@ metadata:
   name: ingress
 spec:
   entryPoints:
-    - ext-web
+    - int-web
   routes:
     - kind: Rule
-      match: Host(`ldap.internal.ticklethepanda.co.uk`)
+      match: Host(`lldap.internal.ticklethepanda.co.uk`)
       services:
-        - name: lldap
+        - name: lldap-service
           namespace: lldap
-          port: 3890
+          port: 80
