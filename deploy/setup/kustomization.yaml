@@ -12,3 +12,4 @@ resources:
   - ./lb-advertisement.yaml
   - ./api-proxy
   - ./traefik-helm-config.yaml
+  - ./cloudflared

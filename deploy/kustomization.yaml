@@ -5,9 +5,8 @@ kind: Kustomization
 resources:
 - ./setup
 - ./home
-- ./pihole
-- ./cloudflared
-- ./lldap
+- ./internal
+
 
 labels:
 - includeSelectors: true
