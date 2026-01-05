@@ -54,7 +54,7 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
       - name: Rollout latest image
-        run: kubectl rollout restart deployment/internal-index-deployment --namespace=home
+        run: kubectl rollout restart deployment/internal-index-deployment --namespace=internal-index
       # prevent huge cache
       - name: Move cache
         run: |
