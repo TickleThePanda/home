@@ -5,7 +5,8 @@ resources:
   - https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
   - https://raw.githubusercontent.com/metallb/metallb/v0.13.5/config/manifests/metallb-native.yaml
   - ./cluster-issuer.yaml
-  - ./lb-traefik.yaml
+  - ./lb-traefik-internal.yaml
+  - ./lb-traefik-external.yaml
   - ./lb-pihole.yaml
   - ./lb-kube-api.yaml
   - ./lb-advertisement.yaml

@@ -1,11 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-commonLabels:
-  ticklethepanda.dev/managed-by: kustomize
 
 resources:
-  - ./setup
-  - ./home
-  - ./pihole
-  - ./cloudflared
+- ./setup
+- ./home
+- ./pihole
+- ./cloudflared
+- ./lldap
+
+labels:
+- includeSelectors: true
+  pairs:
+    ticklethepanda.dev/managed-by: kustomize

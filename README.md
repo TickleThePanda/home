@@ -31,5 +31,25 @@ A web controlled timelapse camera, based around the [Raspberry PI Camera].
 
 A broadband speed test monitor, using [Speedtest by Ookla].
 
+## Network
+
+Router: 192.168.1.1
+
+### Kubernetes
+
+`k3s-manager-1` Node IP / SSH: 192.168.1.2
+
+Kube API: 192.168.1.3
+
+PiHole: 192.168.1.10
+
+External ingress: 192.168.1.20
+
+Internal ingress: 192.168.1.19
+
+### Others
+
+Home Assistant: 192.168.1.5
+
 [raspberry pi camera]: https://www.raspberrypi.org/products/camera-module-v2/
 [speedtest by ookla]: https://www.speedtest.net/

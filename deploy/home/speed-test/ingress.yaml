@@ -4,7 +4,7 @@ metadata:
   name: ingress
 spec:
   entryPoints:
-    - web
+    - ext-web
   routes:
     - kind: Rule
       match: Host(`home.ticklethepanda.co.uk`) && PathPrefix(`/speed-test`)

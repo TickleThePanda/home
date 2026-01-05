@@ -6,16 +6,49 @@ metadata:
 spec:
   valuesContent: |-
     service:
-      annotations:
-        metallb.universe.tf/address-pool: traefik
+      enabled: false
+      additionalServices:
+        external:
+          enabled: true
+          type: LoadBalancer
+          annotations:
+            metallb.io/address-pool: traefik-external
+
+        internal:
+          enabled: true
+          type: LoadBalancer
+          annotations:
+            metallb.io/address-pool: traefik-internal
+
     ingressRoute:
       dashboard:
         enabled: true
+        matchRule: Host(`traefik.internal.ticklethepanda.co.uk`)
+        entryPoints:
+          - "int-web"
+
     logs:
       access:
         enabled: true
+
     ports:
+      int-web:
+        exposedPort: 80
+        port: 7080
+        expose:
+          default: false
+          internal: true
+        protocol: TCP
+      ext-web:
+        exposedPort: 80
+        port: 8080
+        expose:
+          default: false
+          external: true
+        protocol: TCP
+
       traefik:
+        port: 9000
         exposedPort: 9000
         expose:
-          default: true
+          default: false

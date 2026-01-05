@@ -7,8 +7,8 @@ spec:
     - ext-web
   routes:
     - kind: Rule
-      match: Host(`home.ticklethepanda.co.uk`) && PathPrefix(`/odinbot`)
+      match: Host(`ldap.internal.ticklethepanda.co.uk`)
       services:
-        - name: odinbot-service
-          namespace: home
-          port: 80
+        - name: lldap
+          namespace: lldap
+          port: 3890
