@@ -12,13 +12,13 @@ spec:
           enabled: true
           type: LoadBalancer
           annotations:
-            metallb.io/address-pool: traefik-external
+            metallb.io/address-pool: external
 
         internal:
           enabled: true
           type: LoadBalancer
           annotations:
-            metallb.io/address-pool: traefik-internal
+            metallb.io/address-pool: internal
 
     ingressRoute:
       dashboard:

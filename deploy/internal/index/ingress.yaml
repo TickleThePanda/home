@@ -8,16 +8,7 @@ spec:
   routes:
     - kind: Rule
       match: Host(`internal.ticklethepanda.co.uk`)
-      middlewares:
-        - name: auth
-          namespace: home
       services:
         - name: internal-index-service
-          namespace: home
-          port: 80
-    - kind: Rule
-      match: Host(`internal.ticklethepanda.co.uk`) && Path(`/main.css`)
-      services:
-        - name: internal-index-service
-          namespace: home
+          namespace: internal-index
           port: 80

@@ -4,11 +4,14 @@ kind: Kustomization
 metadata:
   name: internal-index
 
+namespace: internal-index
+
 namePrefix: internal-index-
 commonLabels:
   app: internal-index
 
 resources:
+  - ./namespace.yaml
   - ./deployment.yaml
   - ./service.yaml
   - ./ingress.yaml

@@ -6,5 +6,6 @@ metadata:
 spec:
   ipAddressPools:
     - pihole
-    - traefik
+    - internal
+    - external
     - kube-api
