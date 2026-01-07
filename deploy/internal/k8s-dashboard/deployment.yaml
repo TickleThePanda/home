@@ -26,7 +26,7 @@ spec:
           args:
             - --auto-generate-certificates
             - --namespace=kubernetes-dashboard
-            # - --enable-skip-login # Uncomment to allow skipping login
+            - --enable-skip-login # Uncomment to allow skipping login
           volumeMounts:
             - name: kubernetes-dashboard-certs
               mountPath: /certs
