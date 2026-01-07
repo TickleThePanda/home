@@ -8,7 +8,6 @@ resources:
   - ./lb-internal.yaml
   - ./lb-external.yaml
   - ./lb-pihole.yaml
-  - ./lb-kube-api.yaml
   - ./lb-dashboard.yaml
   - ./lb-advertisement.yaml
   - ./api-proxy
