@@ -7,3 +7,4 @@ resources:
 - ./lldap
 - ./mosquitto
 - ./pihole
+- ./k8s-dashboard

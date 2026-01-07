@@ -9,6 +9,7 @@ resources:
   - ./lb-external.yaml
   - ./lb-pihole.yaml
   - ./lb-kube-api.yaml
+  - ./lb-dashboard.yaml
   - ./lb-advertisement.yaml
   - ./api-proxy
   - ./traefik-helm-config.yaml
