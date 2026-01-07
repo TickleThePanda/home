@@ -1,12 +1,12 @@
----
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: pihole
   namespace: pihole
   labels:
     app: pihole
 spec:
+  serviceName: pihole-lb
   replicas: 1
   selector:
     matchLabels:
@@ -41,6 +41,18 @@ spec:
               mountPath: "/etc/pihole"
             - name: pihole-dns-pv
               mountPath: "/etc/dnsmasq.d"
+        - name: unbound
+          image: mvance/unbound:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5335
+              protocol: UDP
+            - containerPort: 5335
+              protocol: TCP
+          volumeMounts:
+            - name: unbound-conf
+              mountPath: /opt/unbound/etc/unbound/unbound.conf
+              subPath: unbound.conf
       volumes:
         - name: pihole-etc-pv
           persistentVolumeClaim:
@@ -48,3 +60,6 @@ spec:
         - name: pihole-dns-pv
           persistentVolumeClaim:
             claimName: pihole-dns
+        - name: unbound-conf
+          configMap:
+            name: unbound-conf

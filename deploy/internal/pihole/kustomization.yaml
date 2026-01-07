@@ -7,5 +7,6 @@ resources:
   - ./namespace.yaml
   - ./volume-conf.yaml
   - ./volume-dns.yaml
-  - ./deployment.yaml
+  - ./statefulset.yaml
   - ./service-lb.yaml
+  - ./unbound-config.yaml

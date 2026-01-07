@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unbound-conf
+  namespace: pihole
+data:
+  unbound.conf: |
+    server:
+      verbosity: 0
+      interface: 127.0.0.1
+      port: 5335
+      do-ip4: yes
+      do-udp: yes
+      do-tcp: yes
+      do-ip6: no
+
+      # Access Control
+      access-control: 127.0.0.0/8 allow
+
+      # Privacy
+      hide-identity: yes
+      hide-version: yes
+
+      # Hardening
+      harden-glue: yes
+      harden-dnssec-stripped: yes
+      use-caps-for-id: yes
+      qname-minimisation: yes
+      
+      # DNS Rebinding Prevention
+      private-address: 192.168.0.0/16
+      private-address: 169.254.0.0/16
+      private-address: 172.16.0.0/12
+      private-address: 10.0.0.0/8
+      private-address: fd00::/8
+      private-address: fe80::/10
+
+      # Performance
+      num-threads: 1
+      prefetch: yes
+      prefetch-key: yes
+      edns-buffer-size: 1232
