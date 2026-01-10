@@ -20,12 +20,18 @@ spec:
           annotations:
             metallb.io/address-pool: internal
 
+        auth:
+          enabled: true
+          type: LoadBalancer
+          annotations:
+            metallb.io/address-pool: auth
+
     ingressRoute:
       dashboard:
         enabled: true
         matchRule: Host(`traefik.internal.ticklethepanda.co.uk`)
         entryPoints:
-          - "int-web"
+          - "int-web-secure"
 
     logs:
       access:
@@ -39,19 +45,55 @@ spec:
           default: false
           internal: true
         protocol: TCP
-      int-mqtt:
-        exposedPort: 1883
-        port: 1883
+        redirections:
+          entryPoint:
+            to: int-web-secure
+            scheme: https
+      int-web-secure:
+        exposedPort: 443
+        port: 7443
         expose:
           default: false
           internal: true
         protocol: TCP
+        tls:
+          enabled: true
+
+      auth-web:
+        exposedPort: 80
+        port: 9080
+        expose:
+          default: false
+          auth: true
+        protocol: TCP
+        redirections:
+          entryPoint:
+            to: auth-web-secure
+            scheme: https
+      auth-web-secure:
+        exposedPort: 443
+        port: 9443
+        expose:
+          default: false
+          auth: true
+        protocol: TCP
+        tls:
+          enabled: true
+
       ext-web:
         exposedPort: 80
         port: 8080
         expose:
           default: false
           external: true
+        protocol: TCP
+
+      int-mqtt:
+        exposedPort: 1883
+        port: 1883
+        expose:
+          default: false
+          internal: true
         protocol: TCP
 
       traefik:

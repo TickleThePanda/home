@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pocket-id
+  namespace: pocket-id
+  labels:
+    app: pocket-id
+spec:
+  serviceName: pocket-id
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pocket-id
+  template:
+    metadata:
+      labels:
+        app: pocket-id
+    spec:
+      containers:
+        - name: pocket-id
+          image: ghcr.io/pocket-id/pocket-id:v2
+          ports:
+            - containerPort: 1411
+              name: http
+          env:
+            - name: APP_URL
+              value: "https://auth.internal.ticklethepanda.co.uk"
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pocket-id-secret
+                  key: ENCRYPTION_KEY
+            # LDAP Configuration
+            - name: UI_CONFIG_DISABLED
+              value: "true"
+            - name: LDAP_ENABLED
+              value: "true"
+            - name: LDAP_URL
+              value: "ldap://lldap-service.lldap.svc.cluster.local:3890"
+            - name: LDAP_BIND_DN
+              value: "uid=admin,ou=people,dc=ticklethepanda,dc=co,dc=uk"
+            - name: LDAP_BIND_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pocket-id-secret
+                  key: LDAP_BIND_PASSWORD
+            - name: LDAP_BASE
+              value: "dc=ticklethepanda,dc=co,dc=uk"
+            - name: LDAP_USER_SEARCH_FILTER
+              value: "(&(objectClass=person)(memberOf=cn=pocket_id_user,ou=groups,dc=ticklethepanda,dc=co,dc=uk))"
+            - name: LDAP_USER_GROUP_SEARCH_FILTER
+              value: "(objectClass=groupOfUniqueNames)"
+            - name: LDAP_ATTRIBUTE_GROUP_MEMBER
+              value: "uniqueMember"
+            - name: LDAP_ATTRIBUTE_USER_UNIQUE_IDENTIFIER
+              value: "uuid"
+            - name: LDAP_ATTRIBUTE_GROUP_UNIQUE_IDENTIFIER
+              value: "cn"
+            - name: LDAP_ATTRIBUTE_GROUP_NAME
+              value: "cn"
+            - name: LDAP_ADMIN_GROUP_NAME
+              value: "pocket_id_admin"
+            - name: LDAP_ATTRIBUTE_USER_USERNAME
+              value: "uid"
+            - name: LDAP_ATTRIBUTE_USER_EMAIL
+              value: "mail"
+            - name: LDAP_ATTRIBUTE_USER_FIRST_NAME
+              value: "firstname"
+            - name: LDAP_ATTRIBUTE_USER_LAST_NAME
+              value: "lastname"
+            # SMTP Configuration (ProtonMail)
+            - name: SMTP_HOST
+              value: "smtp.protonmail.ch"
+            - name: SMTP_PORT
+              value: "587"
+            - name: SMTP_TLS
+              value: "starttls"
+            - name: SMTP_FROM
+              value: "noreply@ticklethepanda.co.uk"
+            - name: SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: pocket-id-secret
+                  key: SMTP_USER
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pocket-id-secret
+                  key: SMTP_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "local-path"
+        resources:
+          requests:
+            storage: 1Gi

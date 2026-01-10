@@ -5,10 +5,13 @@ resources:
   - https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
   - https://raw.githubusercontent.com/metallb/metallb/v0.13.5/config/manifests/metallb-native.yaml
   - ./cluster-issuer.yaml
+  - ./internal--cert.yaml
+  - ./internal--tls-store.yaml
   - ./lb-internal.yaml
   - ./lb-external.yaml
   - ./lb-pihole.yaml
   - ./lb-dashboard.yaml
+  - ./lb-auth.yaml
   - ./lb-advertisement.yaml
   - ./api-proxy
   - ./traefik-helm-config.yaml

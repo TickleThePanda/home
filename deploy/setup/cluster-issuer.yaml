@@ -10,6 +10,9 @@ spec:
       name: issuer-account-key
     server: https://acme-v02.api.letsencrypt.org/directory
     solvers:
-      - http01:
-          ingress:
-            class: traefik
+      - dns01:
+          cloudflare:
+            email: panda@ticklethepanda.dev
+            apiTokenSecretRef:
+              name: cloudflare-api-token-secret
+              key: api-token

@@ -1,10 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-
 resources:
-- ./index
-- ./lldap
-- ./mosquitto
-- ./pihole
-- ./pocketid
+- namespace.yaml
+- statefulset.yaml
+- service.yaml
+- ingress.yaml

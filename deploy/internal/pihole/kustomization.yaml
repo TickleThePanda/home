@@ -9,4 +9,6 @@ resources:
   - ./volume-dns.yaml
   - ./deployment.yaml
   - ./service-lb.yaml
+  - ./service.yaml
+  - ./ingress.yaml
   - ./unbound-configmap.yaml
