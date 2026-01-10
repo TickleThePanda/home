@@ -10,3 +10,4 @@ spec:
     - external
     - kube-api
     - dashboard
+    - auth
