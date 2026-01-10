@@ -41,6 +41,21 @@ spec:
               mountPath: "/etc/pihole"
             - name: pihole-dns-pv
               mountPath: "/etc/dnsmasq.d"
+        - name: unbound
+          image: mvance/unbound-rpi:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5335
+              name: dns-udp
+              protocol: UDP
+            - containerPort: 5335
+              name: dns-tcp
+              protocol: TCP
+          volumeMounts:
+            - name: unbound-config
+              mountPath: /opt/unbound/etc/unbound/unbound.conf
+              subPath: unbound.conf
+              readOnly: true
       volumes:
         - name: pihole-etc-pv
           persistentVolumeClaim:
@@ -48,3 +63,6 @@ spec:
         - name: pihole-dns-pv
           persistentVolumeClaim:
             claimName: pihole-dns
+        - name: unbound-config
+          configMap:
+            name: unbound-config
