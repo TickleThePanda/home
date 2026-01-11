@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-
-magick -gravity center -background black -fill white -size 400x300 caption:"$(date)" png:-
-
