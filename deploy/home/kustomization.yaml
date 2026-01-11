@@ -11,8 +11,6 @@ resources:
   - ./home--cert.yaml
   - ./auth-middleware.yaml
   - ./root
-  - ./timelapse
-  - ./speed-test
   - ./odinbot
 
 secretGenerator:
