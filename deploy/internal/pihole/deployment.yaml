@@ -25,11 +25,7 @@ spec:
             - name: TZ
               value: "Europe/London"
             - name: FTLCONF_webserver_api_password
-              valueFrom:
-                secretKeyRef:
-                  name: pihole
-                  key: webpass
-                  optional: false
+              value: ""
             - name: SERVER_ADDR
               value: "pihole.internal.ticklethepanda.co.uk"
             - name: FTLCONF_LOCAL_IPV4

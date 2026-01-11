@@ -10,6 +10,22 @@ spec:
   routes:
     - kind: Rule
       match: Host(`pi-hole.internal.ticklethepanda.co.uk`)
+      middlewares:
+        - name: redirect-to-admin
+        - name: tinyauth
+          namespace: tinyauth
       services:
         - name: pihole-web
           port: 80
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-admin
+  namespace: pihole
+spec:
+  redirectRegex:
+    regex: "^https?://([^/]+)/?$"
+    replacement: "https://${1}/admin/"
+    permanent: false

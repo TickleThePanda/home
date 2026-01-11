@@ -37,6 +37,10 @@ spec:
       access:
         enabled: true
 
+    providers:
+      kubernetesCRD:
+        allowCrossNamespace: true
+
     ports:
       int-web:
         exposedPort: 80

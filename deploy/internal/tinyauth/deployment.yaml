@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tinyauth
+  namespace: tinyauth
+  labels:
+    app: tinyauth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tinyauth
+  template:
+    metadata:
+      labels:
+        app: tinyauth
+    spec:
+      containers:
+        - name: tinyauth
+          image: ghcr.io/steveiliop56/tinyauth:v4
+          ports:
+            - containerPort: 3000
+          env:
+            - name: APP_URL
+              value: "https://forward-auth.internal.ticklethepanda.co.uk"
+            - name: SERVER_PORT
+              value: "3000"
+            - name: OAUTH_AUTO_REDIRECT
+              value: pocketid
+            - name: PROVIDERS_POCKETID_NAME
+              value: "Pocket ID"
+            - name: PROVIDERS_POCKETID_AUTH_URL
+              value: "https://auth.internal.ticklethepanda.co.uk/authorize"
+            - name: PROVIDERS_POCKETID_TOKEN_URL
+              value: "http://pocket-id.pocket-id.svc.cluster.local/api/oidc/token"
+            - name: PROVIDERS_POCKETID_USER_INFO_URL
+              value: "http://pocket-id.pocket-id.svc.cluster.local/api/oidc/userinfo"
+            - name: PROVIDERS_POCKETID_REDIRECT_URL
+              value: "https://forward-auth.internal.ticklethepanda.co.uk/api/oauth/callback/pocketid"
+            - name: PROVIDERS_POCKETID_SCOPES
+              value: "openid email profile groups"
+            - name: PROVIDERS_POCKETID_CLIENT_ID
+              value: 47a54fd4-c771-4e4a-979f-23112cd995a3
+            - name: PROVIDERS_POCKETID_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tinyauth-secrets
+                  key: CLIENT_SECRET
