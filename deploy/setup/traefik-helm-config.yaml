@@ -32,6 +32,9 @@ spec:
         matchRule: Host(`traefik.internal.ticklethepanda.co.uk`)
         entryPoints:
           - "int-web-secure"
+        middlewares:
+          - name: tinyauth
+            namespace: tinyauth
 
     logs:
       access:
