@@ -10,8 +10,6 @@ resources:
   - ./lb-internal.yaml
   - ./lb-external.yaml
   - ./lb-pihole.yaml
-  - ./lb-dashboard.yaml
-  - ./lb-auth.yaml
   - ./lb-advertisement.yaml
   - ./api-proxy
   - ./traefik-helm-config.yaml

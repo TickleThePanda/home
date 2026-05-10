@@ -9,5 +9,3 @@ spec:
     - internal
     - external
     - kube-api
-    - dashboard
-    - auth

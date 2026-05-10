@@ -5,7 +5,7 @@ metadata:
   namespace: pocket-id
 spec:
   entryPoints:
-    - auth-web-secure
+    - int-web-secure
   tls: {}
   routes:
     - kind: Rule
