@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: label-studio
+  namespace: label-studio
+  labels:
+    app: label-studio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: label-studio
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: label-studio
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: label-studio
+          image: heartexlabs/label-studio:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: LABEL_STUDIO_HOST
+              value: "https://label-studio.internal.ticklethepanda.co.uk"
+            - name: DJANGO_DB
+              value: "sqlite"
+            - name: DISABLE_SIGNUP_WITHOUT_LINK
+              value: "true"
+            - name: LABEL_STUDIO_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: label-studio-admin
+                  key: username
+            - name: LABEL_STUDIO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: label-studio-admin
+                  key: password
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: label-studio-admin
+                  key: secret-key
+            - name: CSRF_TRUSTED_ORIGINS
+              value: "https://label-studio.internal.ticklethepanda.co.uk"
+            - name: COLLECT_ANALYTICS
+              value: "false"
+          volumeMounts:
+            - mountPath: /label-studio/data
+              name: label-studio-data
+      volumes:
+        - name: label-studio-data
+          persistentVolumeClaim:
+            claimName: label-studio

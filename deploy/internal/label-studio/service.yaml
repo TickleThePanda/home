@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: label-studio
+  namespace: label-studio
+  labels:
+    app: label-studio
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  selector:
+    app: label-studio

@@ -4,6 +4,7 @@ kind: Kustomization
 
 resources:
 - ./index
+- ./label-studio
 - ./lldap
 - ./mosquitto
 - ./pihole
