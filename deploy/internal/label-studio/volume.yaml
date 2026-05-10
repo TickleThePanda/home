@@ -1,37 +1,12 @@
----
 apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: label-studio-pv
-spec:
-  capacity:
-    storage: 10Gi
-  volumeMode: Filesystem
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: local-storage
-  local:
-    path: /mnt/disk/label-studio
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: In
-              values:
-                - k8s-manager-1
----
 kind: PersistentVolumeClaim
-apiVersion: v1
 metadata:
   name: label-studio
   namespace: label-studio
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-storage
-  volumeName: label-studio-pv
+  storageClassName: local-path
   resources:
     requests:
       storage: 10Gi
