@@ -1,0 +1,74 @@
+---
+# ONE-TIME, RUN BY HAND from the laptop. Not run by CI.
+#
+# Resolves the chicken-and-egg: site.yml connects as `deploy`, which cannot
+# exist until something creates it. This connects as `panda` (who has
+# password-sudo via the `sudo` group) and creates that user.
+#
+#   ssh-keygen -t ed25519 -f ./deploy_key -N '' -C 'ci@github/home'
+#   ansible-playbook bootstrap.yml -K \
+#       -e node_user=panda -e deploy_pubkey_file=./deploy_key.pub
+#
+# Note -e node_user=panda, not -u panda: the inventory sets ansible_user, and
+# an inventory var beats the -u flag. -K prompts for panda's sudo password.
+#
+# Then put ./deploy_key (the PRIVATE half) into the GitHub secret
+# NODE_SSH_KEY, and delete both local copies.
+
+- name: Bootstrap the CI automation user
+  hosts: k8s-manager-1
+  gather_facts: true
+  become: true
+  vars:
+    deploy_user: deploy
+
+  pre_tasks:
+    - name: Require the public key path
+      ansible.builtin.assert:
+        that: deploy_pubkey_file is defined
+        fail_msg: >-
+          Pass -e deploy_pubkey_file=./deploy_key.pub (generate it first with
+          ssh-keygen -t ed25519 -f ./deploy_key -N '')
+
+  tasks:
+    - name: Create the automation user
+      ansible.builtin.user:
+        name: "{{ deploy_user }}"
+        comment: CI automation (node/ playbooks)
+        shell: /bin/bash
+        create_home: true
+        # No password at all -- key-only. Not merely a locked hash.
+        password: "!"
+        password_lock: true
+      register: deploy_created
+
+    - name: Create the .ssh directory
+      ansible.builtin.file:
+        path: "/home/{{ deploy_user }}/.ssh"
+        state: directory
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0700"
+
+    # Written wholesale rather than appended: this user exists only for CI, so
+    # exactly one key should ever be able to log in as it.
+    - name: Install the CI public key
+      ansible.builtin.copy:
+        dest: "/home/{{ deploy_user }}/.ssh/authorized_keys"
+        content: "{{ lookup('file', deploy_pubkey_file) }}\n"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0600"
+
+    - name: Install the sudoers entries
+      ansible.builtin.import_tasks: tasks/access.yml
+
+  post_tasks:
+    - name: Next steps
+      ansible.builtin.debug:
+        msg:
+          - "User '{{ deploy_user }}' is ready."
+          - "1. Put the PRIVATE key into the GitHub secret NODE_SSH_KEY."
+          - "2. Delete ./deploy_key and ./deploy_key.pub locally."
+          - "3. Verify: ssh -i ./deploy_key {{ deploy_user }}@192.168.1.2 sudo -n true"
+          - "4. From then on, site.yml runs unattended as '{{ deploy_user }}'."

@@ -1,0 +1,12 @@
+all:
+  hosts:
+    k8s-manager-1:
+      ansible_host: 192.168.1.2
+      # CI connects as `deploy`. Override for the one-time bootstrap, or when
+      # running by hand from the LAN, with:  -e node_user=panda
+      #
+      # An inventory `ansible_user` beats the -u flag, so -u panda would be
+      # silently ignored here. Extra vars beat inventory, which is why this
+      # goes through node_user rather than being hardcoded.
+      ansible_user: "{{ node_user | default('deploy') }}"
+      ansible_python_interpreter: /usr/bin/python3

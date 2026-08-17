@@ -1,0 +1,98 @@
+name: Update node
+
+# Node-level state for k8s-manager-1 (the layer below deploy/).
+#
+# Note the ordering hazard this shares with deploy.yaml: CI reaches the LAN
+# through the cloudflared pod running *inside* the cluster. A k3s restart
+# therefore takes down this workflow's own transport. site.yml handles that
+# (see its handlers), but the two workflows must never run concurrently --
+# hence the shared concurrency group.
+
+on:
+  push:
+    branches: main
+    paths:
+      - node/**
+      - .github/workflows/node.yaml
+      # The pin guard spans both trees, so a chart change must re-run it.
+      - deploy/setup/traefik/traefik-helm-chart.yaml
+  workflow_dispatch:
+    inputs:
+      check_only:
+        type: boolean
+        description: Dry run only (--check --diff), make no changes
+        default: false
+
+concurrency:
+  group: cluster
+  cancel-in-progress: false
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Cheap and offline -- fail before touching the cluster if the k3s
+      # version and the Traefik chart pin have drifted apart.
+      - name: Check the Traefik chart pin
+        run: ./node/scripts/check-traefik-pin.sh --online
+
+      - name: Connect to Cloudflare Warp
+        uses: Boostport/setup-cloudflare-warp@v1
+        with:
+          organization: ticklethepanda
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
+      # The WARP route into the LAN demonstrably carries port 22, but those
+      # flows come from a *user* identity; CI authenticates with a service
+      # token, and a Zero Trust network policy could permit 6443 without
+      # permitting 22. Checking both here means a policy problem reports
+      # itself plainly instead of surfacing as an Ansible "unreachable".
+      - name: Check the node is reachable
+        run: |
+          set -euo pipefail
+          if ! nc -zv -w 10 192.168.1.2 6443; then
+            echo "::error::Cannot reach the kube API either -- the tunnel is down, not a port-22 policy. cloudflared runs inside the cluster; see node/RECOVERY.md."
+            exit 1
+          fi
+          if ! nc -zv -w 10 192.168.1.2 22; then
+            echo "::error::6443 is reachable but 22 is not -- the WARP route is fine and a Zero Trust network policy is gating SSH for the service-token identity."
+            exit 1
+          fi
+
+      - name: Install ansible-core
+        run: pipx install ansible-core
+
+      - name: Install the SSH key
+        run: |
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/node_key
+          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/node_key
+
+      - name: Dry run
+        working-directory: node
+        run: ansible-playbook site.yml --check --diff --private-key ~/.ssh/node_key
+
+      - name: Apply
+        if: github.event_name == 'push' || inputs.check_only != true
+        working-directory: node
+        run: ansible-playbook site.yml --diff --private-key ~/.ssh/node_key
+
+      # Idempotence is the proof the automation is honest about what it owns.
+      - name: Confirm no drift remains
+        if: github.event_name == 'push' || inputs.check_only != true
+        working-directory: node
+        run: |
+          set -euo pipefail
+          ansible-playbook site.yml --check --diff --private-key ~/.ssh/node_key \
+            | tee /tmp/recheck.log
+          # Only the PLAY RECAP block carries the counts; anchoring to line
+          # start never matches, since the host name precedes them.
+          if sed -n '/PLAY RECAP/,$p' /tmp/recheck.log | grep -qE 'changed=[1-9]'; then
+            echo "::error::Playbook is not idempotent -- a second --check run still reports changes."
+            exit 1
+          fi

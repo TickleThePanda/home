@@ -52,6 +52,34 @@ visible from the code alone.
   including remote bases that can be down or rate-limited for reasons
   unrelated to what you're actually fixing.
 
+## Node pattern
+
+- Everything under `node/` is the layer *below* `deploy/`: the k3s version,
+  k3s's own config files, the directories backing local-volume PVs, and the
+  sudoers entries. Applied with Ansible by
+  `.github/workflows/node.yaml`, which connects as the `deploy` user over
+  SSH. Don't hand-edit these on the node — the playbook purges
+  `config.yaml.d` files it doesn't manage.
+- **Bumping k3s is an edit to `node/vars/versions.yml`**, nothing more. But
+  it must move in the same commit as
+  `deploy/setup/traefik/traefik-helm-chart.yaml`: k3s only serves the Traefik
+  chart tarball bundled with the *installed* version, so the two pins are
+  coupled. `node/scripts/check-traefik-pin.sh` enforces this in CI and
+  `--online` verifies the pair against the k3s release manifest.
+- Kubernetes doesn't support skipping minor versions — upgrade one at a time.
+- **CI's own transport runs through the cluster.** The in-cluster
+  `cloudflared` Deployment is the Cloudflare Zero Trust private-network
+  connector (its logs show `originService=warp-routing` carrying
+  `192.168.1.2:22` and `:6443`). So restarting k3s kills the connection the
+  playbook is running over. That's why the restart handler detaches via
+  `systemd-run` and then `wait_for_connection`s, and why the upgrade runs as
+  a detached transient unit writing to a status file rather than as ordinary
+  tasks. Don't "simplify" either back into a plain `systemctl restart`.
+- The corollary: **when k3s is down, CI cannot reach the node at all.**
+  Recovery is LAN-local — see `node/RECOVERY.md`.
+- `node.yaml` and `deploy.yaml` share a `concurrency: group: cluster` so a
+  node change and a manifest apply can't interleave.
+
 ## Administration notes
 
 - **k3s's own bundled addons can conflict with kustomize-managed

@@ -1,0 +1,13 @@
+# SSH host key for k8s-manager-1 (192.168.1.2).
+#
+# Pinned here so CI verifies the host rather than running with host key
+# checking disabled. CI reaches the node through a Cloudflare tunnel, so
+# "trust on first use" would mean trusting whatever answers on the far side.
+#
+# Fingerprint: SHA256:IqsO4YEPYU/tq/zGwFcrUuBynEnZvAm9IAEBYHsNgDs
+#
+# If this legitimately changes (SD card reflash, sshd host key regenerated),
+# update it with:
+#   ssh-keyscan -t ed25519 192.168.1.2
+# and verify the fingerprint from the node's console before committing.
+192.168.1.2 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM7KILiZcu3GXgGYL8aqdV9OjglcRx7M0MydoRWMeoUf

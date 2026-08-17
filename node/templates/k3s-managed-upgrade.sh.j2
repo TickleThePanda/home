@@ -1,0 +1,75 @@
+#!/bin/bash
+# Managed by node/tasks/k3s-version.yml. Do not edit on the node.
+#
+# Runs DETACHED (systemd-run), because every step below takes down the
+# in-cluster cloudflared pod -- which is the very transport Ansible is
+# connected over. Anything run as an ordinary Ansible task here would have
+# its connection cut mid-command and report a false failure.
+#
+# Progress is written to a status file so the playbook can reconnect and find
+# out what actually happened.
+
+set -Eeuo pipefail
+
+TARGET_VERSION={{ k3s_version | quote }}
+STATUS={{ k3s_upgrade_status_file | quote }}
+BACKUP_DIR=/var/backups/k3s
+
+say() { echo "$(date -Is) $*" >>"$STATUS"; }
+
+on_error() {
+    say "FAILED at line $1"
+    # Best effort: never leave the cluster down after a failed upgrade, or
+    # there is no transport left to debug over.
+    systemctl start k3s || say "could not restart k3s -- LAN-local access needed"
+    exit 1
+}
+trap 'on_error $LINENO' ERR
+
+: >"$STATUS"
+say "START target=$TARGET_VERSION"
+
+installed=$(/usr/local/bin/k3s --version 2>/dev/null | grep -oE 'v[0-9][^ ]*' | head -1 || echo unknown)
+say "installed=$installed"
+
+mkdir -p "$BACKUP_DIR"
+chmod 0700 "$BACKUP_DIR"
+
+# SQLite/kine datastore -- `k3s etcd-snapshot` does not apply, and a copy is
+# only consistent with the server stopped.
+say "stopping k3s"
+systemctl stop k3s
+
+archive="$BACKUP_DIR/k3s-${installed}-$(date +%Y%m%dT%H%M%S).tar.gz"
+say "backing up to $archive"
+tar -czf "$archive" -C / \
+    var/lib/rancher/k3s/server/db \
+    var/lib/rancher/k3s/server/token \
+    etc/rancher/k3s
+say "backup complete $(stat -c %s "$archive") bytes"
+
+say "installing $TARGET_VERSION"
+curl -sfL https://get.k3s.io \
+    | INSTALL_K3S_VERSION="$TARGET_VERSION" \
+      INSTALL_K3S_SKIP_START=true \
+      sh -s - server
+say "installer finished"
+
+systemctl daemon-reload
+say "starting k3s"
+systemctl start k3s
+
+# Wait for the API to actually answer before declaring success -- a started
+# unit is not a ready control plane, and the caller needs the API up before
+# it can check anything.
+for _ in $(seq 1 60); do
+    if /usr/local/bin/k3s kubectl get --raw /readyz >/dev/null 2>&1; then
+        say "api ready"
+        say "DONE $(/usr/local/bin/k3s --version | grep -oE 'v[0-9][^ ]*' | head -1)"
+        exit 0
+    fi
+    sleep 5
+done
+
+say "FAILED api did not become ready within 300s"
+exit 1

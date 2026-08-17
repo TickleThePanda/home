@@ -1,0 +1,62 @@
+---
+# k3s configuration files. Changes here notify the detached-restart handler.
+
+- name: Ensure config.yaml.d exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s/config.yaml.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write the managed k3s config drop-in
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml.d/10-k3s.yaml
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      # Managed by node/tasks/k3s-config.yml. Do not edit on the node.
+      #
+      # Addons disabled here are vendored into deploy/setup/ instead, so each
+      # has exactly one owner. See CLAUDE.md on k3s re-applying its bundled
+      # manifests on every restart.
+      disable:
+      {% for addon in k3s_disable %}
+        - {{ addon }}
+      {% endfor %}
+  notify: restart k3s
+
+- name: Find unmanaged config.yaml.d files
+  ansible.builtin.find:
+    paths: /etc/rancher/k3s/config.yaml.d
+    patterns: "*.yaml"
+  register: k3s_config_files
+
+# Without this, removing an entry from git never removes it from the node,
+# which defeats the point. Supersedes 10-disable-servicelb.yaml and
+# 20-disable-traefik.yaml, both folded into 10-k3s.yaml above.
+- name: Purge config.yaml.d files this playbook does not manage
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ k3s_config_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: item.path | basename != '10-k3s.yaml'
+  notify: restart k3s
+
+# servicelb was disabled twice -- here and in the drop-in. The drop-in wins as
+# the single owner; this file is emptied rather than removed because the
+# stock k3s systemd unit references it with EnvironmentFile= (no leading '-').
+- name: Drop the duplicate K3S_DISABLE from the service env file
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/k3s.service.env
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      # Managed by node/tasks/k3s-config.yml.
+      # Intentionally empty -- k3s options live in
+      # /etc/rancher/k3s/config.yaml.d/10-k3s.yaml so there is one owner.
+  notify: restart k3s

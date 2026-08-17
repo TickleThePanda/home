@@ -1,0 +1,81 @@
+---
+# Node-level state for k8s-manager-1.
+#
+# Everything inside the cluster is owned by kustomize (deploy/, applied by
+# .github/workflows/deploy.yaml). This playbook owns the layer below it: the
+# k3s version, k3s's own config files, the directories backing local-volume
+# PVs, and the sudoers entries.
+#
+# Deliberately NOT managed:
+#   /var/lib/rancher/k3s/server/manifests/  -- k3s rewrites it on every start
+#   /etc/dhcpcd.conf                        -- a bad networking change costs a
+#                                              keyboard-and-monitor trip
+
+- name: Manage k3s node state
+  hosts: k8s-manager-1
+  gather_facts: true
+  become: true
+
+  vars_files:
+    - vars/versions.yml
+    - vars/storage.yml
+
+  vars:
+    k3s_upgrade_status_file: /var/log/k3s-managed-upgrade.status
+
+  tasks:
+    - name: Sudoers
+      ansible.builtin.import_tasks: tasks/access.yml
+      tags: [access]
+
+    - name: PV-backing directories
+      ansible.builtin.import_tasks: tasks/storage.yml
+      tags: [storage]
+
+    - name: Configure k3s
+      ansible.builtin.import_tasks: tasks/k3s-config.yml
+      tags: [config]
+
+    - name: Manage the k3s version
+      ansible.builtin.import_tasks: tasks/k3s-version.yml
+      tags: [version]
+
+  handlers:
+    # A plain `systemctl restart k3s` would cut this connection: the restart
+    # takes down the in-cluster cloudflared pod that carries it. Detaching via
+    # a transient timer unit means session teardown cannot abort the restart.
+    - name: Restart k3s detached from this session
+      listen: restart k3s
+      ansible.builtin.command:
+        argv:
+          - systemd-run
+          - --on-active=3
+          - --unit=k3s-managed-restart
+          - --collect
+          - systemctl
+          - restart
+          - k3s
+      changed_when: true
+
+    - name: Wait for the node to come back
+      listen: restart k3s
+      ansible.builtin.wait_for_connection:
+        delay: 20
+        sleep: 5
+        timeout: 600
+
+    - name: Wait for the kube API to answer
+      listen: restart k3s
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6443
+        timeout: 300
+
+    # The apply step in deploy.yaml reaches the cluster through this pod, so
+    # the run must not report success until it is serving again.
+    - name: Wait for cloudflared to be Ready again
+      listen: restart k3s
+      ansible.builtin.command: >-
+        /usr/local/bin/k3s kubectl wait --namespace default
+        --for=condition=Ready pod --selector pod=cloudflared --timeout=300s
+      changed_when: false

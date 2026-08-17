@@ -3,17 +3,22 @@
 A monorepo for my home services, running on a Raspberry PI Kubernetes
 cluster.
 
-The cluster is installed using [k3s](https://k3s.io/). To set this up:
+The cluster is installed using [k3s](https://k3s.io/). Both layers are
+declarative and applied by CI — there is nothing to install by hand:
 
-- Install k3s on the primary node
+- `node/` owns the node itself (k3s version, k3s config, PV-backing
+  directories, sudoers), applied with Ansible.
+- `deploy/` owns everything inside the cluster, applied with kustomize.
 
-  ```
-  curl -sfL https://get.k3s.io | sh -s - server --disable servicelb --node-external-ip 192.168.1.2
-  ```
+### `node`
 
-- Install k3s on the camera node
+Node-level configuration for `k8s-manager-1`, applied by
+`.github/workflows/node.yaml`. The k3s version lives in
+`node/vars/versions.yml`; bumping it there is what upgrades the node.
 
-  - Taint the node with "pi-camera=true:NoSchedule"
+See [`node/RECOVERY.md`](node/RECOVERY.md) before touching a broken cluster —
+CI reaches the node *through* a pod running inside that cluster, so when k3s
+is down the recovery path is LAN-local, not CI.
 
 ### `deploy`
 

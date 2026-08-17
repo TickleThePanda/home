@@ -1,0 +1,6 @@
+# Bootstrap keypair for the node's `deploy` user. Generated into the repo
+# root by node/bootstrap.yml's documented flow, then uploaded to the
+# NODE_SSH_KEY GitHub secret and shredded. Ignored so a stray `git add -A`
+# can never commit the private half.
+deploy_key
+deploy_key.pub

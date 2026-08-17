@@ -1,0 +1,104 @@
+---
+# k3s install / upgrade, driven by k3s_version in vars/versions.yml.
+#
+# The upgrade itself runs detached on the node. See the header of
+# templates/k3s-managed-upgrade.sh.j2 for why it cannot be a normal task.
+
+- name: Read the installed k3s version
+  ansible.builtin.command: /usr/local/bin/k3s --version
+  changed_when: false
+  failed_when: false
+  # Read-only, so it must run under --check too. Without this the command is
+  # skipped, stdout is undefined, and the run reports "installed=none
+  # upgrade=True" -- the opposite of the truth on an up-to-date node.
+  check_mode: false
+  register: k3s_installed
+
+# k3s_version comes from vars/versions.yml, which ansible-lint does not load,
+# so it lints as undefined. Verified correct at runtime for the matching,
+# older, and missing-binary cases.
+- name: Work out the version decision # noqa: jinja[invalid]
+  ansible.builtin.set_fact:
+    k3s_installed_version: >-
+      {{ (k3s_installed.stdout | default('') | regex_search('v[0-9]\S*')) | default('none', true) }}
+    k3s_upgrade_needed: "{{ k3s_version not in (k3s_installed.stdout | default('')) }}"
+
+- name: Report the version decision
+  ansible.builtin.debug:
+    msg: "installed={{ k3s_installed_version }} target={{ k3s_version }} upgrade={{ k3s_upgrade_needed }}"
+
+- name: Install the upgrade script
+  ansible.builtin.template:
+    src: k3s-managed-upgrade.sh.j2
+    dest: /usr/local/sbin/k3s-managed-upgrade.sh
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Upgrade k3s
+  when:
+    - k3s_upgrade_needed | bool
+    - not ansible_check_mode
+  block:
+    - name: Warn about the backup
+      ansible.builtin.debug:
+        msg: >-
+          Upgrading {{ k3s_installed_version }} -> {{ k3s_version }}. A
+          datastore archive is written to /var/backups/k3s first, but this is
+          a single SD card with no external disk -- copy it off the Pi.
+
+    - name: Launch the upgrade, detached from this connection
+      ansible.builtin.command:
+        argv:
+          - systemd-run
+          - --unit=k3s-managed-upgrade
+          - --collect
+          - --service-type=oneshot
+          - /usr/local/sbin/k3s-managed-upgrade.sh
+      changed_when: true
+
+    # From here the transport is gone: stopping k3s takes down the cloudflared
+    # pod that carries this SSH session.
+    - name: Wait for the node to come back
+      ansible.builtin.wait_for_connection:
+        delay: 30
+        sleep: 10
+        timeout: 900
+
+    # systemd_service sets desired state; it cannot poll a transient oneshot
+    # unit's ActiveState as it settles, which is what until/retries needs here.
+    - name: Wait for the detached upgrade unit to finish # noqa: command-instead-of-module
+      ansible.builtin.command: systemctl show k3s-managed-upgrade --property=ActiveState --value
+      register: k3s_upgrade_state
+      changed_when: false
+      failed_when: false
+      until: k3s_upgrade_state.stdout not in ['activating', 'active', 'reloading']
+      retries: 60
+      delay: 10
+
+    - name: Read the upgrade status file
+      ansible.builtin.slurp:
+        src: "{{ k3s_upgrade_status_file }}"
+      register: k3s_upgrade_status
+
+    - name: Show the upgrade log
+      ansible.builtin.debug:
+        msg: "{{ (k3s_upgrade_status.content | b64decode).strip().split('\n') }}"
+
+    - name: Fail if the upgrade did not report DONE
+      ansible.builtin.assert:
+        that: "'DONE' in (k3s_upgrade_status.content | b64decode)"
+        fail_msg: >-
+          k3s upgrade did not complete. See the log above and
+          {{ k3s_upgrade_status_file }} on the node. If the API is unreachable,
+          follow node/RECOVERY.md -- CI cannot reach the node while k3s is down.
+
+    - name: Confirm the running version matches the target
+      ansible.builtin.command: /usr/local/bin/k3s --version
+      register: k3s_after
+      changed_when: false
+
+    - name: Assert the target version is live
+      ansible.builtin.assert:
+        that: k3s_version in k3s_after.stdout
+        fail_msg: "expected {{ k3s_version }}, node reports: {{ k3s_after.stdout }}"

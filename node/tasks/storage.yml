@@ -1,0 +1,22 @@
+---
+# Directories backing local-volume PVs declared in deploy/.
+# The repo declares the PV; this declares the directory it points at.
+
+- name: Ensure /mnt/disk exists
+  ansible.builtin.file:
+    path: /mnt/disk
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure PV-backing directories exist with the right ownership
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop: "{{ mnt_disk_dirs }}"
+  loop_control:
+    label: "{{ item.path }} ({{ item.pv }})"

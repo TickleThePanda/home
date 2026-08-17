@@ -1,0 +1,46 @@
+---
+# Sudoers files, brought under management so they stop being invisible node
+# state. Both are written with `validate` -- a malformed sudoers file that
+# reaches disk can lock everyone out of root on a box CI reaches through the
+# cluster it manages.
+
+- name: Manage the deploy automation sudoers entry
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/deploy-automation
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+    content: |
+      # Managed by node/tasks/access.yml.
+      #
+      # Ansible wraps every task as `sudo -H -S -n /bin/sh -c '...python...'`,
+      # so a scoped command allowlist cannot work here. Anything that can write
+      # /etc/rancher/k3s/config.yaml.d and restart k3s is root-equivalent
+      # regardless, since k3s treats those directories as trusted input.
+      deploy ALL=(root) NOPASSWD: ALL
+
+# Captured as-is from the live node. Kept because panda still uses it
+# interactively; not widened, not narrowed.
+- name: Manage panda's scoped k3s sudoers entry
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/panda-k3s-admin
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+    content: |
+      # Managed by node/tasks/access.yml.
+      #
+      # Convenience and audit boundary only -- panda is in the `sudo` group and
+      # already matches (ALL:ALL) ALL with a password. This just removes the
+      # prompt for the k3s operations documented in CLAUDE.md.
+      panda ALL=(root) NOPASSWD: \
+          /usr/bin/systemctl restart k3s, \
+          /usr/bin/systemctl status k3s, \
+          /usr/bin/systemctl show k3s *, \
+          /bin/cat /var/lib/rancher/k3s/server/manifests/*, \
+          /bin/ls /var/lib/rancher/k3s/server/manifests/*, \
+          /bin/rm /var/lib/rancher/k3s/server/manifests/*.yaml, \
+          /bin/cat /etc/rancher/k3s/config.yaml.d/*.yaml, \
+          /usr/bin/tee /etc/rancher/k3s/config.yaml.d/*.yaml

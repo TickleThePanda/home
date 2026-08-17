@@ -8,6 +8,13 @@ on:
       - deploy/**
   workflow_dispatch:
 
+# Shared with node.yaml: a node change can restart k3s, which takes down the
+# cloudflared pod this workflow reaches the cluster through. The two must
+# never overlap.
+concurrency:
+  group: cluster
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
