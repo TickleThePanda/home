@@ -1,0 +1,82 @@
+# Home infrastructure monorepo
+
+Single-node k3s cluster running the owner's home services on a Raspberry Pi,
+plus the apps deployed onto it. See `README.md` for the network map (node
+IPs, ingress IPs, etc.) — this file covers operational context that isn't
+visible from the code alone.
+
+## Cluster
+
+- Node: `k8s-manager-1`, `192.168.1.2`, Raspberry Pi (arm64), single node
+  acting as both control-plane and worker. k3s.
+- SSH: `ssh 192.168.1.2` as user `panda` (key-based, no host alias
+  configured locally — use the IP).
+- `panda` has scoped, passwordless sudo on the node
+  (`/etc/sudoers.d/panda-k3s-admin`) for k3s service control and reading/
+  editing k3s's own manifest/config directories. Anything broader (general
+  root shell, package installs) needs the owner interactively — kept
+  narrow deliberately, since those directories are close to root-equivalent
+  (k3s's server process treats their contents as trusted input).
+- The local kubeconfig's client cert doesn't auto-rotate. If `kubectl`
+  reports "server has asked for the client to provide credentials", restart
+  k3s on the node and re-pull `/etc/rancher/k3s/k3s.yaml` into
+  `~/.kube/config` (fix the `server:` field to the node's IP, it defaults
+  to `127.0.0.1`).
+
+## Networking
+
+- **MetalLB** (L2 mode) hands out LoadBalancer IPs from pools: `external`
+  (WAN-facing ingress), `internal` (LAN-only ingress), `pihole`, `kube-api`.
+- **Traefik** is the sole ingress controller. Internal-only apps use
+  `Host(`<app>.internal.ticklethepanda.co.uk`)` on the `int-web-secure`
+  entrypoint (TLS via a wildcard cert), routed through the `internal`
+  MetalLB pool. Externally-reachable apps use the `ext-web` entrypoint via
+  the `external` pool.
+- **tinyauth** forward-auth gates most internal apps, backed by
+  **pocket-id** (OIDC) + **lldap**.
+- **pihole** is internal DNS. **cloudflared** tunnels select services out
+  to the public internet without opening router ports.
+
+## Deploy pattern
+
+- Everything under `deploy/` is applied declaratively via kustomize. CI
+  (`.github/workflows/deploy.yaml`) runs on push to `deploy/**`:
+  `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
+- Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
+  api-proxy, cloudflared, each a self-contained kustomization),
+  `deploy/internal/<app>/` (internal-only apps), `deploy/home/`
+  (externally-reachable apps).
+- For a targeted fix, prefer a scoped apply (`kubectl apply -f <file>` or
+  `kubectl apply -k deploy/<subdir>`, no `--prune`) over the full
+  `-k deploy --prune` — the full run reconciles the entire repo at once,
+  including remote bases that can be down or rate-limited for reasons
+  unrelated to what you're actually fixing.
+
+## Administration notes
+
+- **k3s's own bundled addons can conflict with kustomize-managed
+  resources of the same name.** k3s watches
+  `/var/lib/rancher/k3s/server/manifests/` on the node and re-applies
+  whatever's there on every restart, independent of CI. If the repo
+  manages a resource that k3s also bundles by default (this happened with
+  Traefik), disable that addon in `/etc/rancher/k3s/config.yaml.d/`
+  (`disable: [traefik]`, alongside `servicelb`) and vendor the full
+  resource into the repo so there's a single owner. `deploy/setup/traefik/`
+  is the current example of this pattern.
+- **Disabling a k3s addon triggers a real Helm uninstall**, which can
+  cascade — e.g. removing Traefik's addon deleted its CRDs, which
+  garbage-collected every `IngressRoute`/`Middleware`/`TLSStore` cluster-
+  wide, not just Traefik's own resources. After a change like this,
+  expect to reapply the affected app manifests and re-check TLS (a missing
+  `TLSStore` silently falls back to a self-signed cert rather than erroring).
+- **Objects can get stuck `Terminating` and drift invisibly for a long
+  time** if their owning controller can't finish cleanup — `kubectl apply`
+  will keep "succeeding" without the live object actually changing. Spot
+  check: `kubectl get svc -A -o json | jq -r '.items[] | select(.metadata.deletionTimestamp != null) | "\(.metadata.namespace)/\(.metadata.name)"'`
+  (swap `svc` for other kinds). Clearing a stuck finalizer is a real
+  mutation — confirm with the owner before doing it.
+- **`raw.githubusercontent.com` in a kustomize `resources:` list is
+  fragile** — it can get misparsed as a git-clone target and fail with
+  `429`/`503` during GitHub hiccups. Check
+  `https://www.githubstatus.com/api/v2/status.json` before assuming it's
+  local throttling rather than a real outage.
