@@ -36,15 +36,6 @@ Source for the apps this repo builds and deploys. Each has its own
 
 - `home-root` — a root site linking to the other services.
 - `internal-index` — the equivalent index for internal-only services.
-- `odinbot` — a broadband speed test monitor.
-
-### `rpi-timelapse`
-
-A web controlled timelapse camera, based around the [Raspberry PI Camera].
-
-### `speed-tester`
-
-A broadband speed test monitor, using [Speedtest by Ookla].
 
 ## Network
 
@@ -67,6 +58,3 @@ Internal ingress: 192.168.1.19
 ### Others
 
 Home Assistant: 192.168.1.5
-
-[raspberry pi camera]: https://www.raspberrypi.org/products/camera-module-v2/
-[speedtest by ookla]: https://www.speedtest.net/

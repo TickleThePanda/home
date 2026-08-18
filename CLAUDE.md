@@ -87,7 +87,7 @@ Write documentation that is simple, concise, and practical.
 ## Apps
 
 - `apps/<app>/` holds the source for the images this repo builds
-  (`home-root`, `internal-index`, `odinbot`). Each has its own
+  (`home-root`, `internal-index`). Each has its own
   `.github/workflows/build--<app>.yml`, triggered on `apps/<app>/**`, which
   builds from that directory as the Docker context, pushes
   `ticklethepanda/<app>:latest`, and restarts the Deployment. The manifests

@@ -11,7 +11,6 @@ resources:
   - ./home--cert.yaml
   - ./auth-middleware.yaml
   - ./root
-  - ./odinbot
 
 secretGenerator:
   - name: ingress-auth
