@@ -7,7 +7,7 @@ The cluster is installed using [k3s](https://k3s.io/). Both layers are
 declarative and applied by CI — there is nothing to install by hand:
 
 - `node/` owns the node itself (k3s version, k3s config, PV-backing
-  directories, sudoers), applied with Ansible.
+  directories, sudoers, the Argon ONE fan controller), applied with Ansible.
 - `deploy/` owns everything inside the cluster, applied with kustomize.
 - `apps/` holds the source for the apps built into images by CI.
 

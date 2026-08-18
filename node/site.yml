@@ -19,6 +19,7 @@
   vars_files:
     - vars/versions.yml
     - vars/storage.yml
+    - vars/argon-fan.yml
 
   vars:
     k3s_upgrade_status_file: /var/log/k3s-managed-upgrade.status
@@ -40,6 +41,10 @@
       ansible.builtin.import_tasks: tasks/k3s-version.yml
       tags: [version]
 
+    - name: Argon ONE fan controller
+      ansible.builtin.import_tasks: tasks/argon-fan.yml
+      tags: [argon-fan]
+
   handlers:
     # Unit-file changes only. Deliberately not chained to the k3s restart
     # below: RequiresMountsFor takes effect on the next start, and bouncing
@@ -49,6 +54,18 @@
       listen: reload systemd
       ansible.builtin.systemd_service:
         daemon_reload: true
+
+    # Unlike the k3s handlers below, this never touches SSH or the
+    # cloudflared tunnel, so a plain restart is fine. Skipped under --check
+    # on a first-ever run, same reasoning as tasks/argon-fan.yml's enable
+    # task: the unit file was only simulated, so there's nothing real yet
+    # for systemctl to restart.
+    - name: Restart argon-fan
+      listen: restart argon-fan
+      ansible.builtin.systemd_service:
+        name: argon-fan
+        state: restarted
+      when: not ansible_check_mode
 
     # Detached via a transient timer unit so a dropped session cannot abort the
     # restart half-way. Note running pods survive a k3s *server* restart --

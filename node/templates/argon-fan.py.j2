@@ -1,0 +1,91 @@
+#!/usr/bin/python3
+# Managed by node/tasks/argon-fan.yml. Do not edit on the node.
+
+import logging
+import math
+import signal
+import time
+
+from smbus import SMBus
+
+I2C_BUS = {{ argon_fan_i2c_bus }}
+I2C_ADDRESS = {{ argon_fan_i2c_address }}
+TEMP_FILE = "/sys/class/thermal/thermal_zone0/temp"
+
+POLL_INTERVAL = {{ argon_fan_poll_interval }}
+
+MIN_TEMP = {{ argon_fan_min_temp }}
+MAX_TEMP = {{ argon_fan_max_temp }}
+MIN_SPEED = {{ argon_fan_min_speed }}
+MAX_SPEED = {{ argon_fan_max_speed }}
+CURVE = {{ argon_fan_curve_steepness }}
+HYSTERESIS = {{ argon_fan_hysteresis }}
+
+running = True
+
+
+def cpu_temperature() -> float:
+    with open(TEMP_FILE) as f:
+        return int(f.read()) / 1000
+
+
+def target_speed(temp: float, current: int) -> int:
+    # Once running, require the temperature to drop HYSTERESIS degrees below
+    # MIN_TEMP before switching off -- otherwise hovering at exactly MIN_TEMP
+    # flicks the fan fully on and off on every poll.
+    off_threshold = MIN_TEMP - HYSTERESIS if current > 0 else MIN_TEMP
+
+    if temp < off_threshold:
+        return 0
+
+    if temp >= MAX_TEMP:
+        return MAX_SPEED
+
+    x = (max(temp, MIN_TEMP) - MIN_TEMP) / (MAX_TEMP - MIN_TEMP)
+    factor = (math.exp(CURVE * x) - 1) / (math.exp(CURVE) - 1)
+
+    return round(MIN_SPEED + factor * (MAX_SPEED - MIN_SPEED))
+
+
+def stop(signum, frame):
+    global running
+    running = False
+
+
+def main():
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s %(message)s",
+    )
+
+    current = 0
+
+    # Debian's python3-smbus (the i2c-tools C extension) doesn't implement
+    # the context manager protocol, unlike smbus2 -- open/close directly.
+    bus = SMBus(I2C_BUS)
+    try:
+        while running:
+            temp = cpu_temperature()
+            speed = target_speed(temp, current)
+
+            logging.info("temperature=%.1fC fan=%d%%", temp, speed)
+
+            if speed != current:
+                # Give the fan a brief kick when starting from stopped.
+                if current == 0 and speed > 0:
+                    bus.write_byte(I2C_ADDRESS, 100)
+                    time.sleep(1)
+
+                bus.write_byte(I2C_ADDRESS, speed)
+                current = speed
+
+            time.sleep(POLL_INTERVAL)
+    finally:
+        bus.close()
+
+
+if __name__ == "__main__":
+    main()

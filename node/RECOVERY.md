@@ -177,6 +177,19 @@ sudo cat /etc/rancher/k3s/k3s.yaml     # then copy to ~/.kube/config
 
 - `/etc/dhcpcd.conf` — the static IP. A bad networking change costs a
   keyboard-and-monitor trip, so it is left to hand-editing.
+- Enabling I2C for the Argon ONE fan controller (`argon-fan.service`).
+  `/boot/config.txt` and `/etc/modules` only take effect after a reboot,
+  and a full reboot briefly kills the `cloudflared` pod CI's own connection
+  runs through — worse than a k3s-only restart, where pods survive. Enable
+  it by hand once:
+  ```sh
+  sudo sed -i 's/^#dtparam=i2c_arm=on/dtparam=i2c_arm=on/' /boot/config.txt
+  echo i2c-dev | sudo tee -a /etc/modules
+  sudo reboot
+  ```
+  Confirm with `ls /dev/i2c-1`. Until this is done, `argon-fan.service`
+  crash-loops harmlessly (`SMBus` can't open the device) and self-heals once
+  it's live.
 - The partition table and the `data` volume group. The playbook manages logical
   volumes *on top of* them but will not create them, for the same reason — see
   `STORAGE.md`.

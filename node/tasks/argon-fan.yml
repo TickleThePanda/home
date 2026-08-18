@@ -1,0 +1,58 @@
+---
+# Argon ONE fan controller. Depends on I2C being enabled on the node, which
+# is NOT managed here -- same reasoning as /etc/dhcpcd.conf in site.yml: it
+# needs a reboot, and a reboot briefly kills the cloudflared pod CI's own
+# connection runs through, unlike a k3s-only restart where pods survive. See
+# RECOVERY.md for the manual steps.
+#
+# Until that manual step is done, argon-fan.service crash-loops harmlessly
+# (SMBus fails to open /dev/i2c-1) and self-heals once i2c is live -- nothing
+# below needs to wait for it.
+
+- name: Ensure the smbus Python module is present
+  ansible.builtin.package:
+    name: python3-smbus
+    state: present
+
+- name: Install the fan controller script
+  ansible.builtin.template:
+    src: argon-fan.py.j2
+    dest: /usr/local/sbin/argon-fan
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart argon-fan
+
+- name: Install the argon-fan systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/argon-fan.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by node/tasks/argon-fan.yml. Do not edit on the node.
+      [Unit]
+      Description=Argon ONE fan controller
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/local/sbin/argon-fan
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+  notify:
+    - reload systemd
+    - restart argon-fan
+
+# On a first-ever run under --check, the unit file above was only
+# simulated, so systemctl has never heard of argon-fan and the module has
+# nothing real to query. Real applies (and every run after the first) are
+# unaffected -- the unit exists by then.
+- name: Enable and start argon-fan
+  ansible.builtin.systemd_service:
+    name: argon-fan
+    enabled: true
+    state: started
+  when: not ansible_check_mode
