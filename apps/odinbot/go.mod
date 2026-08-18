@@ -1,4 +1,4 @@
-module github.com/TickleThePanda/home/odinbot
+module github.com/TickleThePanda/home/apps/odinbot
 
 go 1.24.0
 

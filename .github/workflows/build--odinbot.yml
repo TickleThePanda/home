@@ -4,7 +4,7 @@ on:
   push:
     branches: main
     paths:
-    - odinbot/**
+    - apps/odinbot/**
     - .github/workflows/build--odinbot.yml
   workflow_dispatch:
 
@@ -36,7 +36,7 @@ jobs:
         run: |
           docker buildx build --push \
           --tag ticklethepanda/odinbot:latest \
-          --platform linux/amd64,linux/arm/v7,linux/arm64 ./odinbot/
+          --platform linux/amd64,linux/arm/v7,linux/arm64 ./apps/odinbot/
       - name: Setup k8s context
         uses: azure/k8s-set-context@v4
         with:

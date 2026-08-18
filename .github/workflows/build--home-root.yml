@@ -4,7 +4,7 @@ on:
   push:
     branches: main
     paths:
-    - home-root/**
+    - apps/home-root/**
     - .github/workflows/build--home-root.yml
   workflow_dispatch:
 
@@ -36,7 +36,7 @@ jobs:
         run: |
           docker buildx build --push \
           --tag ticklethepanda/home-root:latest \
-          --platform linux/amd64,linux/arm/v7,linux/arm64 ./home-root/
+          --platform linux/amd64,linux/arm/v7,linux/arm64 ./apps/home-root/
       - name: Setup k8s context
         uses: azure/k8s-set-context@v4
         with:

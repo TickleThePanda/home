@@ -16,7 +16,7 @@ services:
 
   home-root:
     build:
-      context: ./home-root
+      context: ./apps/home-root
     restart: unless-stopped
     labels:
       - traefik.enable=true
@@ -29,7 +29,7 @@ services:
 
   odinbot:
     build:
-      context: ./odinbot
+      context: ./apps/odinbot
     restart: unless-stopped
     environment:
       ODINBOT_STORE: /data/store.csv
@@ -38,7 +38,7 @@ services:
       ODINBOT_TARGET_URL: https://matt-vps.com/odin_of_the_day/
       ODINBOT_FETCH_INTERVAL: 10
     volumes:
-      - ./odinbot/data:/data
+      - ./apps/odinbot/data:/data
     depends_on:
       - reverse-proxy
       - home-root

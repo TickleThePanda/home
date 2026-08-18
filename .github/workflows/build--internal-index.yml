@@ -4,7 +4,7 @@ on:
   push:
     branches: main
     paths:
-    - internal-index/**
+    - apps/internal-index/**
     - .github/workflows/build--internal-index.yml
   workflow_dispatch:
 
@@ -42,7 +42,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ./internal-index
+          context: ./apps/internal-index
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ticklethepanda/internal-index:latest

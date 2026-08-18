@@ -9,6 +9,7 @@ declarative and applied by CI — there is nothing to install by hand:
 - `node/` owns the node itself (k3s version, k3s config, PV-backing
   directories, sudoers), applied with Ansible.
 - `deploy/` owns everything inside the cluster, applied with kustomize.
+- `apps/` holds the source for the apps built into images by CI.
 
 ### `node`
 
@@ -27,9 +28,15 @@ how to rebuild it.
 
 The declarative Kubernetes configuration for deploying the applications.
 
-### `home-root`
+### `apps`
 
-A root site for linking to the other services.
+Source for the apps this repo builds and deploys. Each has its own
+`.github/workflows/build--<app>.yml`, which builds the image from
+`apps/<app>/` and restarts its Deployment.
+
+- `home-root` — a root site linking to the other services.
+- `internal-index` — the equivalent index for internal-only services.
+- `odinbot` — a broadband speed test monitor.
 
 ### `rpi-timelapse`
 

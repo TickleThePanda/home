@@ -73,6 +73,16 @@ Write documentation that is simple, concise, and practical.
   including remote bases that can be down or rate-limited for reasons
   unrelated to what you're actually fixing.
 
+## Apps
+
+- `apps/<app>/` holds the source for the images this repo builds
+  (`home-root`, `internal-index`, `odinbot`). Each has its own
+  `.github/workflows/build--<app>.yml`, triggered on `apps/<app>/**`, which
+  builds from that directory as the Docker context, pushes
+  `ticklethepanda/<app>:latest`, and restarts the Deployment. The manifests
+  for these apps live under `deploy/` like any other app — nothing in
+  `deploy/` references the source paths.
+
 ## Node pattern
 
 - Everything under `node/` is the layer *below* `deploy/`: the k3s version,
