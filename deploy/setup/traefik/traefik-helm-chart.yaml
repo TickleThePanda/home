@@ -1,11 +1,23 @@
 ---
+# Vendored copy of k3s's own bundled Traefik HelmCharts, so the repo is the
+# single owner (the addon is disabled in node/vars/versions.yml).
+#
+# Keep this in lockstep with k3s: it serves these tarballs from its own
+# static/charts directory, and only ever ships the pair bundled with the
+# installed version. node/scripts/check-traefik-pin.sh enforces that.
+#
+# To refresh after a k3s bump, diff against upstream (note the %2B):
+#   curl -s "https://api.github.com/repos/k3s-io/k3s/contents/manifests/traefik.yaml?ref=v1.33.13%2Bk3s2" \
+#     -H 'Accept: application/vnd.github.raw'
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
   name: traefik-crd
   namespace: kube-system
 spec:
-  chart: https://%{KUBERNETES_API}%/static/charts/traefik-crd-34.2.1+up34.2.0.tgz
+  forceConflicts: true
+  failurePolicy: retry
+  chart: https://%{KUBERNETES_API}%/static/charts/traefik-crd-40.1.4+up40.1.0.tgz
 ---
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
@@ -13,8 +25,12 @@ metadata:
   name: traefik
   namespace: kube-system
 spec:
-  chart: https://%{KUBERNETES_API}%/static/charts/traefik-34.2.1+up34.2.0.tgz
+  forceConflicts: true
+  failurePolicy: retry
+  chart: https://%{KUBERNETES_API}%/static/charts/traefik-40.1.4+up40.1.0.tgz
   set:
+    # Upstream templates this from k3s's own registry setting; empty is the
+    # equivalent here, since no system default registry is configured.
     global.systemDefaultRegistry: ""
   valuesContent: |-
     deployment:
@@ -28,7 +44,7 @@ spec:
     priorityClassName: "system-cluster-critical"
     image:
       repository: "rancher/mirrored-library-traefik"
-      tag: "3.3.6"
+      tag: "3.7.8"
     tolerations:
     - key: "CriticalAddonsOnly"
       operator: "Exists"
@@ -39,4 +55,7 @@ spec:
       operator: "Exists"
       effect: "NoSchedule"
     service:
-      ipFamilyPolicy: "PreferDualStack"
+      # Chart 40 moved this under `spec`; a top-level ipFamilyPolicy is
+      # silently ignored.
+      spec:
+        ipFamilyPolicy: "PreferDualStack"

@@ -14,8 +14,8 @@
 # Upgrades go one minor at a time -- Kubernetes does not support skipping.
 # Current target chain: 1.32 -> 1.33 -> 1.34 -> 1.35 -> 1.36
 
-k3s_version: "v1.32.6+k3s1"
-traefik_chart_version: "34.2.1+up34.2.0"
+k3s_version: "v1.33.13+k3s2"
+traefik_chart_version: "40.1.4+up40.1.0"
 
 # k3s addons the repo owns instead, vendored under deploy/setup/.
 # Removing an entry here also removes it from the node -- tasks/k3s-config.yml

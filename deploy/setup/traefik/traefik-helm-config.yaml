@@ -7,16 +7,21 @@ spec:
   valuesContent: |-
     service:
       enabled: false
+      # Chart 40 renders only `.spec` into the Service spec, so a top-level
+      # `type` here is silently dropped -- these would come back as ClusterIP
+      # and MetalLB would never assign .20/.19.
       additionalServices:
         external:
           enabled: true
-          type: LoadBalancer
+          spec:
+            type: LoadBalancer
           annotations:
             metallb.io/address-pool: external
 
         internal:
           enabled: true
-          type: LoadBalancer
+          spec:
+            type: LoadBalancer
           annotations:
             metallb.io/address-pool: internal
 
@@ -39,6 +44,8 @@ spec:
         allowCrossNamespace: true
 
     ports:
+      # Chart 40 moved per-entrypoint HTTP settings under `http`:
+      # `redirections`, `tls` and `middlewares` all live there now.
       int-web:
         exposedPort: 80
         port: 7080
@@ -46,10 +53,11 @@ spec:
           default: false
           internal: true
         protocol: TCP
-        redirections:
-          entryPoint:
-            to: int-web-secure
-            scheme: https
+        http:
+          redirections:
+            entryPoint:
+              to: int-web-secure
+              scheme: https
       int-web-secure:
         exposedPort: 443
         port: 7443
@@ -57,8 +65,9 @@ spec:
           default: false
           internal: true
         protocol: TCP
-        tls:
-          enabled: true
+        http:
+          tls:
+            enabled: true
 
       ext-web:
         exposedPort: 80
