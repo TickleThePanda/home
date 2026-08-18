@@ -39,8 +39,13 @@ visible from the code alone.
 
 ## Deploy pattern
 
-- Everything under `deploy/` is applied declaratively via kustomize. CI
-  (`.github/workflows/deploy.yaml`) runs on push to `deploy/**`:
+- `.github/workflows/deploy.yaml` is the single pipeline for both layers,
+  running three sequential jobs on push to `deploy/**` or `node/**`:
+  `check` (the k3s/Traefik pin guard — no secrets, fails fast), then `node`
+  (Ansible, see below), then `cluster`. Order matters: a k3s upgrade changes
+  which Traefik chart tarball the node serves, so the node must move before
+  the manifests that reference it.
+- The `cluster` job applies everything under `deploy/` via kustomize:
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
   api-proxy, cloudflared, each a self-contained kustomization),
@@ -56,10 +61,10 @@ visible from the code alone.
 
 - Everything under `node/` is the layer *below* `deploy/`: the k3s version,
   k3s's own config files, the directories backing local-volume PVs, and the
-  sudoers entries. Applied with Ansible by
-  `.github/workflows/node.yaml`, which connects as the `deploy` user over
-  SSH. Don't hand-edit these on the node — the playbook purges
-  `config.yaml.d` files it doesn't manage.
+  sudoers entries. Applied with Ansible by the `node` job in
+  `.github/workflows/deploy.yaml`, which connects as the `deploy` user over
+  SSH (key in the `NODE_SSH_KEY` secret). Don't hand-edit these on the node —
+  the playbook purges `config.yaml.d` files it doesn't manage.
 - **Bumping k3s is an edit to `node/vars/versions.yml`**, nothing more. But
   it must move in the same commit as
   `deploy/setup/traefik/traefik-helm-chart.yaml`: k3s only serves the Traefik
@@ -70,15 +75,23 @@ visible from the code alone.
 - **CI's own transport runs through the cluster.** The in-cluster
   `cloudflared` Deployment is the Cloudflare Zero Trust private-network
   connector (its logs show `originService=warp-routing` carrying
-  `192.168.1.2:22` and `:6443`). So restarting k3s kills the connection the
-  playbook is running over. That's why the restart handler detaches via
-  `systemd-run` and then `wait_for_connection`s, and why the upgrade runs as
-  a detached transient unit writing to a status file rather than as ordinary
-  tasks. Don't "simplify" either back into a plain `systemctl restart`.
+  `192.168.1.2:22` and `:6443`). Restarting k3s therefore disturbs the very
+  connection the playbook runs over, which is why the restart handler
+  detaches via `systemd-run` and the upgrade runs as its own detached unit
+  writing to a status file. Don't "simplify" either into a plain
+  `systemctl restart`.
+- **An open 6443 is not a ready API.** k3s binds the port well before it
+  serves, and `kubectl` fails immediately against an unavailable API rather
+  than respecting `--timeout`. Readiness gates must poll
+  `k3s kubectl get --raw /readyz` with retries — the first CI run failed
+  exactly here. Running pods *do* survive a k3s server restart (containerd
+  keeps them up), so cloudflared itself normally stays Ready throughout.
 - The corollary: **when k3s is down, CI cannot reach the node at all.**
   Recovery is LAN-local — see `node/RECOVERY.md`.
-- `node.yaml` and `deploy.yaml` share a `concurrency: group: cluster` so a
-  node change and a manifest apply can't interleave.
+- The workflow holds `concurrency: group: cluster` so two runs can never
+  touch the cluster at once. The `node` job runs on every push to either
+  path, not just `node/**` — it's idempotent, and a no-op run doubles as
+  drift detection.
 
 ## Administration notes
 

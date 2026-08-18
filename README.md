@@ -12,8 +12,8 @@ declarative and applied by CI — there is nothing to install by hand:
 
 ### `node`
 
-Node-level configuration for `k8s-manager-1`, applied by
-`.github/workflows/node.yaml`. The k3s version lives in
+Node-level configuration for `k8s-manager-1`, applied by the `node` job in
+`.github/workflows/deploy.yaml`. The k3s version lives in
 `node/vars/versions.yml`; bumping it there is what upgrades the node.
 
 See [`node/RECOVERY.md`](node/RECOVERY.md) before touching a broken cluster —

@@ -41,9 +41,12 @@
       tags: [version]
 
   handlers:
-    # A plain `systemctl restart k3s` would cut this connection: the restart
-    # takes down the in-cluster cloudflared pod that carries it. Detaching via
-    # a transient timer unit means session teardown cannot abort the restart.
+    # Detached via a transient timer unit so a dropped session cannot abort the
+    # restart half-way. Note running pods survive a k3s *server* restart --
+    # containerd keeps them up, cloudflared included -- so in practice the
+    # tunnel only blips. It is the API that goes away, and for longer than the
+    # open port suggests. The full upgrade is a different matter: it stops k3s
+    # outright, which is why that runs as its own detached unit.
     - name: Restart k3s detached from this session
       listen: restart k3s
       ansible.builtin.command:
@@ -64,18 +67,39 @@
         sleep: 5
         timeout: 600
 
-    - name: Wait for the kube API to answer
+    # Cheap first gate only. k3s binds 6443 well before it serves: for a while
+    # after the port opens it still answers "the server is currently unable to
+    # handle the request". Treating an open port as readiness is what made the
+    # first CI run fail.
+    - name: Wait for the kube API port to open
       listen: restart k3s
       ansible.builtin.wait_for:
         host: 127.0.0.1
         port: 6443
         timeout: 300
 
-    # The apply step in deploy.yaml reaches the cluster through this pod, so
-    # the run must not report success until it is serving again.
+    # The real gate. kubectl's own --timeout covers waiting for a condition,
+    # not for the API to exist -- when the API is unavailable it exits
+    # non-zero straight away rather than retrying, so the retry lives here.
+    - name: Wait for the kube API to serve requests
+      listen: restart k3s
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw /readyz
+      register: k3s_readyz
+      until: k3s_readyz.rc == 0
+      retries: 60
+      delay: 5
+      changed_when: false
+
+    # A k3s server restart does not kill running pods -- containerd keeps them
+    # up -- so this is normally already satisfied. Kept as insurance for the
+    # case where it isn't, with retries so a transient API blip can't fail it.
     - name: Wait for cloudflared to be Ready again
       listen: restart k3s
       ansible.builtin.command: >-
         /usr/local/bin/k3s kubectl wait --namespace default
-        --for=condition=Ready pod --selector pod=cloudflared --timeout=300s
+        --for=condition=Ready pod --selector pod=cloudflared --timeout=120s
+      register: cloudflared_ready
+      until: cloudflared_ready.rc == 0
+      retries: 5
+      delay: 10
       changed_when: false

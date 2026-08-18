@@ -1,22 +1,116 @@
-name: Update k8s
+name: Deploy
+
+# Two layers, applied in order by three sequential jobs:
+#
+#   check    the k3s version and the Traefik chart pin agree (no secrets, no
+#            network into the LAN -- fails fast and cheap)
+#   node     node/, applied with Ansible over SSH as the `deploy` user
+#   cluster  deploy/, applied with kustomize
+#
+# Order matters. A k3s upgrade changes which Traefik chart tarball the node
+# serves, so the node must be upgraded before the manifests referencing that
+# chart are applied. Sequential jobs make that explicit; they also mean the
+# node step can restart k3s and let the cluster job reconnect afterwards on a
+# fresh runner.
 
 on:
   push:
     branches: main
     paths:
-      - .github/workflows/deploy.yaml
       - deploy/**
+      - node/**
+      - .github/workflows/deploy.yaml
   workflow_dispatch:
+    inputs:
+      check_only:
+        type: boolean
+        description: Dry run the node layer and skip the cluster apply
+        default: false
 
-# Shared with node.yaml: a node change can restart k3s, which takes down the
-# cloudflared pod this workflow reaches the cluster through. The two must
-# never overlap.
+# Never let two runs touch the cluster at once -- the node job can restart
+# k3s, which takes down the tunnel the cluster job reaches the API through.
 concurrency:
   group: cluster
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check the Traefik chart pin
+        run: ./node/scripts/check-traefik-pin.sh --online
+
+  node:
+    needs: check
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Connect to Cloudflare Warp
+        uses: Boostport/setup-cloudflare-warp@v1
+        with:
+          organization: ticklethepanda
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
+      # The WARP route into the LAN demonstrably carries port 22, but those
+      # flows come from a *user* identity; CI authenticates with a service
+      # token, and a Zero Trust network policy could permit 6443 without
+      # permitting 22. Checking both means a policy problem reports itself
+      # plainly instead of surfacing as an Ansible "unreachable".
+      - name: Check the node is reachable
+        run: |
+          set -euo pipefail
+          if ! nc -zv -w 10 192.168.1.2 6443; then
+            echo "::error::Cannot reach the kube API either -- the tunnel is down, not a port-22 policy. cloudflared runs inside the cluster; see node/RECOVERY.md."
+            exit 1
+          fi
+          if ! nc -zv -w 10 192.168.1.2 22; then
+            echo "::error::6443 is reachable but 22 is not -- the WARP route is fine and a Zero Trust network policy is gating SSH for the service-token identity."
+            exit 1
+          fi
+
+      - name: Install ansible-core
+        run: pipx install ansible-core
+
+      - name: Install the SSH key
+        run: |
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/node_key
+          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/node_key
+
+      - name: Dry run
+        working-directory: node
+        run: ansible-playbook site.yml --check --diff --private-key ~/.ssh/node_key
+
+      - name: Apply
+        if: github.event_name == 'push' || inputs.check_only != true
+        working-directory: node
+        run: ansible-playbook site.yml --diff --private-key ~/.ssh/node_key
+
+      # Idempotence is the proof the automation is honest about what it owns.
+      - name: Confirm no drift remains
+        if: github.event_name == 'push' || inputs.check_only != true
+        working-directory: node
+        run: |
+          set -euo pipefail
+          ansible-playbook site.yml --check --diff --private-key ~/.ssh/node_key \
+            | tee /tmp/recheck.log
+          # Only the PLAY RECAP block carries the counts; anchoring to line
+          # start never matches, since the host name precedes them.
+          if sed -n '/PLAY RECAP/,$p' /tmp/recheck.log | grep -qE 'changed=[1-9]'; then
+            echo "::error::Playbook is not idempotent -- a second --check run still reports changes."
+            exit 1
+          fi
+
+  cluster:
+    needs: node
+    if: github.event_name == 'push' || inputs.check_only != true
     runs-on: ubuntu-latest
     environment: prod
     steps:
@@ -26,12 +120,15 @@ jobs:
           organization: ticklethepanda
           auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
       - name: Setup k8s context
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
       - name: Deploy cluster
         run: kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize
