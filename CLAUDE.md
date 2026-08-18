@@ -93,6 +93,36 @@ visible from the code alone.
   path, not just `node/**` — it's idempotent, and a no-op run doubles as
   drift detection.
 
+## Storage
+
+- The node boots from a 512 GB SSD. `/boot` and `/` are plain partitions
+  (`sda1`, `sda2`); the rest of the disk is `sda3`, a single LVM volume group
+  called `data`. `node/STORAGE.md` is the reference — read it before touching
+  anything storage-shaped.
+- The VG holds two unlike things. **Node state** is carved by hand into four
+  LVs listed in `node/vars/storage.yml` (`agent` for the containerd image
+  store, `kubelet`, `server` for the datastore, `backups`) and managed by
+  `node/tasks/storage.yml`. Everything left unallocated — ~327G — **is the PV
+  pool**, not spare capacity: the OpenEBS LVM LocalPV driver carves one real
+  LV per PVC out of it. Don't pre-allocate it.
+- **Growing a volume is an edit to `node/vars/storage.yml`.** `lvol` runs with
+  `resizefs`, so it extends online. Shrinking fails rather than truncating.
+- **Ansible does not own the partition table or the VG**, and must not. CI
+  reaches this node through a pod running on it, so repartitioning the boot
+  disk is the one mistake with no remote recovery. The playbook asserts the VG
+  exists and points at `node/STORAGE.md` if it doesn't.
+- `fstab` uses `nofail` and a k3s drop-in sets `RequiresMountsFor`. Together
+  that means a missing volume leaves the Pi booted and reachable but stops
+  k3s — deliberately, since the alternative is k3s writing a second copy of
+  its state into an empty directory on root and looking healthy.
+- New PVCs should use `storageClassName: lvm-data`. `local-path` is still the
+  default and still enforces nothing (its `storage:` requests are advisory, and
+  it is `allowVolumeExpansion: false`); migrating the remaining volumes off it
+  and off the static `local-storage` PVs in `/mnt/disk` is pending work, and
+  only after that can `local-storage` join `k3s_disable`.
+- `lvm-data` volumes are ordinary ext4 on ordinary LVs. If the CSI driver is
+  broken, `sudo lvs data` then `mount /dev/data/<lv>` still gets the data.
+
 ## Administration notes
 
 - **k3s's own bundled addons can conflict with kustomize-managed

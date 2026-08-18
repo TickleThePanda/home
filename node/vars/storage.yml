@@ -1,4 +1,43 @@
 ---
+# The SSD's LVM layout.
+#
+# Creating sda3, the physical volume and the volume group is a one-time,
+# LAN-local procedure -- see node/STORAGE.md. This playbook owns only the
+# steady state on top of them and deliberately never partitions the boot disk
+# or creates the VG: CI reaches the node *through* the cluster, so the one
+# operation it must never be able to get wrong is the one that makes the node
+# unbootable.
+#
+# Sizes are a floor, not a budget. Growing a volume is an edit here --
+# `lvol` runs with resizefs, so raising a number and letting CI apply it
+# extends the filesystem online. Shrinking is not supported and will fail
+# loudly rather than destroy data.
+#
+# Everything left unallocated in the VG is the PV pool: the OpenEBS LVM
+# LocalPV driver (deploy/setup/lvm-localpv/) carves one real LV per PVC out
+# of the same group. Roughly 327G of ~447G. Do not carve it up here.
+
+node_vg: data
+
+# All four are ext4 mounted noatime,nofail -- see tasks/storage.yml for why
+# nofail is the right choice here, and what pairs with it.
+node_lvs:
+  - name: agent
+    path: /var/lib/rancher/k3s/agent
+    size: 64g # containerd image store + container writable layers (imagefs)
+
+  - name: kubelet
+    path: /var/lib/kubelet
+    size: 16g # emptyDir, pod ephemeral storage, the PV bind-mount tree (nodefs)
+
+  - name: server
+    path: /var/lib/rancher/k3s/server
+    size: 8g # the kine datastore and token -- the cluster's source of truth
+
+  - name: backups
+    path: /var/backups
+    size: 32g # templates/k3s-managed-upgrade.sh.j2 writes here and never prunes
+
 # Directories backing `kubernetes.io~local-volume` PVs declared in deploy/.
 #
 # The repo already declares the PV; nothing declared the directory it points
@@ -8,6 +47,11 @@
 # uid/gid 1000 does not correspond to a user on the node (panda is 1001) --
 # these are container-side ids, so they are set numerically on purpose. Do
 # not "fix" them into names.
+#
+# These stay on the root filesystem, and stay small (656M). They are on the
+# way out: once the PVs above them move to the `lvm-data` StorageClass, this
+# list, /mnt/disk and the local-storage class all go away together, and the
+# node layer stops needing to know about individual apps at all.
 
 mnt_disk_dirs:
   - path: /mnt/disk/lldap

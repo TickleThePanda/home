@@ -19,6 +19,9 @@ Node-level configuration for `k8s-manager-1`, applied by the `node` job in
 See [`node/RECOVERY.md`](node/RECOVERY.md) before touching a broken cluster —
 CI reaches the node *through* a pod running inside that cluster, so when k3s
 is down the recovery path is LAN-local, not CI.
+[`node/STORAGE.md`](node/STORAGE.md) covers the SSD: its partitions, the LVM
+volume group behind both the node's own state and every PersistentVolume, and
+the one-time procedure that builds it.
 
 ### `deploy`
 

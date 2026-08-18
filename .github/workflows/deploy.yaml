@@ -78,6 +78,12 @@ jobs:
       - name: Install ansible-core
         run: pipx install ansible-core
 
+      # ansible-core ships no collections, and the storage tasks need lvol,
+      # filesystem and mount. Pinned in node/requirements.yml.
+      - name: Install Ansible collections
+        working-directory: node
+        run: ansible-galaxy collection install -r requirements.yml
+
       - name: Install the SSH key
         run: |
           install -d -m 700 ~/.ssh

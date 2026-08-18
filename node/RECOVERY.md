@@ -25,9 +25,9 @@ ssh panda@192.168.1.2
 `panda` has password-sudo via the `sudo` group, and a scoped NOPASSWD set in
 `/etc/sudoers.d/panda-k3s-admin` for the common k3s operations.
 
-If SSH itself is unreachable, it is a keyboard-and-monitor trip: the Pi is a
-single SD card, `/dev/root` on `mmcblk0p2`, static IP `192.168.1.2/24` set in
-`/etc/dhcpcd.conf`.
+If SSH itself is unreachable, it is a keyboard-and-monitor trip: the Pi boots
+from a single SSD, `/` on `/dev/sda2`, static IP `192.168.1.2/24` set in
+`/etc/dhcpcd.conf`. Most of that disk is LVM — see `STORAGE.md`.
 
 ## Is it k3s, or is it the tunnel?
 
@@ -75,8 +75,23 @@ Most likely causes, in order:
 
 2. **A half-finished upgrade.** Restore the datastore (below).
 
-3. **Disk full.** Single 30G SD card. `df -h /`. The backups this playbook
-   writes to `/var/backups/k3s/` are a plausible culprit — prune old ones.
+3. **A missing mount.** k3s's state lives on LVM volumes and the drop-in at
+   `/etc/systemd/system/k3s.service.d/10-storage-mounts.conf` makes k3s refuse
+   to start without them, rather than silently writing a second copy of its
+   state to an empty directory on root. The journal names the path.
+   ```sh
+   findmnt /var/lib/rancher/k3s/agent /var/lib/rancher/k3s/server /var/lib/kubelet
+   sudo vgs data && sudo lvs data
+   sudo mount -a && sudo systemctl start k3s
+   ```
+   `fstab` uses `nofail`, so this is the expected shape of a storage problem:
+   the Pi is up and reachable, the cluster is not. See `STORAGE.md`.
+
+4. **Disk full.** `df -h /var/lib/rancher/k3s/agent /var/backups /`. Each is
+   its own volume now, so a full one is contained — the image store filling
+   cannot stop the datastore writing. The backups this playbook writes to
+   `/var/backups/k3s/` are still unpruned and a plausible culprit for that
+   volume. Raising a size is an edit to `vars/storage.yml`; it applies online.
 
 ## Restore the datastore
 
@@ -109,9 +124,13 @@ Everything CI does can be done from the laptop on the LAN:
 
 ```sh
 cd node
+ansible-galaxy collection install -r requirements.yml            # once per machine
 ansible-playbook site.yml --check --diff -e node_user=panda -K   # dry run
 ansible-playbook site.yml --diff -e node_user=panda -K           # apply
 ```
+
+The collections are not optional — ansible-core ships none, and the storage
+tasks need `lvol`, `filesystem` and `mount`. CI installs them the same way.
 
 `node_user=panda` because the `deploy` user's private key lives in the GitHub
 secret `NODE_SSH_KEY`, not on the laptop. Use `-e node_user=`, **not** `-u` —
@@ -134,6 +153,9 @@ sudo cat /etc/rancher/k3s/k3s.yaml     # then copy to ~/.kube/config
 
 - `/etc/dhcpcd.conf` — the static IP. A bad networking change costs a
   keyboard-and-monitor trip, so it is left to hand-editing.
+- The partition table and the `data` volume group. The playbook manages logical
+  volumes *on top of* them but will not create them, for the same reason — see
+  `STORAGE.md`.
 - `/var/lib/rancher/k3s/server/manifests/` — k3s rewrites this directory on
   every start. Never put anything there expecting it to survive.
 - The out-of-band Secrets (`tunnel-token`, `cloudflare-api-token-secret`,

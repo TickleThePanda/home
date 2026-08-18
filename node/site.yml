@@ -41,6 +41,15 @@
       tags: [version]
 
   handlers:
+    # Unit-file changes only. Deliberately not chained to the k3s restart
+    # below: RequiresMountsFor takes effect on the next start, and bouncing
+    # the API to apply a drop-in that changes nothing about a running server
+    # is a worse trade than waiting for the next reboot.
+    - name: Reload the systemd manager configuration
+      listen: reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
     # Detached via a transient timer unit so a dropped session cannot abort the
     # restart half-way. Note running pods survive a k3s *server* restart --
     # containerd keeps them up, cloudflared included -- so in practice the

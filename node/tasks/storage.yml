@@ -1,6 +1,110 @@
 ---
-# Directories backing local-volume PVs declared in deploy/.
-# The repo declares the PV; this declares the directory it points at.
+# Two unrelated things, in dependency order:
+#   1. the SSD's LVM volumes and their mounts  (vars: node_vg, node_lvs)
+#   2. directories backing local-volume PVs    (vars: mnt_disk_dirs)
+
+- name: Ensure LVM tooling is present
+  ansible.builtin.package:
+    name: lvm2
+    state: present
+
+# Never `vgcreate` here. Partitioning the boot disk is a one-time, LAN-local
+# step (node/STORAGE.md) precisely because CI reaches this node through a pod
+# running on it -- an automated repartition is the one mistake with no path
+# back that does not involve a keyboard and a monitor.
+#
+# check_mode: false because `command` is skipped in --check by default, which
+# would make the dry run pass by not looking.
+- name: Look for the volume group
+  ansible.builtin.command: vgs --noheadings -o vg_name {{ node_vg }}
+  register: node_vg_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Fail with a pointer to the runbook when the volume group is missing
+  ansible.builtin.fail:
+    msg: >-
+      Volume group '{{ node_vg }}' does not exist. Creating sda3 and the
+      volume group is a one-time, LAN-local procedure -- see node/STORAGE.md.
+      This playbook manages logical volumes on top of that group but will not
+      partition the boot disk.
+  when: node_vg_check.rc != 0
+
+- name: Ensure the logical volumes exist at the configured size
+  community.general.lvol:
+    vg: "{{ node_vg }}"
+    lv: "{{ item.name }}"
+    size: "{{ item.size }}"
+    resizefs: true
+  loop: "{{ node_lvs }}"
+  loop_control:
+    label: "{{ node_vg }}/{{ item.name }} ({{ item.size }})"
+
+# -m 0 drops ext4's 5% root reserve, which buys nothing on a data volume and
+# costs ~6G across these four. No-op on a volume that already has a filesystem
+# -- the module will not reformat one.
+- name: Ensure the logical volumes are formatted
+  community.general.filesystem:
+    dev: "/dev/{{ node_vg }}/{{ item.name }}"
+    fstype: ext4
+    opts: -m 0
+  loop: "{{ node_lvs }}"
+  loop_control:
+    label: "/dev/{{ node_vg }}/{{ item.name }}"
+
+# nofail so a volume that fails to mount leaves the Pi booted and reachable
+# over SSH rather than dropping to an emergency console on a headless box.
+# The k3s drop-in below is the other half of that trade.
+- name: Ensure the logical volumes are mounted and in fstab
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "/dev/{{ node_vg }}/{{ item.name }}"
+    fstype: ext4
+    opts: noatime,nofail
+    state: mounted
+  loop: "{{ node_lvs }}"
+  loop_control:
+    label: "{{ item.path }} <- {{ node_vg }}/{{ item.name }}"
+
+- name: Ensure the k3s drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Without this, a missing mount is silent and expensive: k3s starts, finds an
+# empty directory on the root filesystem, and writes a second copy of its
+# state there. The node comes up looking healthy with the wrong datastore.
+# Refusing to start is the better failure.
+- name: Require the storage mounts before k3s starts
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/k3s.service.d/10-storage-mounts.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by node/tasks/storage.yml. Do not edit on the node.
+      #
+      # Every path here must be an actual mount point. RequiresMountsFor pulls
+      # in the mount units for the path *and its parents*, so naming the parent
+      # /var/lib/rancher/k3s would only ever require `/` -- that directory is
+      # on the root filesystem, and the guard would silently do nothing.
+      [Unit]
+      {% for lv in node_lvs %}
+      RequiresMountsFor={{ lv.path }}
+      {% endfor %}
+  notify: reload systemd
+
+# Batched discard rather than mounting -o discard: inline discard puts the
+# erase in the write path, and this disk holds the datastore.
+- name: Enable periodic TRIM
+  ansible.builtin.systemd_service:
+    name: fstrim.timer
+    enabled: true
+    state: started
 
 - name: Ensure /mnt/disk exists
   ansible.builtin.file:

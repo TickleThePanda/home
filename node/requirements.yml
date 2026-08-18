@@ -1,0 +1,16 @@
+---
+# Collections the playbook needs beyond ansible-core, which is all CI installs.
+#
+#   community.general  lvol, filesystem   -- the LVM layer on the SSD
+#   ansible.posix      mount              -- fstab entries for those volumes
+#
+# Pinned, like everything else the node depends on: an unpinned collection
+# release could change what a deploy does to the boot disk without a commit.
+#
+# Install with:  ansible-galaxy collection install -r requirements.yml
+
+collections:
+  - name: community.general
+    version: "13.3.0"
+  - name: ansible.posix
+    version: "2.2.2"
