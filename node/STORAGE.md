@@ -25,7 +25,7 @@ the volumes, filesystems and mounts.
 
 The remaining ~327G is the PersistentVolume pool. The OpenEBS LVM LocalPV
 driver (`deploy/setup/lvm-localpv/`) creates one LV per PVC on the `lvm-data`
-StorageClass. Don't pre-allocate it.
+StorageClass, which is the default. Don't pre-allocate it.
 
 Volumes are thick, so `vgs` free space is real.
 
@@ -88,4 +88,17 @@ plain LVs:
 ```sh
 sudo lvs data
 sudo mount /dev/data/<lv> /mnt/somewhere
+```
+
+## Pre-migration leftovers
+
+Every volume used to live on the root filesystem, either as a static
+`local-storage` PV under `/mnt/disk` or a `local-path` directory under
+`/var/lib/rancher/k3s/storage`. Both are now empty of anything the cluster
+references, but the data is still there and is the rollback for the migration.
+
+Reclaim ~700M once the migrated volumes have proven themselves:
+
+```sh
+sudo rm -rf /mnt/disk /var/lib/rancher/k3s/storage
 ```

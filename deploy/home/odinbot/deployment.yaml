@@ -34,6 +34,13 @@ spec:
               name: tmp
             - mountPath: /.cache
               name: cache
+      # The container runs as uid 10001 with gid 0 and never had an fsGroup:
+      # under local-storage it only wrote to /data because /mnt/disk/odinbot
+      # was mode 0777. A provisioned volume arrives root:root 0755, so the
+      # group has to be granted explicitly rather than inherited from a
+      # hand-made directory.
+      securityContext:
+        fsGroup: 10001
       volumes:
         - name: odinbot-volume
           persistentVolumeClaim:

@@ -23,3 +23,7 @@ traefik_chart_version: "40.1.4+up40.1.0"
 k3s_disable:
   - servicelb
   - traefik
+  # The local-path provisioner. Removing it drops the `local-path` StorageClass
+  # and its default annotation; deploy/setup/lvm-localpv/ takes the default.
+  # Nothing references local-path any more -- every volume is on `lvm-data`.
+  - local-storage

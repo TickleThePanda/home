@@ -38,53 +38,16 @@ node_lvs:
     path: /var/backups
     size: 32g # templates/k3s-managed-upgrade.sh.j2 writes here and never prunes
 
-# Directories backing `kubernetes.io~local-volume` PVs declared in deploy/.
+# /mnt/disk is gone from this file on purpose.
 #
-# The repo already declares the PV; nothing declared the directory it points
-# at, so these modes and owners existed only on the SD card. Values below are
-# the live ones, captured with `stat -c "%n %u:%g %a" /mnt/disk/*`.
+# It held the directories backing the static `local-storage` PVs. Every volume
+# now comes from the `lvm-data` StorageClass (deploy/setup/lvm-localpv/), which
+# carves an LV per PVC out of the free space in this same group, so nothing in
+# the node layer has to know about individual apps any more.
 #
-# uid/gid 1000 does not correspond to a user on the node (panda is 1001) --
-# these are container-side ids, so they are set numerically on purpose. Do
-# not "fix" them into names.
+# The old directories are deliberately NOT deleted -- /mnt/disk/{lldap,
+# pihole-dns,pihole-etc,odinbot} still hold the pre-migration copies, plus the
+# already-stale label-studio and speed-test. They are the rollback. Remove them
+# by hand once the migrated volumes have proven themselves:
 #
-# These stay on the root filesystem, and stay small (656M). They are on the
-# way out: once the PVs above them move to the `lvm-data` StorageClass, this
-# list, /mnt/disk and the local-storage class all go away together, and the
-# node layer stops needing to know about individual apps at all.
-
-mnt_disk_dirs:
-  - path: /mnt/disk/lldap
-    owner: 0
-    group: 1000
-    mode: "2770" # setgid: lldap writes as its own uid but the group must stick
-    pv: deploy/internal/lldap/volume.yaml
-
-  - path: /mnt/disk/pihole-dns
-    owner: 0
-    group: 0
-    mode: "0777"
-    pv: deploy/internal/pihole/volume-dns.yaml
-
-  - path: /mnt/disk/pihole-etc
-    owner: 1000
-    group: 1000
-    mode: "0775"
-    pv: deploy/internal/pihole/volume-conf.yaml
-
-  - path: /mnt/disk/odinbot
-    owner: 0
-    group: 0
-    mode: "0777"
-    pv: deploy/home/odinbot/volume.yaml
-
-# Deliberately NOT managed, and deliberately not deleted -- both hold data
-# that nothing in deploy/ references any more. Left for the owner to remove
-# by hand after confirming they are not wanted:
-#
-#   /mnt/disk/label-studio  1000:1000 2775
-#       Stale. deploy/internal/label-studio/volume.yaml uses
-#       storageClassName: local-path, so the live data lives under
-#       /var/lib/rancher/k3s/storage/, not here.
-#   /mnt/disk/speed-test    0:0 777
-#       Stale since the speed-tester project was removed from the repo.
+#   sudo rm -rf /mnt/disk /var/lib/rancher/k3s/storage

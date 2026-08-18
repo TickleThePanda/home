@@ -14,6 +14,11 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: lvm-data
+  annotations:
+    # The default since every volume moved off local-path and `local-storage`
+    # joined k3s_disable in node/vars/versions.yml. A PVC that names no class
+    # gets a real block device rather than a directory on the root filesystem.
+    storageclass.kubernetes.io/is-default-class: "true"
 provisioner: local.csi.openebs.io
 parameters:
   storage: lvm
@@ -30,8 +35,3 @@ volumeBindingMode: WaitForFirstConsumer
 # `kubectl patch pvc` with the pod still running.
 allowVolumeExpansion: true
 reclaimPolicy: Delete
-# Deliberately NOT the default class yet. `local-path` still holds that, and it
-# is owned by a k3s Addon that reapplies its annotations on every restart --
-# taking the default means adding `local-storage` to k3s_disable in
-# node/vars/versions.yml, which waits until everything has migrated off it.
-# Until then, apps opt in with `storageClassName: lvm-data`.

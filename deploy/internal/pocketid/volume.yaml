@@ -1,0 +1,27 @@
+---
+# Declared here even though statefulset.yaml also carries a matching
+# volumeClaimTemplate, and the two must be kept in step.
+#
+# The StatefulSet controller stamps spec.selector.matchLabels onto the PVCs it
+# creates, and the top-level kustomization puts ticklethepanda.dev/managed-by
+# into that selector. A template-created PVC therefore carries the label the
+# deploy pipeline prunes on without ever being part of the applied set, so
+# `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
+# treats it as garbage and deletes it. Declaring it makes it part of the set.
+#
+# A StatefulSet adopts an existing PVC whose name matches `<template>-<sts>-<n>`,
+# so this stays the live claim rather than competing with the template.
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: data-pocket-id-0
+  namespace: pocket-id
+  labels:
+    app: pocket-id
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lvm-data
+  resources:
+    requests:
+      storage: 128Mi

@@ -134,11 +134,23 @@ Write documentation that is simple, concise, and practical.
 - `fstab` uses `nofail` and a k3s drop-in sets `RequiresMountsFor`, so a
   missing volume leaves the Pi reachable but stops k3s. The alternative is k3s
   writing a second copy of its state to root and looking healthy.
-- New PVCs should set `storageClassName: lvm-data`. `local-path` is still the
-  default and enforces nothing — its `storage:` requests are advisory and it is
-  `allowVolumeExpansion: false`. Migrating the remaining volumes off it and off
-  the static `local-storage` PVs in `/mnt/disk` is pending; only then can
-  `local-storage` join `k3s_disable`.
+- **`lvm-data` is the default StorageClass** and the only one — every volume is
+  a real LV. `local-path` and the static `local-storage` PVs in `/mnt/disk` are
+  gone, and `local-storage` is in `k3s_disable`. A PVC needs no
+  `storageClassName` at all now.
+- **A `storage:` request is now a real device size.** Under `local-path` it was
+  advisory, so claims drifted far past it — `pihole-etc` asked for `128Mi` while
+  holding 422M. Under `lvm-data` that would be ENOSPC. Size claims for real, and
+  grow them with `kubectl patch pvc` (the class is `allowVolumeExpansion: true`).
+- **A StatefulSet's `volumeClaimTemplate` PVC is a `--prune` target.** The
+  controller stamps `spec.selector.matchLabels` — which includes
+  `ticklethepanda.dev/managed-by` — onto the PVCs it creates, but those PVCs are
+  not in the applied set, so the pipeline's prune deletes them. Declare such a
+  claim explicitly alongside the StatefulSet; see
+  `deploy/internal/pocketid/volume.yaml`.
+- The pre-migration copies still sit on the root filesystem under `/mnt/disk`
+  and `/var/lib/rancher/k3s/storage` (~700M). They are the rollback — see the
+  end of `node/STORAGE.md` for removing them.
 
 ## Administration notes
 

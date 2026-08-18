@@ -1,28 +1,4 @@
 ---
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: lldap-pv
-  namespace: lldap
-spec:
-  capacity:
-    storage: 128Mi
-  volumeMode: Filesystem
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: local-storage
-  local:
-    path: /mnt/disk/lldap
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: In
-              values:
-                - k8s-manager-1
----
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -31,8 +7,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-storage
-  volumeName: lldap-pv
+  storageClassName: lvm-data
   resources:
     requests:
       storage: 128Mi

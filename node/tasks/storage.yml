@@ -1,7 +1,7 @@
 ---
-# Two unrelated things, in dependency order:
-#   1. the SSD's LVM volumes and their mounts  (vars: node_vg, node_lvs)
-#   2. directories backing local-volume PVs    (vars: mnt_disk_dirs)
+# The SSD's LVM volumes and their mounts (vars: node_vg, node_lvs). The free
+# space left in the group is the PersistentVolume pool -- the CSI driver in
+# deploy/setup/lvm-localpv/ carves an LV per PVC out of it.
 
 - name: Ensure LVM tooling is present
   ansible.builtin.package:
@@ -111,21 +111,6 @@
     enabled: true
     state: started
 
-- name: Ensure /mnt/disk exists
-  ansible.builtin.file:
-    path: /mnt/disk
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Ensure PV-backing directories exist with the right ownership
-  ansible.builtin.file:
-    path: "{{ item.path }}"
-    state: directory
-    owner: "{{ item.owner }}"
-    group: "{{ item.group }}"
-    mode: "{{ item.mode }}"
-  loop: "{{ mnt_disk_dirs }}"
-  loop_control:
-    label: "{{ item.path }} ({{ item.pv }})"
+# Nothing here creates PV-backing directories any more. Every volume comes from
+# the lvm-data StorageClass, which carves an LV per PVC out of this same group
+# -- see the tail of vars/storage.yml.
