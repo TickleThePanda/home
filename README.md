@@ -58,6 +58,8 @@ Kube API: 192.168.1.3
 
 PiHole: 192.168.1.10
 
+Kea DHCP: 192.168.1.11
+
 External ingress: 192.168.1.20
 
 Internal ingress: 192.168.1.19

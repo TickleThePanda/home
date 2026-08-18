@@ -67,11 +67,11 @@ Write documentation that is simple, concise, and practical.
   api-proxy, cloudflared, each a self-contained kustomization),
   `deploy/internal/<app>/` (internal-only apps), `deploy/home/`
   (externally-reachable apps).
-- For a targeted fix, prefer a scoped apply (`kubectl apply -f <file>` or
-  `kubectl apply -k deploy/<subdir>`, no `--prune`) over the full
-  `-k deploy --prune` — the full run reconciles the entire repo at once,
-  including remote bases that can be down or rate-limited for reasons
-  unrelated to what you're actually fixing.
+- For a targeted fix, prefer a scoped apply over the full `-k deploy
+  --prune` — the full run reconciles the entire repo at once which is slow
+  and can hit intermittent issues. Do not scope the apply with a direct
+  `kubectl apply -f <file>` or `kubectl apply -k deploy/<subdir>`. Instead
+  use `./apply-subset.sh <deploy-subdir> [kubectl apply args...]`.
 
 ## Apps
 

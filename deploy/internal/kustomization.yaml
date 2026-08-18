@@ -4,6 +4,7 @@ kind: Kustomization
 
 resources:
 - ./index
+- ./kea
 - ./label-studio
 - ./lldap
 - ./mosquitto

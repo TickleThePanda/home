@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kea
+  labels:
+    app: kea
+spec:
+  replicas: 1
+  # kea-leases is ReadWriteOnce. The default RollingUpdate strategy waits
+  # for a new pod to be ready before killing the old one, but the new pod
+  # can't mount the volume until the old one releases it -- permanent
+  # deadlock at replicas: 1. Recreate kills the old pod first.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kea
+  template:
+    metadata:
+      labels:
+        app: kea
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |
+          [{"name": "macvlan-lan", "namespace": "kea", "ips": ["192.168.1.11/24"]}]
+    spec:
+      containers:
+        - name: kea-dhcp4
+          image: jonasal/kea-dhcp4:3.2.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-c"
+            - "/kea/config/dhcp4.json"
+          securityContext:
+            # No `drop: [ALL]` here -- the image's entrypoint script runs as
+            # root and expects the usual Docker default capability set (it
+            # clears its own stale pidfile on startup, which needs
+            # CAP_DAC_OVERRIDE/CAP_FOWNER). NET_ADMIN is the only one it
+            # doesn't already have by default, needed for the raw socket on
+            # the macvlan interface.
+            capabilities:
+              add:
+                - NET_ADMIN
+          volumeMounts:
+            - name: kea-config
+              mountPath: /kea/config/dhcp4.json
+              subPath: dhcp4.json
+              readOnly: true
+            - name: kea-leases
+              mountPath: /kea/leases
+      volumes:
+        - name: kea-config
+          configMap:
+            name: kea-config
+        - name: kea-leases
+          persistentVolumeClaim:
+            claimName: kea-leases

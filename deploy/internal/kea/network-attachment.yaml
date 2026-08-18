@@ -1,0 +1,17 @@
+# "master": eth0 below is the node's physical LAN interface. Inside the Kea
+# pod itself this attachment shows up as "net1", not "eth0" -- multus always
+# names a pod's default cluster network "eth0" and additional attachments
+# net1, net2, etc. dhcp4.json's interfaces-config must say "net1" to match.
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: macvlan-lan
+spec:
+  config: |-
+    {
+      "cniVersion": "1.0.0",
+      "type": "macvlan",
+      "master": "eth0",
+      "mode": "bridge",
+      "ipam": { "type": "static" }
+    }

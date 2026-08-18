@@ -1,0 +1,11 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: kea-leases
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lvm-data
+  resources:
+    requests:
+      storage: 128Mi
