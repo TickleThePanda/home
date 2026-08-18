@@ -46,10 +46,13 @@
   when: item.path | basename != '10-k3s.yaml'
   notify: restart k3s
 
-# servicelb was disabled twice -- here and in the drop-in. The drop-in wins as
-# the single owner; this file is emptied rather than removed because the
-# stock k3s systemd unit references it with EnvironmentFile= (no leading '-').
-- name: Drop the duplicate K3S_DISABLE from the service env file
+# k3s options belong in the drop-in above, so this file stays free of them --
+# it once also carried K3S_DISABLE=servicelb, giving that setting two owners.
+# Kept present but empty rather than deleted: the stock k3s systemd unit
+# references it with EnvironmentFile= and no leading '-', so a missing file
+# fails the unit. The k3s installer rewrites it on every version change, which
+# is why the upgrade script preserves it across the install.
+- name: Keep k3s options out of the service env file
   ansible.builtin.copy:
     dest: /etc/systemd/system/k3s.service.env
     owner: root

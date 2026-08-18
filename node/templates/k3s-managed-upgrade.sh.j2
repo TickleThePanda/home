@@ -19,6 +19,13 @@ say() { echo "$(date -Is) $*" >>"$STATUS"; }
 
 on_error() {
     say "FAILED at line $1"
+    # If we died between preserving the env file and putting it back, restore
+    # it -- the unit references it with EnvironmentFile= and no leading '-'.
+    if [ -f /etc/systemd/system/k3s.service.env.pre-upgrade ]; then
+        mv /etc/systemd/system/k3s.service.env.pre-upgrade \
+           /etc/systemd/system/k3s.service.env
+        say "restored the service env file"
+    fi
     # Best effort: never leave the cluster down after a failed upgrade, or
     # there is no transport left to debug over.
     systemctl start k3s || say "could not restart k3s -- LAN-local access needed"
@@ -49,11 +56,21 @@ tar -czf "$archive" -C / \
 say "backup complete $(stat -c %s "$archive") bytes"
 
 say "installing $TARGET_VERSION"
+# The installer unconditionally regenerates the systemd env file from whatever
+# K3S_*/CONTAINERD_*/KINE_*/proxy vars are exported at install time, which
+# clobbers the content node/tasks/k3s-config.yml manages. That task runs
+# earlier in the play, so without this the file would be left as the installer
+# wrote it and the next --check run would report drift on a healthy node.
+env_file=/etc/systemd/system/k3s.service.env
+cp -a "$env_file" "$env_file.pre-upgrade"
+
 curl -sfL https://get.k3s.io \
     | INSTALL_K3S_VERSION="$TARGET_VERSION" \
       INSTALL_K3S_SKIP_START=true \
       sh -s - server
-say "installer finished"
+
+mv "$env_file.pre-upgrade" "$env_file"
+say "installer finished (service env file preserved)"
 
 systemctl daemon-reload
 say "starting k3s"
