@@ -6,6 +6,10 @@ namespace: kea
 resources:
   - ./namespace.yaml
   - ./network-attachment.yaml
-  - ./configmap.yaml
   - ./volume.yaml
   - ./deployment.yaml
+
+configMapGenerator:
+  - name: kea-config
+    files:
+      - dhcp4.json

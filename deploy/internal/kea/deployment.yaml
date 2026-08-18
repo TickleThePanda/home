@@ -6,10 +6,6 @@ metadata:
     app: kea
 spec:
   replicas: 1
-  # kea-leases is ReadWriteOnce. The default RollingUpdate strategy waits
-  # for a new pod to be ready before killing the old one, but the new pod
-  # can't mount the volume until the old one releases it -- permanent
-  # deadlock at replicas: 1. Recreate kills the old pod first.
   strategy:
     type: Recreate
   selector:

@@ -65,13 +65,24 @@ Write documentation that is simple, concise, and practical.
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
   api-proxy, cloudflared, each a self-contained kustomization),
-  `deploy/internal/<app>/` (internal-only apps), `deploy/home/`
-  (externally-reachable apps).
+  `deploy/internal/<app>/` (internal-only apps, each self-contained with its
+  own `namespace:`), `deploy/home/` (externally-reachable apps — `namespace:
+  home` is set once on `deploy/home/kustomization.yaml` itself, not per
+  app, so scope applies to `deploy/home`, not `deploy/home/<app>`).
 - For a targeted fix, prefer a scoped apply over the full `-k deploy
   --prune` — the full run reconciles the entire repo at once which is slow
   and can hit intermittent issues. Do not scope the apply with a direct
   `kubectl apply -f <file>` or `kubectl apply -k deploy/<subdir>`. Instead
   use `./apply-subset.sh <deploy-subdir> [kubectl apply args...]`.
+- A single-replica Deployment with a ReadWriteOnce PVC must set `strategy:
+  type: Recreate`. The default RollingUpdate waits for the new pod before
+  killing the old one, but the new pod can't mount the volume until the old
+  one releases it — permanent deadlock at `replicas: 1`.
+- A ConfigMap mounted via `subPath` must be defined with a
+  `configMapGenerator` in that app's `kustomization.yaml`, not a plain
+  `ConfigMap` resource. `subPath` mounts never live-refresh, and a
+  generator's content-hashed name changes the pod template on every content
+  change, forcing an actual rollout instead of silently going stale.
 
 ## Apps
 

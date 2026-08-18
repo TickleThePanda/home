@@ -1,0 +1,74 @@
+{
+  "Dhcp4": {
+    "interfaces-config": {
+      "interfaces": [
+        "net1"
+      ],
+      "dhcp-socket-type": "raw"
+    },
+
+    "authoritative": true,
+
+    "valid-lifetime": 86400,
+    "renew-timer": 43200,
+    "rebind-timer": 75600,
+
+    "lease-database": {
+      "type": "memfile",
+      "persist": true,
+      "name": "/kea/leases/kea-leases4.csv",
+      "lfc-interval": 3600
+    },
+
+    "subnet4": [
+      {
+        "id": 1,
+        "subnet": "192.168.1.0/24",
+
+        "pools": [
+          {
+            "pool": "192.168.1.21 - 192.168.1.200"
+          }
+        ],
+
+        "option-data": [
+          {
+            "name": "routers",
+            "data": "192.168.1.1"
+          },
+          {
+            "name": "subnet-mask",
+            "data": "255.255.255.0"
+          },
+          {
+            "name": "domain-name-servers",
+            "data": "192.168.1.10"
+          }
+        ],
+
+        "reservations": [
+          {
+            "hw-address": "48:f6:ee:2b:08:e8",
+            "ip-address": "192.168.1.24"
+          },
+          {
+            "hw-address": "dc:a6:32:26:bf:26",
+            "ip-address": "192.168.1.5"
+          }
+        ]
+      }
+    ],
+
+    "loggers": [
+      {
+        "name": "kea-dhcp4",
+        "output_options": [
+          {
+            "output": "stdout"
+          }
+        ],
+        "severity": "INFO"
+      }
+    ]
+  }
+}

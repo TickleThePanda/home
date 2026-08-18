@@ -11,4 +11,8 @@ resources:
   - ./service-lb.yaml
   - ./service.yaml
   - ./ingress.yaml
-  - ./unbound-configmap.yaml
+
+configMapGenerator:
+  - name: unbound-config
+    files:
+      - unbound.conf

@@ -5,8 +5,12 @@ namespace: mosquitto
 
 resources:
   - ./namespace.yaml
-  - ./config.yaml
   - ./volume.yaml
   - ./statefulset.yaml
   - ./service.yaml
   - ./ingress.yaml
+
+configMapGenerator:
+  - name: mosquitto-config
+    files:
+      - mosquitto.conf
