@@ -1,8 +1,8 @@
 ---
 # The SSD's LVM layout.
 #
-# Creating sda3, the physical volume and the volume group is a one-time,
-# LAN-local procedure -- see node/STORAGE.md. This playbook owns only the
+# Creating sda3, the physical volume and the volume group is done by hand from
+# the LAN -- see node/STORAGE.md. This playbook owns only the
 # steady state on top of them and deliberately never partitions the boot disk
 # or creates the VG: CI reaches the node *through* the cluster, so the one
 # operation it must never be able to get wrong is the one that makes the node

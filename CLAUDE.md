@@ -5,6 +5,22 @@ plus the apps deployed onto it. See `README.md` for the network map (node
 IPs, ingress IPs, etc.) — this file covers operational context that isn't
 visible from the code alone.
 
+## Documentation
+
+Write documentation that is simple, concise, and practical.
+
+- Prefer short sentences and short paragraphs.
+- Explain only what the reader needs to use or understand the feature.
+- Do not explain obvious implementation details.
+- Do not repeat information in different words.
+- Avoid introductory or concluding filler.
+- Avoid phrases like "This allows you to..." when the code or heading already makes that clear.
+- Prefer a concrete example over a long explanation.
+- Use bullets only when they make the content easier to scan.
+- Keep each section as short as possible without losing necessary information.
+- Do not document every edge case unless it is important to normal usage.
+- Assume the reader is a competent software developer.
+
 ## Cluster
 
 - Node: `k8s-manager-1`, `192.168.1.2`, Raspberry Pi (arm64), single node
@@ -95,33 +111,24 @@ visible from the code alone.
 
 ## Storage
 
-- The node boots from a 512 GB SSD. `/boot` and `/` are plain partitions
-  (`sda1`, `sda2`); the rest of the disk is `sda3`, a single LVM volume group
-  called `data`. `node/STORAGE.md` is the reference — read it before touching
-  anything storage-shaped.
-- The VG holds two unlike things. **Node state** is carved by hand into four
-  LVs listed in `node/vars/storage.yml` (`agent` for the containerd image
-  store, `kubelet`, `server` for the datastore, `backups`) and managed by
-  `node/tasks/storage.yml`. Everything left unallocated — ~327G — **is the PV
-  pool**, not spare capacity: the OpenEBS LVM LocalPV driver carves one real
-  LV per PVC out of it. Don't pre-allocate it.
-- **Growing a volume is an edit to `node/vars/storage.yml`.** `lvol` runs with
-  `resizefs`, so it extends online. Shrinking fails rather than truncating.
-- **Ansible does not own the partition table or the VG**, and must not. CI
-  reaches this node through a pod running on it, so repartitioning the boot
-  disk is the one mistake with no remote recovery. The playbook asserts the VG
-  exists and points at `node/STORAGE.md` if it doesn't.
-- `fstab` uses `nofail` and a k3s drop-in sets `RequiresMountsFor`. Together
-  that means a missing volume leaves the Pi booted and reachable but stops
-  k3s — deliberately, since the alternative is k3s writing a second copy of
-  its state into an empty directory on root and looking healthy.
-- New PVCs should use `storageClassName: lvm-data`. `local-path` is still the
-  default and still enforces nothing (its `storage:` requests are advisory, and
-  it is `allowVolumeExpansion: false`); migrating the remaining volumes off it
-  and off the static `local-storage` PVs in `/mnt/disk` is pending work, and
-  only after that can `local-storage` join `k3s_disable`.
-- `lvm-data` volumes are ordinary ext4 on ordinary LVs. If the CSI driver is
-  broken, `sudo lvs data` then `mount /dev/data/<lv>` still gets the data.
+`node/STORAGE.md` is the reference. The essentials:
+
+- Most of the SSD is `sda3`, one LVM volume group named `data`. Four LVs hold
+  node state (sized in `node/vars/storage.yml`); the unallocated ~327G **is
+  the PersistentVolume pool**, not spare capacity. Don't pre-allocate it.
+- **Growing a volume is an edit to `node/vars/storage.yml`.** It extends
+  online. Shrinking fails.
+- **Ansible does not own the partition table or the VG**, and must not — CI
+  reaches this node through a pod running on it, so a bad repartition has no
+  remote recovery.
+- `fstab` uses `nofail` and a k3s drop-in sets `RequiresMountsFor`, so a
+  missing volume leaves the Pi reachable but stops k3s. The alternative is k3s
+  writing a second copy of its state to root and looking healthy.
+- New PVCs should set `storageClassName: lvm-data`. `local-path` is still the
+  default and enforces nothing — its `storage:` requests are advisory and it is
+  `allowVolumeExpansion: false`. Migrating the remaining volumes off it and off
+  the static `local-storage` PVs in `/mnt/disk` is pending; only then can
+  `local-storage` join `k3s_disable`.
 
 ## Administration notes
 

@@ -18,9 +18,15 @@ Everything below assumes you are **on the LAN**, not going through WARP.
 ## First: get on the LAN
 
 ```sh
-# WARP off. Straight to the node's real address.
+warp-cli --accept-tos disconnect
+ip route get 192.168.1.2    # must say `dev wlan0`/`dev eth0`, NOT CloudflareWARP
 ssh panda@192.168.1.2
 ```
+
+Check the route rather than trusting that WARP is off. It captures the node's
+address even from a laptop already on `192.168.1.0/24`, so a session that looks
+local can be running through the `cloudflared` pod — the very thing you are
+about to restart. It will drop at the worst possible moment.
 
 `panda` has password-sudo via the `sudo` group, and a scoped NOPASSWD set in
 `/etc/sudoers.d/panda-k3s-admin` for the common k3s operations.
@@ -75,23 +81,17 @@ Most likely causes, in order:
 
 2. **A half-finished upgrade.** Restore the datastore (below).
 
-3. **A missing mount.** k3s's state lives on LVM volumes and the drop-in at
-   `/etc/systemd/system/k3s.service.d/10-storage-mounts.conf` makes k3s refuse
-   to start without them, rather than silently writing a second copy of its
-   state to an empty directory on root. The journal names the path.
+3. **A missing mount.** k3s's state is on LVM volumes and refuses to start
+   without them. The journal names the path. See `STORAGE.md`.
    ```sh
    findmnt /var/lib/rancher/k3s/agent /var/lib/rancher/k3s/server /var/lib/kubelet
-   sudo vgs data && sudo lvs data
    sudo mount -a && sudo systemctl start k3s
    ```
-   `fstab` uses `nofail`, so this is the expected shape of a storage problem:
-   the Pi is up and reachable, the cluster is not. See `STORAGE.md`.
 
 4. **Disk full.** `df -h /var/lib/rancher/k3s/agent /var/backups /`. Each is
-   its own volume now, so a full one is contained — the image store filling
-   cannot stop the datastore writing. The backups this playbook writes to
-   `/var/backups/k3s/` are still unpruned and a plausible culprit for that
-   volume. Raising a size is an edit to `vars/storage.yml`; it applies online.
+   its own volume, so a full one is contained. `/var/backups/k3s/` is unpruned
+   and the usual culprit. Raise the size in `vars/storage.yml`; it applies
+   online.
 
 ## Restore the datastore
 
@@ -136,6 +136,30 @@ tasks need `lvol`, `filesystem` and `mount`. CI installs them the same way.
 secret `NODE_SSH_KEY`, not on the laptop. Use `-e node_user=`, **not** `-u` —
 the inventory sets `ansible_user`, and an inventory var beats the `-u` flag,
 so `-u panda` is silently ignored. `-K` prompts for panda's sudo password.
+
+## Every internal service looks down, but the cluster is fine
+
+Check DNS first. pihole runs inside the cluster, so k3s downtime takes the LAN's
+resolver with it. The router advertises public resolvers too, so clients fail
+over and stay there. Public names keep working while
+`*.internal.ticklethepanda.co.uk` resolves to nothing.
+
+```sh
+resolvectl status          # Current DNS Server should be 192.168.1.10
+sudo systemctl restart systemd-resolved
+```
+
+Check the cluster separately, bypassing DNS. A 401 is tinyauth challenging you,
+so the ingress is healthy:
+
+```sh
+curl -k -o /dev/null -w '%{http_code}\n' \
+    --resolve internal.ticklethepanda.co.uk:443:192.168.1.19 \
+    https://internal.ticklethepanda.co.uk/
+```
+
+The real fix is the router advertising only `192.168.1.10`. That is router
+config, not in this repo.
 
 ## Kubeconfig has stopped working
 
