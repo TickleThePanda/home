@@ -23,7 +23,7 @@ spec:
   storageClassName: lvm-data
   resources:
     requests:
-      storage: 50Gi
+      storage: 150Gi
 ---
 kind: PersistentVolumeClaim
 apiVersion: v1

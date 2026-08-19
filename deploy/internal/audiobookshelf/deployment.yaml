@@ -47,6 +47,28 @@ spec:
             - mountPath: /data
               name: media
               subPath: audible
+        - name: librofm-sync
+          image: ticklethepanda/librofm-sync:latest
+          imagePullPolicy: Always
+          env:
+            - name: TZ
+              value: "Europe/London"
+            - name: SLEEP_TIME
+              value: "6h"
+            - name: LIBROFM_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: librofm-secrets
+                  key: username
+            - name: LIBROFM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: librofm-secrets
+                  key: password
+          volumeMounts:
+            - mountPath: /audiobooks
+              name: media
+              subPath: librofm
       securityContext:
         fsGroup: 1001
         fsGroupChangePolicy: OnRootMismatch
