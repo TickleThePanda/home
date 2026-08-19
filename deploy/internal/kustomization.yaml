@@ -3,14 +3,14 @@ kind: Kustomization
 
 
 resources:
-- ./audiobookshelf
-- ./dns
+- ./apps/audiobookshelf
+- ./apps/label-studio
+- ./auth/lldap
+- ./auth/pocketid
+- ./auth/tinyauth
 - ./index
-- ./kea
-- ./label-studio
-- ./lldap
-- ./mosquitto
-- ./pihole
-- ./pocketid
-- ./tinyauth
-- ./unbound
+- ./network/coredns
+- ./network/dhcp-kea
+- ./network/pihole
+- ./network/unbound
+- ./services/mosquitto

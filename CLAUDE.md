@@ -50,15 +50,15 @@ Write documentation that is simple, concise, and practical.
   the `external` pool.
 - **tinyauth** forward-auth gates most internal apps, backed by
   **pocket-id** (OIDC) + **lldap**.
-- Internal DNS chain: clients → **Pi-hole** (`deploy/internal/pihole/`,
-  filtering/blocklists) → **Unbound** (`deploy/internal/unbound/`,
-  recursive resolver) → **CoreDNS** (`deploy/internal/dns/`, authoritative
+- Internal DNS chain: clients → **Pi-hole** (`deploy/internal/network/pihole/`,
+  filtering/blocklists) → **Unbound** (`deploy/internal/network/unbound/`,
+  recursive resolver) → **CoreDNS** (`deploy/internal/network/coredns/`, authoritative
   for `internal.ticklethepanda.co.uk` only). Unbound stub-zones that one
   domain to CoreDNS; every other query recurses normally. **cloudflared**
   tunnels select services out to the public internet without opening
   router ports.
 - **`internal.ticklethepanda.co.uk` hostnames live in the CoreDNS zone
-  file** (`deploy/internal/dns/zones/internal.ticklethepanda.co.uk.zone`),
+  file** (`deploy/internal/network/coredns/zones/internal.ticklethepanda.co.uk.zone`),
   not in Pi-hole. Its wildcard (`*`) already resolves any undefined
   subdomain to the Traefik internal-ingress IP, so **a new
   `deploy/internal/<app>/` with a normal `Host(`<app>.internal...`)`
@@ -66,9 +66,9 @@ Write documentation that is simple, concise, and practical.
   exception — a name that must resolve somewhere other than the internal
   ingress IP (e.g. a service not fronted by Traefik) — by adding an
   explicit `A` record above the wildcard and bumping the SOA serial, then
-  `./apply-subset.sh deploy/internal/dns`.
+  `./apply-subset.sh deploy/internal/network/coredns`.
 - Pi-hole's own local DNS records and its other non-default settings are
-  code-owned: `deploy/internal/pihole/*.env` / `*.txt` generate
+  code-owned: `deploy/internal/network/pihole/*.env` / `*.txt` generate
   `FTLCONF_*` env vars via `configMapGenerator` + `envFrom`.
   `misc.readOnly` is also forced `true`, which blocks *all* `pihole.toml`
   changes (not just the env-forced fields) via the UI, API, or CLI —
@@ -82,8 +82,8 @@ Write documentation that is simple, concise, and practical.
   bug, just a Pi-hole frontend gap. To add/change a setting: edit the
   relevant committed file (a new array setting gets its own `.txt` file
   wired into the `pihole-config` generator in
-  `deploy/internal/pihole/kustomization.yaml`; a new scalar setting gets a
-  line in `pihole.env`), then `./apply-subset.sh deploy/internal/pihole`.
+  `deploy/internal/network/pihole/kustomization.yaml`; a new scalar setting gets a
+  line in `pihole.env`), then `./apply-subset.sh deploy/internal/network/pihole`.
   `dns-hosts.txt` should stay limited to names outside
   `internal.ticklethepanda.co.uk` (e.g. the router) — that domain's records
   belong in the CoreDNS zone file above.
@@ -101,9 +101,11 @@ Write documentation that is simple, concise, and practical.
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
   api-proxy, cloudflared, each a self-contained kustomization),
   `deploy/internal/<app>/` (internal-only apps, each self-contained with its
-  own `namespace:`), `deploy/home/` (externally-reachable apps — `namespace:
-  home` is set once on `deploy/home/kustomization.yaml` itself, not per
-  app, so scope applies to `deploy/home`, not `deploy/home/<app>`).
+  own `namespace:`, grouped by function into `apps/`, `auth/`, `network/`,
+  `services/`, plus a top-level `index/`), `deploy/home/`
+  (externally-reachable apps — `namespace: home` is set once on
+  `deploy/home/kustomization.yaml` itself, not per app, so scope applies to
+  `deploy/home`, not `deploy/home/<app>`).
 - For a targeted fix, prefer a scoped apply over the full `-k deploy
   --prune` — the full run reconciles the entire repo at once which is slow
   and can hit intermittent issues. Do not scope the apply with a direct
@@ -193,7 +195,7 @@ Write documentation that is simple, concise, and practical.
   `ticklethepanda.dev/managed-by` — onto the PVCs it creates, but those PVCs are
   not in the applied set, so the pipeline's prune deletes them. Declare such a
   claim explicitly alongside the StatefulSet; see
-  `deploy/internal/pocketid/volume.yaml`.
+  `deploy/internal/auth/pocketid/volume.yaml`.
 - The pre-migration copies still sit on the root filesystem under `/mnt/disk`
   and `/var/lib/rancher/k3s/storage` (~700M). They are the rollback — see the
   end of `node/STORAGE.md` for removing them.

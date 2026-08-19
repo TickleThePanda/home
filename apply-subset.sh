@@ -10,7 +10,7 @@ set -euo pipefail
 # selector from creation, the next full-pipeline apply tries to PATCH an
 # immutable field and fails. See CLAUDE.md's "Deploy pattern" section.
 #
-# Usage: ./apply-subset.sh deploy/internal/kea [kubectl apply args...]
+# Usage: ./apply-subset.sh deploy/internal/network/dhcp-kea [kubectl apply args...]
 
 if [[ $# -lt 1 ]]; then
   echo "usage: $(basename "$0") <deploy-subdirectory> [kubectl apply args...]" >&2
