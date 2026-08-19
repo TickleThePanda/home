@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: pihole
-          image: pihole/pihole:2025.11.1
+          image: pihole/pihole:2026.07.2
           imagePullPolicy: IfNotPresent
           env:
             - name: TZ
@@ -34,6 +34,9 @@ spec:
               value: "192.168.1.10"
             - name: VIRTUAL_HOST
               value: "pi.hole"
+          envFrom:
+            - configMapRef:
+                name: pihole-config
           volumeMounts:
             - name: pihole-etc-pv
               mountPath: "/etc/pihole"

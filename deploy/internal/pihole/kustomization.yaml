@@ -16,3 +16,10 @@ configMapGenerator:
   - name: unbound-config
     files:
       - unbound.conf
+  - name: pihole-config
+    envs:
+      - pihole.env
+    files:
+      - FTLCONF_dns_hosts=dns-hosts.txt
+      - FTLCONF_dns_upstreams=dns-upstreams.txt
+      - FTLCONF_dns_revServers=dns-revservers.txt

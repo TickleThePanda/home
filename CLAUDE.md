@@ -52,6 +52,23 @@ Write documentation that is simple, concise, and practical.
   **pocket-id** (OIDC) + **lldap**.
 - **pihole** is internal DNS. **cloudflared** tunnels select services out
   to the public internet without opening router ports.
+- Pi-hole's local DNS records and its other non-default settings are
+  code-owned: `deploy/internal/pihole/*.env` / `*.txt` generate
+  `FTLCONF_*` env vars via `configMapGenerator` + `envFrom`.
+  `misc.readOnly` is also forced `true`, which blocks *all* `pihole.toml`
+  changes (not just the env-forced fields) via the UI, API, or CLI —
+  settings only change through this repo now. The Admin UI stays
+  available for everything that isn't `pihole.toml`-backed: query log,
+  stats, block/allow list management. **The UI only greys out fields that
+  are individually env-forced** (`settings.js` checks each field's own
+  `flags.env_var`, not the global `misc.readOnly`) — a setting not covered
+  by one of the files below still looks editable in Settings, but saving
+  it fails server-side with "config is currently in read-only mode". Not a
+  bug, just a Pi-hole frontend gap. To add/change a setting: edit the
+  relevant committed file (a new array setting gets its own `.txt` file
+  wired into the `pihole-config` generator in
+  `deploy/internal/pihole/kustomization.yaml`; a new scalar setting gets a
+  line in `pihole.env`), then `./apply-subset.sh deploy/internal/pihole`.
 
 ## Deploy pattern
 

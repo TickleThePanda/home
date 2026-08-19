@@ -1,0 +1,13 @@
+192.168.1.2 k8s-control.internal.ticklethepanda.co.uk
+192.168.1.1 vodafone
+192.168.1.5 ha.internal.ticklethepanda.co.uk
+192.168.1.19 internal.ticklethepanda.co.uk
+192.168.1.19 traefik.internal.ticklethepanda.co.uk
+192.168.1.19 lldap.internal.ticklethepanda.co.uk
+192.168.1.19 k8s-dash.internal.ticklethepanda.co.uk
+192.168.1.19 pi-hole.internal.ticklethepanda.co.uk
+192.168.1.19 forward-auth.internal.ticklethepanda.co.uk
+192.168.1.19 auth.internal.ticklethepanda.co.uk
+192.168.1.19 label-studio.internal.ticklethepanda.co.uk
+192.168.1.19 audiobooks.internal.ticklethepanda.co.uk
+192.168.1.19 audiobooks-sync.internal.ticklethepanda.co.uk
