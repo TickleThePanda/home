@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ./lvm-localpv
   - ./cert-manager
+  - ./coredns
   - ./metallb
   - ./traefik
   - ./api-proxy

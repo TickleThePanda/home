@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # k3s's bundled CoreDNS addon watches for a ConfigMap with this exact name
+  # (optional, so absent is fine too) and loads *.server files as extra
+  # top-level server blocks, alongside its own managed Corefile -- the
+  # supported way to extend it without owning/forking the whole addon.
+  name: coredns-custom
+data:
+  internal.server: |
+    # Delegate the internal zone to pihole so pods can resolve
+    # *.internal.ticklethepanda.co.uk the same way LAN clients do, instead
+    # of falling through to the public resolver and getting NXDOMAIN.
+    internal.ticklethepanda.co.uk:53 {
+        errors
+        cache 30
+        forward . 192.168.1.10
+    }
