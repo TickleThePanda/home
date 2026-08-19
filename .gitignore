@@ -4,3 +4,4 @@
 # can never commit the private half.
 deploy_key
 deploy_key.pub
+__pycache__

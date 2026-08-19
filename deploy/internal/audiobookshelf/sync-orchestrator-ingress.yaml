@@ -1,0 +1,19 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sync-orchestrator
+  namespace: audiobookshelf
+spec:
+  entryPoints:
+    - int-web-secure
+  tls: {}
+  routes:
+    - kind: Rule
+      match: Host(`audiobooks-sync.internal.ticklethepanda.co.uk`)
+      middlewares:
+        - name: tinyauth
+          namespace: tinyauth
+      services:
+        - name: sync-orchestrator
+          namespace: audiobookshelf
+          port: 80

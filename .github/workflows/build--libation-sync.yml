@@ -1,11 +1,11 @@
-name: Build and deploy librofm-sync
+name: Build and deploy libation-sync
 
 on:
   push:
     branches: main
     paths:
     - apps/sync-runner/**
-    - .github/workflows/build--librofm-sync.yml
+    - .github/workflows/build--libation-sync.yml
   workflow_dispatch:
 
 jobs:
@@ -34,10 +34,10 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: build the image
         run: |
-          docker buildx build --push \
-          --tag ticklethepanda/librofm-sync:latest \
+          docker buildx build --push --pull \
+          --tag ticklethepanda/libation-sync:latest \
           --platform linux/amd64,linux/arm64 \
-          -f apps/sync-runner/Dockerfile.librofm ./apps/sync-runner/
+          -f apps/sync-runner/Dockerfile.libation ./apps/sync-runner/
       - name: Setup k8s context
         uses: azure/k8s-set-context@v4
         with:

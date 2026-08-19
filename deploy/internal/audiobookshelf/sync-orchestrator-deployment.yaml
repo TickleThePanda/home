@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sync-orchestrator
+  namespace: audiobookshelf
+  labels:
+    app: sync-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sync-orchestrator
+  template:
+    metadata:
+      labels:
+        app: sync-orchestrator
+    spec:
+      containers:
+        - name: sync-orchestrator
+          image: ticklethepanda/sync-orchestrator:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: LIBROFM_INTERVAL_SECONDS
+              value: "21600"
+            - name: LIBATION_INTERVAL_SECONDS
+              value: "3600"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080

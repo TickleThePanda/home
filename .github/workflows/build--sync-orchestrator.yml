@@ -1,11 +1,11 @@
-name: Build and deploy librofm-sync
+name: Build and deploy sync-orchestrator
 
 on:
   push:
     branches: main
     paths:
-    - apps/sync-runner/**
-    - .github/workflows/build--librofm-sync.yml
+    - apps/sync-orchestrator/**
+    - .github/workflows/build--sync-orchestrator.yml
   workflow_dispatch:
 
 jobs:
@@ -35,13 +35,12 @@ jobs:
       - name: build the image
         run: |
           docker buildx build --push \
-          --tag ticklethepanda/librofm-sync:latest \
-          --platform linux/amd64,linux/arm64 \
-          -f apps/sync-runner/Dockerfile.librofm ./apps/sync-runner/
+          --tag ticklethepanda/sync-orchestrator:latest \
+          --platform linux/amd64,linux/arm64 ./apps/sync-orchestrator/
       - name: Setup k8s context
         uses: azure/k8s-set-context@v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
       - name: Rollout latest image
-        run: kubectl rollout restart deployment/audiobookshelf --namespace=audiobookshelf
+        run: kubectl rollout restart deployment/sync-orchestrator --namespace=audiobookshelf

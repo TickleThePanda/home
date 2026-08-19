@@ -1,0 +1,9 @@
+FROM golang:1.23-alpine AS builder
+WORKDIR /src
+COPY go.mod main.go ./
+RUN CGO_ENABLED=0 go build -o /sync-runner .
+
+FROM rmcrackan/libation:latest
+COPY --from=builder /sync-runner /usr/local/bin/sync-runner
+ENV RUNNER_MODE=libation
+ENV RUNNER_PORT=8091

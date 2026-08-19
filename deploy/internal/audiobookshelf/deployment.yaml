@@ -35,12 +35,14 @@ spec:
             - mountPath: /audiobooks
               name: media
         - name: libation
-          image: rmcrackan/libation:latest
+          image: ticklethepanda/libation-sync:latest
+          imagePullPolicy: Always
+          args: ["/usr/local/bin/sync-runner"]
+          ports:
+            - containerPort: 8091
           env:
             - name: TZ
               value: "Europe/London"
-            - name: SLEEP_TIME
-              value: "1h"
           volumeMounts:
             - mountPath: /config
               name: libation-config
@@ -50,11 +52,11 @@ spec:
         - name: librofm-sync
           image: ticklethepanda/librofm-sync:latest
           imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
           env:
             - name: TZ
               value: "Europe/London"
-            - name: SLEEP_TIME
-              value: "6h"
             - name: LIBROFM_USERNAME
               valueFrom:
                 secretKeyRef:

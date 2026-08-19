@@ -10,5 +10,11 @@ spec:
     - name: http
       port: 80
       targetPort: 80
+    - name: librofm-runner
+      port: 8090
+      targetPort: 8090
+    - name: libation-runner
+      port: 8091
+      targetPort: 8091
   selector:
     app: audiobookshelf

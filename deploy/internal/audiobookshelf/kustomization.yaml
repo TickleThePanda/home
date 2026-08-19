@@ -9,3 +9,6 @@ resources:
   - ./deployment.yaml
   - ./service.yaml
   - ./ingress.yaml
+  - ./sync-orchestrator-deployment.yaml
+  - ./sync-orchestrator-service.yaml
+  - ./sync-orchestrator-ingress.yaml
