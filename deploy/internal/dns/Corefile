@@ -1,0 +1,8 @@
+internal.ticklethepanda.co.uk:53 {
+    errors
+    health :8080
+    cache 30
+    file /zones/internal.ticklethepanda.co.uk.zone {
+        reload 30s
+    }
+}

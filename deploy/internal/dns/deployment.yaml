@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coredns
+  namespace: dns
+  labels:
+    app: coredns
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: coredns
+  template:
+    metadata:
+      labels:
+        app: coredns
+    spec:
+      containers:
+        - name: coredns
+          image: coredns/coredns:1.14.7
+          imagePullPolicy: IfNotPresent
+          args: ["-conf", "/etc/coredns/Corefile"]
+          ports:
+            - containerPort: 53
+              name: dns-udp
+              protocol: UDP
+            - containerPort: 53
+              name: dns-tcp
+              protocol: TCP
+            - containerPort: 9153
+              name: metrics
+              protocol: TCP
+            - containerPort: 8080
+              name: health
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+          volumeMounts:
+            - name: coredns-config
+              mountPath: /etc/coredns/Corefile
+              subPath: Corefile
+              readOnly: true
+            - name: coredns-config
+              mountPath: /zones/internal.ticklethepanda.co.uk.zone
+              subPath: internal.ticklethepanda.co.uk.zone
+              readOnly: true
+      volumes:
+        - name: coredns-config
+          configMap:
+            name: coredns-config

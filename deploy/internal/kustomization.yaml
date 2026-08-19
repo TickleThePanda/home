@@ -4,6 +4,7 @@ kind: Kustomization
 
 resources:
 - ./audiobookshelf
+- ./dns
 - ./index
 - ./kea
 - ./label-studio
@@ -12,3 +13,4 @@ resources:
 - ./pihole
 - ./pocketid
 - ./tinyauth
+- ./unbound

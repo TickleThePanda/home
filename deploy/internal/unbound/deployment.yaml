@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unbound
+  namespace: unbound
+  labels:
+    app: unbound
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: unbound
+  template:
+    metadata:
+      labels:
+        app: unbound
+    spec:
+      containers:
+        - name: unbound
+          image: mvance/unbound-rpi:1.22.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5335
+              name: dns-udp
+              protocol: UDP
+            - containerPort: 5335
+              name: dns-tcp
+              protocol: TCP
+          volumeMounts:
+            - name: unbound-config
+              mountPath: /opt/unbound/etc/unbound/unbound.conf
+              subPath: unbound.conf
+              readOnly: true
+      volumes:
+        - name: unbound-config
+          configMap:
+            name: unbound-config

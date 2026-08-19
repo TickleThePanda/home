@@ -13,9 +13,6 @@ resources:
   - ./ingress.yaml
 
 configMapGenerator:
-  - name: unbound-config
-    files:
-      - unbound.conf
   - name: pihole-config
     envs:
       - pihole.env
