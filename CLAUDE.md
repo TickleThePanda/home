@@ -50,9 +50,24 @@ Write documentation that is simple, concise, and practical.
   the `external` pool.
 - **tinyauth** forward-auth gates most internal apps, backed by
   **pocket-id** (OIDC) + **lldap**.
-- **pihole** is internal DNS. **cloudflared** tunnels select services out
-  to the public internet without opening router ports.
-- Pi-hole's local DNS records and its other non-default settings are
+- Internal DNS chain: clients → **Pi-hole** (`deploy/internal/pihole/`,
+  filtering/blocklists) → **Unbound** (`deploy/internal/unbound/`,
+  recursive resolver) → **CoreDNS** (`deploy/internal/dns/`, authoritative
+  for `internal.ticklethepanda.co.uk` only). Unbound stub-zones that one
+  domain to CoreDNS; every other query recurses normally. **cloudflared**
+  tunnels select services out to the public internet without opening
+  router ports.
+- **`internal.ticklethepanda.co.uk` hostnames live in the CoreDNS zone
+  file** (`deploy/internal/dns/zones/internal.ticklethepanda.co.uk.zone`),
+  not in Pi-hole. Its wildcard (`*`) already resolves any undefined
+  subdomain to the Traefik internal-ingress IP, so **a new
+  `deploy/internal/<app>/` with a normal `Host(`<app>.internal...`)`
+  IngressRoute needs no DNS change.** Only touch the zone file for an
+  exception — a name that must resolve somewhere other than the internal
+  ingress IP (e.g. a service not fronted by Traefik) — by adding an
+  explicit `A` record above the wildcard and bumping the SOA serial, then
+  `./apply-subset.sh deploy/internal/dns`.
+- Pi-hole's own local DNS records and its other non-default settings are
   code-owned: `deploy/internal/pihole/*.env` / `*.txt` generate
   `FTLCONF_*` env vars via `configMapGenerator` + `envFrom`.
   `misc.readOnly` is also forced `true`, which blocks *all* `pihole.toml`
@@ -69,6 +84,9 @@ Write documentation that is simple, concise, and practical.
   wired into the `pihole-config` generator in
   `deploy/internal/pihole/kustomization.yaml`; a new scalar setting gets a
   line in `pihole.env`), then `./apply-subset.sh deploy/internal/pihole`.
+  `dns-hosts.txt` should stay limited to names outside
+  `internal.ticklethepanda.co.uk` (e.g. the router) — that domain's records
+  belong in the CoreDNS zone file above.
 
 ## Deploy pattern
 
