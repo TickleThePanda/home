@@ -24,3 +24,16 @@ spec:
   resources:
     requests:
       storage: 50Gi
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: audiobookshelf-libation-config
+  namespace: audiobookshelf
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lvm-data
+  resources:
+    requests:
+      storage: 1Gi

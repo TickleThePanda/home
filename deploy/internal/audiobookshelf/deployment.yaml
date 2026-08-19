@@ -34,6 +34,22 @@ spec:
               subPath: metadata
             - mountPath: /audiobooks
               name: media
+        - name: libation
+          image: rmcrackan/libation:latest
+          env:
+            - name: TZ
+              value: "Europe/London"
+            - name: SLEEP_TIME
+              value: "1h"
+          volumeMounts:
+            - mountPath: /config
+              name: libation-config
+            - mountPath: /data
+              name: media
+              subPath: audible
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -41,3 +57,6 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: audiobookshelf-media
+        - name: libation-config
+          persistentVolumeClaim:
+            claimName: audiobookshelf-libation-config
