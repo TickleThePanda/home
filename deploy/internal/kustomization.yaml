@@ -12,5 +12,6 @@ resources:
 - ./mosquitto
 - ./pihole
 - ./pocketid
+- ./postgres
 - ./tinyauth
 - ./unbound
