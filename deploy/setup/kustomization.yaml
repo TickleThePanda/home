@@ -2,12 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ./lvm-localpv
-  - ./cert-manager
-  - ./cloudnative-pg
   - ./coredns
-  - ./metallb
-  - ./traefik
   - ./api-proxy
   - ./cloudflared
-  - ./multus

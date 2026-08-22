@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# This is why cloudnative-pg lives under operators/ rather than deploy/setup/:
+# the Cluster/Pooler CRDs in this manifest have OpenAPI schemas large enough
+# that kubectl's default client-side apply -- which stores a full copy of the
+# object in the kubectl.kubernetes.io/last-applied-configuration annotation --
+# exceeds Kubernetes' 262144-byte annotation limit. Server-side apply tracks
+# state in managedFields instead, avoiding the limit. See CLAUDE.md's
+# "Operators" section for how this and the other operators/ directories are
+# applied.
+resources:
+  - https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.0/cnpg-1.30.0.yaml

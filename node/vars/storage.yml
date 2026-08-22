@@ -14,7 +14,7 @@
 # loudly rather than destroy data.
 #
 # Everything left unallocated in the VG is the PV pool: the OpenEBS LVM
-# LocalPV driver (deploy/setup/lvm-localpv/) carves one real LV per PVC out
+# LocalPV driver (operators/lvm-localpv/) carves one real LV per PVC out
 # of the same group. Roughly 327G of ~447G. Do not carve it up here.
 
 node_vg: data
@@ -41,7 +41,7 @@ node_lvs:
 # /mnt/disk is gone from this file on purpose.
 #
 # It held the directories backing the static `local-storage` PVs. Every volume
-# now comes from the `lvm-data` StorageClass (deploy/setup/lvm-localpv/), which
+# now comes from the `lvm-data` StorageClass (operators/lvm-localpv/), which
 # carves an LV per PVC out of the free space in this same group, so nothing in
 # the node layer has to know about individual apps any more.
 #

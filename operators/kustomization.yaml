@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ./lvm-localpv
+  - ./cert-manager
+  - ./metallb
+  - ./traefik
+  - ./multus
+  - ./cloudnative-pg
+
+# Identification only (kubectl get all -l ticklethepanda.dev/managed-by=operators -A) --
+# deliberately not includeSelectors:true, which also stamps Deployment/DaemonSet
+# spec.selector; these are upstream-owned workloads we don't otherwise manage,
+# and touching an immutable selector on them is a needless risk for a debugging
+# convenience.
+labels:
+  - pairs:
+      ticklethepanda.dev/managed-by: operators

@@ -96,10 +96,12 @@ Write documentation that is simple, concise, and practical.
   (Ansible, see below), then `cluster`. Order matters: a k3s upgrade changes
   which Traefik chart tarball the node serves, so the node must move before
   the manifests that reference it.
-- The `cluster` job applies everything under `deploy/` via kustomize:
+- The `cluster` job first applies `operators/` (see below), waits for the
+  CRDs `deploy/` depends on to be `Established`, then applies everything
+  under `deploy/` via kustomize:
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
-- Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
-  api-proxy, cloudflared, each a self-contained kustomization),
+- Layout: `deploy/setup/` (cluster infra that isn't a vendored operator —
+  coredns, api-proxy, cloudflared, each a self-contained kustomization),
   `deploy/internal/<app>/` (internal-only apps, each self-contained with its
   own `namespace:`), `deploy/home/` (externally-reachable apps — `namespace:
   home` is set once on `deploy/home/kustomization.yaml` itself, not per
@@ -118,6 +120,50 @@ Write documentation that is simple, concise, and practical.
   `ConfigMap` resource. `subPath` mounts never live-refresh, and a
   generator's content-hashed name changes the pod template on every content
   change, forcing an actual rollout instead of silently going stale.
+
+## Operators
+
+`operators/` (sibling of `deploy/` and `node/`) holds vendored upstream
+operator manifests, and HelmChart-triggered installs, whose CRDs other
+manifests depend on — `lvm-localpv`, `cert-manager`, `metallb`, `traefik`,
+`multus`, `cloudnative-pg`. Each is a self-contained kustomization, same
+shape as `deploy/setup/<app>/`, usually pairing the vendored manifest with
+a couple of small local CRs configuring that operator (cert-manager's own
+`ClusterIssuer`, metallb's `IPAddressPool`s, CNPG's shared `Cluster`).
+
+- Applied via its own CI step, server-side (`kubectl apply --server-side
+  --force-conflicts -k operators`), not through the main `deploy --prune`
+  apply. Some of these CRDs (CNPG's `Cluster`/`Pooler`) have OpenAPI
+  schemas too large for client-side apply's `last-applied-configuration`
+  annotation, which is capped at 262144 bytes — server-side apply tracks
+  state in `managedFields` instead, avoiding the limit.
+- **Not prune-tracked.** `operators/` isn't part of `deploy/kustomization.yaml`'s
+  tree, so its resources never get `ticklethepanda.dev/managed-by:
+  kustomize` and are invisible to `--prune` — same treatment this repo
+  already gives k3s's own bundled addons (see Administration notes below).
+  Removing a whole operator directory needs a manual `kubectl delete`; it
+  won't clean itself up.
+- A dedicated CI step (`kubectl get crd ... -o jsonpath=... | grep
+  Established`, polled) waits for the CRDs that `deploy/` actually
+  instantiates before the main apply runs, rather than relying on
+  kubectl's implicit retry-on-missing-kind behavior. That implicit
+  behavior is still what makes each operator's *own* bundled CRs work
+  (e.g. cert-manager's `ClusterIssuer` applied in the same kustomization
+  as cert-manager's CRD-defining manifest) — server-side apply does
+  **not** fix that race (confirmed via `kubernetes/kubectl#1117`, which
+  applies to both apply modes equally); it only fixes the annotation-size
+  problem. That race has been fine in production so far because each
+  operator's kustomization lists the vendored manifest before its own
+  local CRs — don't reorder those lists. If a specific operator is ever
+  observed to flake here, the fix is a two-pass split (manifest applied
+  and waited-for-`Established`, then that operator's local CRs) for just
+  that operator, not a blanket change to all of them.
+- Never point `./apply-subset.sh` at `operators/<name>` — it injects
+  `deploy/kustomization.yaml`'s prune label/selector transformer, which is
+  wrong for upstream-owned resources this pipeline doesn't otherwise
+  manage (the script refuses this itself with a pointer to the right
+  command). For a scoped operator fix use `kubectl apply --server-side
+  --force-conflicts -k operators/<name>` directly.
 
 ## Apps
 
@@ -139,7 +185,7 @@ Write documentation that is simple, concise, and practical.
   the playbook purges `config.yaml.d` files it doesn't manage.
 - **Bumping k3s is an edit to `node/vars/versions.yml`**, nothing more. But
   it must move in the same commit as
-  `deploy/setup/traefik/traefik-helm-chart.yaml`: k3s only serves the Traefik
+  `operators/traefik/traefik-helm-chart.yaml`: k3s only serves the Traefik
   chart tarball bundled with the *installed* version, so the two pins are
   coupled. `node/scripts/check-traefik-pin.sh` enforces this in CI and
   `--online` verifies the pair against the k3s release manifest.
@@ -207,7 +253,7 @@ Write documentation that is simple, concise, and practical.
   manages a resource that k3s also bundles by default (this happened with
   Traefik), disable that addon in `/etc/rancher/k3s/config.yaml.d/`
   (`disable: [traefik]`, alongside `servicelb`) and vendor the full
-  resource into the repo so there's a single owner. `deploy/setup/traefik/`
+  resource into the repo so there's a single owner. `operators/traefik/`
   is the current example of this pattern.
 - **Disabling a k3s addon triggers a real Helm uninstall**, which can
   cascade — e.g. removing Traefik's addon deleted its CRDs, which
