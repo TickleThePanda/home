@@ -10,3 +10,4 @@ resources:
   - ./kustomization-internal.yaml
   - ./webhook-provider.yaml
   - ./webhook-alert.yaml
+  - ./incident-heartbeat.yaml
