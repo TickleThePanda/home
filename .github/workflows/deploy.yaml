@@ -277,21 +277,6 @@ jobs:
             --namespace flux-system \
             --dry-run=client --validate=false -o yaml | kubectl apply -f -
 
-      # Legacy applier. Milestone 1 (dual-run): kept in place, running
-      # first, alongside the new Flux-based steps below -- both write to
-      # the same live objects for a short bake period so field-manager
-      # conflicts show up before this step is retired at Milestone 2.
-      # continue-on-error: this step is being retired (Milestone 2) and
-      # hits the pre-existing, already-diagnosed client-side apply
-      # annotation-size limit on CNPG's Cluster CRD (last-applied-
-      # configuration's 262144-byte cap) -- exactly the problem this
-      # migration exists to fix via Flux's server-side apply. Letting its
-      # known failure block the dual-run steps below defeats the point of
-      # running them in parallel to validate the new path.
-      - name: Deploy cluster (legacy)
-        continue-on-error: true
-        run: kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize
-
       # Push deploy/ as an OCI artifact tagged with the git SHA, then move
       # the moving `deploy` tag to point at it -- the promotion boundary
       # flux-system/sync/oci-repository.yaml's OCIRepository follows. This
