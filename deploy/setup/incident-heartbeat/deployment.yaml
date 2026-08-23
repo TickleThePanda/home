@@ -19,6 +19,15 @@ spec:
       labels:
         app: incident-heartbeat
     spec:
+      # Bypasses cluster DNS (CoreDNS -> pihole/quad9) entirely for this
+      # pod, going straight to quad9. Isolates whether resolution via the
+      # cluster's own DNS chain is what's failing, independent of whether
+      # the coredns-custom fallback (separate commit) has even propagated
+      # yet. dnsPolicy: None requires dnsConfig to be set explicitly.
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - 9.9.9.9
       containers:
         - name: heartbeat
           image: curlimages/curl:latest
