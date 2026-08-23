@@ -313,13 +313,16 @@ jobs:
       # Trigger reconciliation immediately over the same WARP+KUBE_CONFIG
       # credential already in this job, rather than waiting for the
       # OCIRepository's own polling interval -- no new exposed surface.
+      # Only the source needs an explicit trigger: kustomize-controller
+      # watches its sourceRef and auto-reconciles on every artifact
+      # revision change, so setup/home/internal pick this up on their own.
+      # `flux reconcile kustomization ...` also blocks waiting for each
+      # Kustomization to finish, with its own default timeout -- which
+      # exceeded here on the first-ever reconcile of the whole
+      # resource-heavy setup tree. The dedicated wait step below does that
+      # waiting instead, with its own patient, independent budget.
       - name: Trigger Flux reconciliation
-        run: |
-          set -euo pipefail
-          flux reconcile source oci deploy -n flux-system
-          flux reconcile kustomization setup    -n flux-system --with-source
-          flux reconcile kustomization home     -n flux-system
-          flux reconcile kustomization internal -n flux-system
+        run: flux reconcile source oci deploy -n flux-system
 
       # Confirms the *specific promoted SHA* reached Ready, not just a
       # stale Ready=True left over from a previous revision -- mirrors the
