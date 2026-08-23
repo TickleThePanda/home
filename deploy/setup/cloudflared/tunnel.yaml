@@ -8,7 +8,12 @@ metadata:
   # any future drift, and the immutable-selector conflict it was working
   # around is gone once the object has been recreated.
 spec:
-  replicas: 2
+  # 2 -> 1: both replicas land on the same node anyway (single-node
+  # cluster), so the second buys redundancy only against a single pod
+  # crash, not against node loss -- while doubling the memory footprint on
+  # a Pi that's now also running Flux's controllers. Halving it makes this
+  # far easier to schedule and keep running.
+  replicas: 1
   selector:
     matchLabels:
       pod: cloudflared
@@ -35,6 +40,27 @@ spec:
       containers:
         - image: cloudflare/cloudflared:latest
           name: cloudflared
+          # This Deployment previously declared no requests or limits at
+          # all, which put it in the BestEffort QoS class -- the first
+          # pods the kubelet evicts under memory pressure and the first
+          # the OOM killer targets. That was survivable for 411 days, but
+          # this node now also runs Flux's controllers, which DO declare
+          # requests and so outrank it. The tunnel going down at 13:50:45
+          # (exactly when the force-replace recreated both replicas onto
+          # that busier node) and never recovering is consistent with
+          # these pods being evicted or OOM-killed on sight.
+          #
+          # Explicit requests move it to Burstable, so it's no longer
+          # first in line. Modest values: cloudflared is a lightweight
+          # connector, and over-requesting on a Pi would cause the
+          # scheduling problem it's meant to avoid.
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 192Mi
           env:
             # Defines an environment variable for the tunnel token.
             - name: TUNNEL_TOKEN
