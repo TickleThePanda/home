@@ -145,8 +145,26 @@ jobs:
       # so Flux's own objects never get the label/selector pruning
       # footgun this pipeline is migrating away from. Idempotent, so it's
       # safe to run on every invocation rather than as a one-off.
+      #
+      # Split into two applies with an explicit CRD-Established wait in
+      # between: a single `kubectl apply -k flux-system` hits the same
+      # missing-kind race CLAUDE.md documents for other vendored operators
+      # (kubectl's own implicit retry gives up before ~18 freshly-created
+      # CRDs finish becoming Established) -- confirmed the hard way on the
+      # first bootstrap attempt. This is the documented remedy: a two-pass
+      # split for just the one directory observed to flake, not a blanket
+      # change. Once Flux itself is running, its self-management
+      # Kustomization (sync/self.yaml) reconciles the combined
+      # ./flux-system tree just fine -- kustomize-controller handles this
+      # ordering more gracefully than plain kubectl apply does.
       - name: Apply flux-system
-        run: kubectl apply -k flux-system
+        run: |
+          kubectl apply -k flux-system/install
+          kubectl wait --for=condition=Established --timeout=60s \
+            crd/gitrepositories.source.toolkit.fluxcd.io \
+            crd/ocirepositories.source.toolkit.fluxcd.io \
+            crd/kustomizations.kustomize.toolkit.fluxcd.io
+          kubectl apply -k flux-system/sync
 
       - name: Login to DockerHub
         uses: docker/login-action@v3
