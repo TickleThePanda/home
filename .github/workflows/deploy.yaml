@@ -96,6 +96,31 @@ jobs:
           kubectl wait --namespace default --for=condition=Ready pod \
             --selector pod=cloudflared --timeout=30s
 
+      # TEMPORARY -- one-off diagnostics for the cloudflared replica that's
+      # been intermittently failing this readiness check. Remove once the
+      # cause is understood. Runs regardless of the step above's outcome.
+      - name: Dump diagnostics
+        if: always()
+        run: |
+          echo "### cloudflared pods ###"
+          kubectl get pods -n default -l pod=cloudflared -o wide
+          echo "### cloudflared pod descriptions ###"
+          kubectl describe pods -n default -l pod=cloudflared
+          echo "### cloudflared current logs ###"
+          for p in $(kubectl get pods -n default -l pod=cloudflared -o jsonpath='{.items[*].metadata.name}'); do
+            echo "--- $p ---"
+            kubectl logs -n default "$p" --tail=100 || true
+            echo "--- $p (previous, if crashed) ---"
+            kubectl logs -n default "$p" --previous --tail=100 || true
+          done
+          echo "### node resource usage ###"
+          kubectl top nodes || true
+          kubectl describe nodes
+          echo "### flux-system pods ###"
+          kubectl get pods -n flux-system -o wide
+          echo "### recent warning events ###"
+          kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp | tail -40
+
   node:
     needs: preflight
     runs-on: ubuntu-latest
