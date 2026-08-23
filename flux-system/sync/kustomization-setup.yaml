@@ -8,7 +8,10 @@ spec:
   sourceRef:
     kind: OCIRepository
     name: deploy
-  path: ./deploy/setup
+  # Relative to the pushed OCIRepository artifact's own root, not the git
+  # repo root -- CI's `flux push artifact --path=./deploy` makes deploy/'s
+  # *contents* the artifact root, so there's no deploy/ prefix inside it.
+  path: ./setup
   prune: false # flip to true at Migration Milestone 3, once inventory/health are proven
   wait: true
   timeout: 5m
