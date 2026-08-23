@@ -243,6 +243,22 @@ jobs:
             crd/kustomizations.kustomize.toolkit.fluxcd.io
           kubectl apply -k flux-system/sync
 
+      # TEMPORARY, one-off -- flux-system/install/kustomization.yaml now
+      # deletes these from the applied set, but the earlier successful
+      # bootstrap already created them live and plain `kubectl apply`
+      # (deliberately unlabeled, no --prune) doesn't remove resources that
+      # disappear from the manifest. Remove this step once run once.
+      - name: Clean up the now-unused image-automation components
+        run: |
+          kubectl delete deployment image-reflector-controller image-automation-controller \
+            -n flux-system --ignore-not-found=true
+          kubectl delete serviceaccount image-reflector-controller image-automation-controller \
+            -n flux-system --ignore-not-found=true
+          kubectl delete crd imagepolicies.image.toolkit.fluxcd.io \
+            imagerepositories.image.toolkit.fluxcd.io \
+            imageupdateautomations.image.toolkit.fluxcd.io \
+            --ignore-not-found=true
+
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
