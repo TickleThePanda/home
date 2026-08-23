@@ -28,6 +28,25 @@ spec:
       dnsConfig:
         nameservers:
           - 9.9.9.9
+      # Tolerate node pressure taints -- see the matching block in
+      # cloudflared/tunnel.yaml. If the node is tainted NoSchedule under
+      # DiskPressure/MemoryPressure, that alone would explain why even a
+      # minimal single-Deployment Kustomization produced no running pod.
+      # With these tolerations, this pod schedules anyway: if it now
+      # reports in, node pressure was the blocker all along.
+      tolerations:
+        - key: node.kubernetes.io/disk-pressure
+          operator: Exists
+          effect: NoSchedule
+        - key: node.kubernetes.io/memory-pressure
+          operator: Exists
+          effect: NoSchedule
+        - key: node.kubernetes.io/pid-pressure
+          operator: Exists
+          effect: NoSchedule
+        - key: node.kubernetes.io/unschedulable
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: heartbeat
           image: curlimages/curl:latest

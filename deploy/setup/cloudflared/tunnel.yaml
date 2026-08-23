@@ -32,6 +32,36 @@ spec:
       # thing to rule out, and this Deployment ran fine without it for
       # 411 days. Reverting to maximise the chance the recreated pods can
       # actually schedule whenever kustomize-controller next applies.
+      # TEMPORARY (2026-08-23 incident), but arguably worth keeping: let
+      # this pod schedule even when the node carries a pressure taint.
+      #
+      # Leading theory for why the tunnel never came back: under
+      # DiskPressure/MemoryPressure the kubelet taints the node
+      # NoSchedule, so *new* pods can't start while already-running ones
+      # (source-controller etc.) carry on untouched. That would make the
+      # force-replace fatal -- deleting both replicas was survivable only
+      # if replacements could be scheduled, and under a pressure taint
+      # they never can. It also explains why a minimal single-Deployment
+      # Kustomization produced no pod either.
+      #
+      # CI's only route into this cluster runs through this pod, so it
+      # should be among the last things prevented from running, not the
+      # first. Combined with the resource requests added earlier (moving
+      # it off BestEffort), this makes the tunnel substantially harder to
+      # lose to node pressure.
+      tolerations:
+        - key: node.kubernetes.io/disk-pressure
+          operator: Exists
+          effect: NoSchedule
+        - key: node.kubernetes.io/memory-pressure
+          operator: Exists
+          effect: NoSchedule
+        - key: node.kubernetes.io/pid-pressure
+          operator: Exists
+          effect: NoSchedule
+        - key: node.kubernetes.io/unschedulable
+          operator: Exists
+          effect: NoSchedule
       securityContext:
         sysctls:
         # Allows ICMP traffic (ping, traceroute) to resources behind cloudflared.
