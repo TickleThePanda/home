@@ -229,11 +229,12 @@ jobs:
       # the credentials already in this job rather than a new secret.
       - name: Provision the OCIRepository pull secret
         run: |
+          set -euo pipefail
           kubectl create secret docker-registry dockerhub-deploy-pull \
             --docker-username="${{ secrets.DOCKER_USERNAME }}" \
             --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
             --namespace flux-system \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client --validate=false -o yaml | kubectl apply -f -
 
       # Legacy applier. Milestone 1 (dual-run): kept in place, running
       # first, alongside the new Flux-based steps below -- both write to
