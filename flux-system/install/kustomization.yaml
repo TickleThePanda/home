@@ -86,3 +86,101 @@ patches:
             dnsConfig:
               nameservers:
                 - 9.9.9.9
+
+  # source-watcher is an upstream sample/reference component that nothing
+  # here uses -- dropping it reclaims 50m CPU / 64Mi of requests and, more
+  # importantly, removes another 1Gi memory ceiling from a node where
+  # memory pressure is the leading explanation for pods not scheduling.
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: source-watcher
+        namespace: flux-system
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: source-watcher
+        namespace: flux-system
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: source-watcher
+        namespace: flux-system
+
+  # Upstream ships every controller with a 1Gi memory limit -- 5Gi of
+  # headroom in total on a Raspberry Pi. Limits aren't reserved, so they
+  # don't block scheduling, but they do set how far a controller can
+  # balloon before the kernel intervenes. kustomize-controller is the
+  # relevant one: it builds and dry-runs the whole deploy/setup tree in
+  # memory, including cert-manager's large manifest and CNPG's enormous
+  # CRDs (the same ones that overflowed client-side apply's 262144-byte
+  # annotation and prompted this migration). A controller free to grow
+  # toward 1Gi while doing that is a plausible route into node-wide
+  # MemoryPressure, which taints the node NoSchedule and stops new pods
+  # starting -- exactly the symptom being chased.
+  #
+  # Capping at 256Mi bounds that. The tradeoff is that kustomize-controller
+  # may OOM-restart on very large builds instead; that fails locally and
+  # recovers, rather than taking the whole node's scheduling with it.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: kustomize-controller
+        namespace: flux-system
+      spec:
+        template:
+          spec:
+            containers:
+              - name: manager
+                resources:
+                  limits:
+                    memory: 256Mi
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: source-controller
+        namespace: flux-system
+      spec:
+        template:
+          spec:
+            containers:
+              - name: manager
+                resources:
+                  limits:
+                    memory: 256Mi
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: helm-controller
+        namespace: flux-system
+      spec:
+        template:
+          spec:
+            containers:
+              - name: manager
+                resources:
+                  limits:
+                    memory: 256Mi
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: notification-controller
+        namespace: flux-system
+      spec:
+        template:
+          spec:
+            containers:
+              - name: manager
+                resources:
+                  limits:
+                    memory: 256Mi
