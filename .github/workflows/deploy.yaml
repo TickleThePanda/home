@@ -213,8 +213,51 @@ jobs:
             exit 1
           fi
 
+  # TEMPORARY split, for the 2026-08-23 tunnel-down incident. Normally
+  # publish and cluster should stay merged as one validated pipeline --
+  # keeping them apart long-term would mean an artifact can get promoted
+  # without ever being proven against a reachable cluster. Split out only
+  # so a new deploy/ revision can still get published while cloudflared is
+  # down (Flux's own in-cluster reconciliation, entirely independent of
+  # the tunnel, will pick it up regardless of whether the cluster job
+  # below can run). Re-merge this back into a single job once the tunnel
+  # is confirmed healthy again.
+  publish:
+    needs: check
+    if: github.event_name == 'push' || inputs.check_only != true
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install the flux CLI
+        uses: fluxcd/flux2/action@main
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Push deploy/ as an OCI artifact tagged with the git SHA, then move
+      # the moving `deploy` tag to point at it -- the promotion boundary
+      # flux-system/sync/oci-repository.yaml's OCIRepository follows. This
+      # is what lets Flux reconcile only revisions CI has vetted, without
+      # ever watching `main` directly.
+      - name: Push and promote the deploy/ OCI artifact
+        run: |
+          set -euo pipefail
+          sha="${GITHUB_SHA::12}"
+          flux push artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
+            --path="./deploy" \
+            --source="$(git config --get remote.origin.url)" \
+            --revision="main@sha1:${GITHUB_SHA}"
+          flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
+            --tag deploy
+
   cluster:
-    needs: node
+    needs: [node, publish]
     if: github.event_name == 'push' || inputs.check_only != true
     runs-on: ubuntu-latest
     environment: prod
@@ -298,15 +341,11 @@ jobs:
             imageupdateautomations.image.toolkit.fluxcd.io \
             --ignore-not-found=true
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
       # Lets flux-system/sync/oci-repository.yaml's OCIRepository pull the
-      # promoted deploy/ artifact from a private Docker Hub repo. Reuses
-      # the credentials already in this job rather than a new secret.
+      # promoted deploy/ artifact from a private Docker Hub repo. Uses the
+      # plain username/password directly -- no docker/login-action needed
+      # here, that's only for the actual image push, which now happens in
+      # the publish job.
       - name: Provision the OCIRepository pull secret
         run: |
           set -euo pipefail
@@ -315,24 +354,6 @@ jobs:
             --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
             --namespace flux-system \
             --dry-run=client --validate=false -o yaml | kubectl apply -f -
-
-      # Push deploy/ as an OCI artifact tagged with the git SHA, then move
-      # the moving `deploy` tag to point at it -- the promotion boundary
-      # flux-system/sync/oci-repository.yaml's OCIRepository follows. This
-      # is what lets Flux reconcile only revisions this job has already
-      # applied via the legacy step above (Milestone 1), and later --
-      # once the legacy step is gone (Milestone 2) -- revisions CI has
-      # otherwise vetted, without ever watching `main` directly.
-      - name: Push and promote the deploy/ OCI artifact
-        run: |
-          set -euo pipefail
-          sha="${GITHUB_SHA::12}"
-          flux push artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
-            --path="./deploy" \
-            --source="$(git config --get remote.origin.url)" \
-            --revision="main@sha1:${GITHUB_SHA}"
-          flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
-            --tag deploy
 
       # Trigger reconciliation immediately over the same WARP+KUBE_CONFIG
       # credential already in this job, rather than waiting for the
