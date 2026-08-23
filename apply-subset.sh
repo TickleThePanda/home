@@ -19,13 +19,6 @@ fi
 
 repo_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 target="$(cd "$1" && pwd)"
-
-if [[ "$target" == "$repo_root/operators"* ]]; then
-  echo "error: operators/ isn't prune-tracked and doesn't carry deploy/'s managed-by label/selector -- use instead:" >&2
-  echo "  kubectl apply --server-side --force-conflicts -k $1" >&2
-  exit 1
-fi
-
 shift
 
 if [[ ! -f "$target/kustomization.yaml" ]]; then

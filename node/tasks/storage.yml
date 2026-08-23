@@ -1,7 +1,7 @@
 ---
 # The SSD's LVM volumes and their mounts (vars: node_vg, node_lvs). The free
 # space left in the group is the PersistentVolume pool -- the CSI driver in
-# operators/lvm-localpv/ carves an LV per PVC out of it.
+# deploy/setup/lvm-localpv/ carves an LV per PVC out of it.
 
 - name: Ensure LVM tooling is present
   ansible.builtin.package:

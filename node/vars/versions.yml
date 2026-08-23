@@ -2,9 +2,9 @@
 # Single source of truth for the node's k3s version.
 #
 # `traefik_chart_version` is NOT used to render anything -- kustomize remains
-# the sole owner of everything under deploy/ and operators/. It exists so that
+# the sole owner of everything under deploy/. It exists so that
 # scripts/check-traefik-pin.sh can assert it matches
-# operators/traefik/traefik-helm-chart.yaml, because k3s only ever serves
+# deploy/setup/traefik/traefik-helm-chart.yaml, because k3s only ever serves
 # the chart tarball bundled with the *installed* k3s version.
 #
 # To find the right chart version for a k3s release (note the %2B):
@@ -17,13 +17,13 @@
 k3s_version: "v1.33.13+k3s2"
 traefik_chart_version: "40.1.4+up40.1.0"
 
-# k3s addons the repo owns instead, vendored under operators/.
+# k3s addons the repo owns instead, vendored under deploy/setup/.
 # Removing an entry here also removes it from the node -- tasks/k3s-config.yml
 # purges any config.yaml.d file it does not manage.
 k3s_disable:
   - servicelb
   - traefik
   # The local-path provisioner. Removing it drops the `local-path` StorageClass
-  # and its default annotation; operators/lvm-localpv/ takes the default.
+  # and its default annotation; deploy/setup/lvm-localpv/ takes the default.
   # Nothing references local-path any more -- every volume is on `lvm-data`.
   - local-storage

@@ -136,45 +136,5 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
 
-      # operators/ holds vendored upstream operator manifests (and
-      # HelmChart-triggered installs) whose CRDs the manifests below depend
-      # on. Applied server-side, not client-side: some of these CRDs (e.g.
-      # CNPG's Cluster/Pooler) have OpenAPI schemas too large for client-side
-      # apply's last-applied-configuration annotation, which is capped at
-      # 262144 bytes. See CLAUDE.md's "Operators" section.
-      - name: Deploy operators
-        run: kubectl apply --server-side --force-conflicts -k operators
-
-      # Only CRDs that deploy/ (outside operators/) actually instantiates
-      # need waiting for -- a CRD and a CR of that CRD applied together
-      # within a single operator's own kustomization above (e.g.
-      # cert-manager's ClusterIssuer, CNPG's own Database CR) already rely
-      # on that operator's existing internal resource ordering, unaffected
-      # by this. If a new app resource starts consuming a CRD kind not
-      # listed here, add it.
-      - name: Wait for operator CRDs
-        timeout-minutes: 5
-        run: |
-          set -euo pipefail
-          wait_for_crd() {
-            until kubectl get crd "$1" \
-              -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' \
-              2>/dev/null | grep -q True; do
-              sleep 5
-            done
-          }
-          for crd in certificates.cert-manager.io \
-                     clusters.postgresql.cnpg.io \
-                     databases.postgresql.cnpg.io \
-                     databaseroles.postgresql.cnpg.io \
-                     network-attachment-definitions.k8s.cni.cncf.io \
-                     ingressroutes.traefik.io \
-                     middlewares.traefik.io \
-                     tlsstores.traefik.io \
-                     ingressroutetcps.traefik.io; do
-            echo "waiting for $crd"
-            wait_for_crd "$crd"
-          done
-
       - name: Deploy cluster
         run: kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize

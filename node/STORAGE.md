@@ -24,7 +24,7 @@ the volumes, filesystems and mounts.
 | `backups` | `/var/backups` | 32G | k3s upgrade archives |
 
 The remaining ~327G is the PersistentVolume pool. The OpenEBS LVM LocalPV
-driver (`operators/lvm-localpv/`) creates one LV per PVC on the `lvm-data`
+driver (`deploy/setup/lvm-localpv/`) creates one LV per PVC on the `lvm-data`
 StorageClass, which is the default. Don't pre-allocate it.
 
 Volumes are thick, so `vgs` free space is real.

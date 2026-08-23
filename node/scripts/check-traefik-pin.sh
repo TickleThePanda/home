@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Assert that the Traefik chart pinned in operators/ matches the k3s version
+# Assert that the Traefik chart pinned in deploy/ matches the k3s version
 # pinned in node/.
 #
 # k3s serves chart tarballs from its own /var/lib/rancher/k3s/server/static/
 # charts/, which only ever contains the charts bundled with the INSTALLED k3s
-# version. So bumping k3s without bumping the chart URL leaves operators/
-# pointing at a tarball the node no longer has -- and vice versa.
+# version. So bumping k3s without bumping the chart URL leaves deploy/ pointing
+# at a tarball the node no longer has -- and vice versa.
 #
 # With --online, also asks the k3s repo whether the pair is genuinely what that
 # release bundles. Skipped by default so the check stays useful offline and
@@ -15,7 +15,7 @@ set -Eeuo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 versions="$repo_root/node/vars/versions.yml"
-chart="$repo_root/operators/traefik/traefik-helm-chart.yaml"
+chart="$repo_root/deploy/setup/traefik/traefik-helm-chart.yaml"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
