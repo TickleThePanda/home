@@ -1,0 +1,19 @@
+# TEMPORARY, see webhook-provider.yaml. eventSeverity: info so every
+# reconciliation attempt shows up, not just failures -- we specifically
+# want to see whether setup/cloudflared-deployment is progressing at all.
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: incident-webhook
+  namespace: flux-system
+spec:
+  providerRef:
+    name: incident-webhook
+  eventSeverity: info
+  eventSources:
+    - kind: Kustomization
+      name: "*"
+    - kind: GitRepository
+      name: "*"
+    - kind: OCIRepository
+      name: "*"

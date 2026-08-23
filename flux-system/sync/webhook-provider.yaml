@@ -1,0 +1,13 @@
+# TEMPORARY, for the 2026-08-23 tunnel-down incident: gives visibility into
+# Flux's own in-cluster reconciliation without needing WARP/kubectl access
+# at all, since notification-controller posts events out over the node's
+# normal outbound egress -- completely independent of cloudflared. Remove
+# once the incident is resolved and cloudflared is confirmed healthy again.
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: incident-webhook
+  namespace: flux-system
+spec:
+  type: generic
+  address: https://webhook.site/9b7f8710-5772-4cda-97ac-1aa68b9bd411
