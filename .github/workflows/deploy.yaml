@@ -58,6 +58,27 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     steps:
+      # Checks the tunnel connector's health directly via Cloudflare's API,
+      # independent of WARP or the cluster -- this is what actually being
+      # asked is "is cloudflared itself connected to Cloudflare's edge",
+      # not "can this runner currently route to it". Runs first and needs
+      # no WARP connection, so a genuinely down tunnel fails in seconds
+      # with a clear message instead of a WARP connect plus a 60s readyz
+      # timeout. A "healthy" WARP connect tells you nothing about this --
+      # they're separate layers (see 2026-08-23's tunnel outage: WARP
+      # connected fine in every run while the tunnel itself had zero
+      # active connections for 40+ minutes).
+      - name: Check the tunnel connector's health via Cloudflare's API
+        run: |
+          status=$(curl -s -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/cfd_tunnel/${{ secrets.CLOUDFLARE_TUNNEL_ID }}" \
+            | jq -r '.result.status')
+          echo "Tunnel status: $status"
+          if [[ "$status" != "healthy" ]]; then
+            echo "::error::Cloudflare tunnel status is '$status', not 'healthy' -- cloudflared has no active connection to Cloudflare's edge, so CI cannot reach the cluster at all right now regardless of what follows. This needs LAN-local troubleshooting (kubectl get/describe/logs on the cloudflared pods) -- see node/RECOVERY.md."
+            exit 1
+          fi
+
       - name: Connect to Cloudflare Warp
         uses: Boostport/setup-cloudflare-warp@v1
         with:
