@@ -2,17 +2,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cloudflared-deployment
-  # TEMPORARY, one-off: forces Flux to recreate this Deployment instead of
-  # failing dry-run on its immutable spec.selector, which already carries
-  # ticklethepanda.dev/managed-by from the old kubectl --prune pipeline.
-  # Deliberately handled last and alone (see the "Legacy label cleanup"
-  # commit) since this is CI's own transport into the cluster -- both
-  # replicas go down together briefly during the recreate. The actual
-  # recreation happens via Flux's in-cluster kustomize-controller, not any
-  # single CI job's own connection, and the wait step's polling already
-  # tolerates transient kubectl failures. Remove once confirmed Ready.
-  annotations:
-    kustomize.toolkit.fluxcd.io/force: Enabled
+  # force: Enabled removed -- it already did its job (the Deployment was
+  # deleted and recreated at 13:50:45, exactly when the tunnel went
+  # inactive). Leaving it on would risk another delete/recreate cycle on
+  # any future drift, and the immutable-selector conflict it was working
+  # around is gone once the object has been recreated.
 spec:
   replicas: 2
   selector:
@@ -23,11 +17,16 @@ spec:
       labels:
         pod: cloudflared
     spec:
-      # CI's own access to the cluster runs through this pod (see
-      # CLAUDE.md's Node pattern notes) -- give it the same scheduling/
-      # eviction priority as Traefik so it isn't first to be squeezed
-      # under node resource pressure.
-      priorityClassName: system-cluster-critical
+      # priorityClassName: system-cluster-critical removed. It was copied
+      # from Traefik's pattern, but Traefik runs in kube-system while this
+      # runs in default -- and it's the one genuinely novel field added to
+      # this pod spec before the tunnel went down at 13:50:45 (exactly
+      # when the force-replace recreated this Deployment). Not proven to
+      # be the cause (Flux's own controllers use the same priority class
+      # outside kube-system without trouble), but it's the highest-value
+      # thing to rule out, and this Deployment ran fine without it for
+      # 411 days. Reverting to maximise the chance the recreated pods can
+      # actually schedule whenever kustomize-controller next applies.
       securityContext:
         sysctls:
         # Allows ICMP traffic (ping, traceroute) to resources behind cloudflared.
