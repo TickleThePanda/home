@@ -62,3 +62,27 @@ patches:
       kind: CustomResourceDefinition
       metadata:
         name: imageupdateautomations.image.toolkit.fluxcd.io
+
+  # TEMPORARY (2026-08-23 incident): make notification-controller resolve
+  # via quad9 directly instead of cluster DNS (CoreDNS -> pihole), matching
+  # what the heartbeat pod does. This is the pod that actually performs the
+  # outbound POST for a Provider/Alert, so if the suspicion about pihole
+  # being down is right, its alerts would be failing at DNS resolution.
+  #
+  # Safe for this controller specifically: it reaches the API server via
+  # the KUBERNETES_SERVICE_HOST/PORT env vars (an IP, no DNS needed), so
+  # losing cluster DNS doesn't cut it off from Kubernetes. Revert with the
+  # rest of the incident tooling.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: notification-controller
+        namespace: flux-system
+      spec:
+        template:
+          spec:
+            dnsPolicy: "None"
+            dnsConfig:
+              nameservers:
+                - 9.9.9.9

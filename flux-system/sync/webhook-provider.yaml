@@ -10,4 +10,9 @@ metadata:
   namespace: flux-system
 spec:
   type: generic
-  address: https://webhook.site/9b7f8710-5772-4cda-97ac-1aa68b9bd411
+  # Repointed from webhook.site, which is unreachable from this cluster
+  # (every channel timed out, including a DNS-bypassed --resolve one, so
+  # it's blackholed rather than DNS-filtered). This is a cloudflared quick
+  # tunnel fronting a listener on the operator's laptop. Ephemeral -- it
+  # dies with that laptop-side tunnel and will need updating if restarted.
+  address: https://phenomenon-coordinates-remained-retired.trycloudflare.com
