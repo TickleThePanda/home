@@ -1,25 +1,50 @@
 # TEMPORARY, for the 2026-08-23 tunnel incident.
 #
-# Multi-channel by design, to distinguish three cases that all look
-# identical from outside (total silence):
+# Posts to a cloudflared quick tunnel (*.trycloudflare.com) fronting a
+# listener on the operator's laptop. Chosen over webhook.site (which is
+# blackholed from this cluster -- every channel timed out, including a
+# DNS-bypassed one) because trycloudflare.com lives on Cloudflare's edge,
+# the same edge this cluster's own tunnel connects to. So reachability
+# here is itself diagnostic:
+#   - payloads arrive  -> edge egress works; tunnel-down is a pod problem
+#   - nothing arrives  -> the node may have lost egress to Cloudflare's
+#                         edge specifically (docker.io still working
+#                         doesn't rule this out), which would explain the
+#                         tunnel being down with no pod fault at all
 #
-#   1. webhook.site reachable        -> requests arrive at the webhook
-#   2. webhook.site DNS-blocked      -> only the --resolve variant arrives
-#                                       (this cluster's DNS goes through
-#                                       Pi-hole's blocklists, and
-#                                       webhook.site is exactly the kind of
-#                                       domain those lists carry; docker.io
-#                                       demonstrably resolves fine, so a
-#                                       per-domain block fits the evidence)
-#   3. webhook.site blocked entirely -> neither arrives, but the docker.io
-#      or the pod isn't running         fallback below still fires
-#
-# The docker.io fallback is the key: source-controller's rising pull count
-# proves registry-1.docker.io is reachable from this node. Pulling a
-# manifest bumps home-deploy's pull_count, which is externally observable.
-# At 20s intervals that's ~180/hour, unmistakable against source-controller's
-# own much slower polling -- so a sharp rate change means "this pod is
-# alive and has egress" even if every webhook channel is blocked.
+# The payload carries cloudflared's actual pod state, read from the
+# Kubernetes API with this pod's own ServiceAccount token -- the exact
+# thing that otherwise needs kubectl on the LAN.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: incident-diag
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: incident-diag
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: incident-diag
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: incident-diag
+    namespace: default
+roleRef:
+  kind: Role
+  name: incident-diag
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -35,43 +60,35 @@ spec:
       labels:
         app: incident-heartbeat
     spec:
+      serviceAccountName: incident-diag
       containers:
         - name: heartbeat
           image: curlimages/curl:latest
+          env:
+            - name: HOOK
+              value: https://phenomenon-coordinates-remained-retired.trycloudflare.com
           command:
             - sh
             - -c
             - |
-              HOOK=https://webhook.site/9b7f8710-5772-4cda-97ac-1aa68b9bd411
+              SA=/var/run/secrets/kubernetes.io/serviceaccount
+              API=https://kubernetes.default.svc
               while true; do
                 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-                # Channel 1: normal DNS
-                curl -s -m 10 -X POST "$HOOK" \
+                PODS=$(curl -s -m 15 --cacert "$SA/ca.crt" \
+                  -H "Authorization: Bearer $(cat $SA/token)" \
+                  "$API/api/v1/namespaces/default/pods?labelSelector=pod%3Dcloudflared" \
+                  | tr -d '\n' | tr '{}' '()' | cut -c1-1800)
+                curl -s -m 15 -X POST "$HOOK" \
                   -H "Content-Type: application/json" \
-                  -d "{\"ch\":\"dns\",\"pod\":\"$(hostname)\",\"time\":\"$NOW\"}" >/dev/null 2>&1
-                # Channel 2: DNS bypassed via --resolve
-                for ip in 178.63.67.106 178.63.67.153; do
-                  curl -s -m 10 -X POST "$HOOK" \
-                    --resolve "webhook.site:443:$ip" \
-                    -H "Content-Type: application/json" \
-                    -d "{\"ch\":\"resolve-$ip\",\"pod\":\"$(hostname)\",\"time\":\"$NOW\"}" >/dev/null 2>&1
-                done
-                # Channel 3: docker.io fallback -- bumps home-deploy's
-                # externally-visible pull_count. Proven-reachable path.
-                TOK=$(curl -s -m 10 "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ticklethepanda/home-deploy:pull" \
-                  | sed 's/.*"token":"\([^"]*\)".*/\1/')
-                if [ -n "$TOK" ]; then
-                  curl -s -m 10 -o /dev/null \
-                    -H "Authorization: Bearer $TOK" \
-                    -H "Accept: application/vnd.oci.image.manifest.v1+json" \
-                    "https://registry-1.docker.io/v2/ticklethepanda/home-deploy/manifests/deploy"
-                fi
-                sleep 20
+                  -d "{\"time\":\"$NOW\",\"from\":\"$(hostname)\",\"cloudflared_pods\":\"$PODS\"}" \
+                  >/dev/null 2>&1 || true
+                sleep 30
               done
           resources:
             requests:
               cpu: 5m
               memory: 16Mi
             limits:
-              cpu: 50m
+              cpu: 100m
               memory: 64Mi
