@@ -1,17 +1,26 @@
 name: Deploy
 
-# Two layers, applied in order by three sequential jobs:
+# Two layers, applied in order by four sequential jobs:
 #
-#   check    the k3s version and the Traefik chart pin agree (no secrets, no
-#            network into the LAN -- fails fast and cheap)
-#   node     node/, applied with Ansible over SSH as the `deploy` user
-#   cluster  deploy/, applied with kustomize
+#   check      the k3s version and the Traefik chart pin agree (no secrets,
+#              no network into the LAN -- fails fast and cheap)
+#   preflight  the cluster is actually reachable and ready right now, before
+#              anything else touches it
+#   node       node/, applied with Ansible over SSH as the `deploy` user
+#   cluster    deploy/, applied with kustomize
 #
 # Order matters. A k3s upgrade changes which Traefik chart tarball the node
 # serves, so the node must be upgraded before the manifests referencing that
 # chart are applied. Sequential jobs make that explicit; they also mean the
 # node step can restart k3s and let the cluster job reconnect afterwards on a
 # fresh runner.
+#
+# preflight exists because CI's only path to the node runs through the
+# cluster itself (the in-cluster cloudflared Deployment is the WARP tunnel
+# endpoint) -- if that tunnel or the API server is already unhealthy for
+# unrelated reasons, node/cluster's own failures surface confusingly deep
+# inside Ansible or kubectl output. Checking this up front, before either
+# job starts doing real work, gives a fast, unambiguous signal instead.
 
 on:
   push:
@@ -44,8 +53,51 @@ jobs:
       - name: Check the Traefik chart pin
         run: ./node/scripts/check-traefik-pin.sh --online
 
-  node:
+  preflight:
     needs: check
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Connect to Cloudflare Warp
+        uses: Boostport/setup-cloudflare-warp@v1
+        with:
+          organization: ticklethepanda
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
+      - name: Setup k8s context
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      # An open port isn't a ready API -- see node/site.yml's own readyz
+      # poll, added after the same lesson. A generous-but-bounded retry
+      # window: if it's not ready within a minute, the cluster is
+      # genuinely down rather than just mid-restart from a previous run.
+      - name: Confirm the API server is ready
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 12); do
+            if kubectl get --raw /readyz >/dev/null 2>&1; then
+              echo "OK: API server is ready"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::API server did not report ready after 60s -- the cluster may genuinely be down, not just slow. See node/RECOVERY.md."
+          exit 1
+
+      # The tunnel this whole pipeline runs over is a pod inside the
+      # cluster it manages -- confirm it's actually healthy, not just
+      # that the API happens to be responding right now.
+      - name: Confirm cloudflared is Ready
+        run: |
+          kubectl wait --namespace default --for=condition=Ready pod \
+            --selector pod=cloudflared --timeout=30s
+
+  node:
+    needs: preflight
     runs-on: ubuntu-latest
     environment: prod
     steps:
