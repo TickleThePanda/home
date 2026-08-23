@@ -1,0 +1,16 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: internal
+  namespace: flux-system
+spec:
+  interval: 10m
+  dependsOn:
+    - name: setup # postgres/cluster.yaml's Cluster needs cloudnative-pg's CRDs
+  sourceRef:
+    kind: OCIRepository
+    name: deploy
+  path: ./deploy/internal
+  prune: false # flip to true at Migration Milestone 3, once inventory/health are proven
+  wait: true
+  timeout: 5m

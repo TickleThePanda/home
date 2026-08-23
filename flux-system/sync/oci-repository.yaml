@@ -1,0 +1,17 @@
+# deploy/ is promoted through this OCI artifact rather than tracked
+# straight off `main`, so Flux never reconciles a deploy/ revision before
+# CI has proven the underlying infrastructure (the `node` job) is ready --
+# see .github/workflows/deploy.yaml's `cluster` job, which pushes a
+# sha-tagged artifact and only then moves the `deploy` tag to point at it.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: deploy
+  namespace: flux-system
+spec:
+  interval: 10m
+  url: oci://docker.io/ticklethepanda/home-deploy
+  ref:
+    tag: deploy
+  secretRef:
+    name: dockerhub-deploy-pull

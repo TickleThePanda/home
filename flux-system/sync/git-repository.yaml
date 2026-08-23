@@ -1,0 +1,15 @@
+# This repo is public, so Flux can read it over plain HTTPS -- no deploy
+# key / secretRef needed. This is what Flux uses to manage its own upgrade
+# (see ./kustomization.yaml, which reconciles ../ from this source); it is
+# deliberately separate from the OCIRepository in oci-repository.yaml, which
+# is what deploy/ is actually promoted through.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 10m
+  url: https://github.com/ticklethepanda/home
+  ref:
+    branch: main
