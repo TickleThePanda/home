@@ -18,6 +18,7 @@ on:
     branches: main
     paths:
       - deploy/**
+      - flux-system/**
       - node/**
       - .github/workflows/deploy.yaml
   workflow_dispatch:
