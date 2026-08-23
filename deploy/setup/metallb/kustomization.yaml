@@ -7,3 +7,26 @@ resources:
   - ./lb-external.yaml
   - ./lb-pihole.yaml
   - ./lb-advertisement.yaml
+
+# TEMPORARY, one-off: forces Flux to recreate these two objects instead of
+# failing dry-run on their immutable spec.selector, which already carries
+# ticklethepanda.dev/managed-by from the old kubectl --prune pipeline (see
+# CLAUDE.md's Deploy pattern history / the Flux migration plan's "Legacy
+# label cleanup" step). Remove this patch once both are confirmed Ready.
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: controller
+        namespace: metallb-system
+        annotations:
+          kustomize.toolkit.fluxcd.io/force: Enabled
+  - patch: |-
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: speaker
+        namespace: metallb-system
+        annotations:
+          kustomize.toolkit.fluxcd.io/force: Enabled

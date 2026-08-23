@@ -1,6 +1,8 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: Enabled
   name: pocket-id
   namespace: pocket-id
   labels:
