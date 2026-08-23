@@ -1,41 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# TEMPORARY (2026-08-23 incident) -- everything except the heartbeat is
-# commented out below. RESTORE THE FULL LIST once the incident is resolved.
-#
-# Why: kustomize-controller dry-runs every resource in a Kustomization
-# before applying ANY of them. The last status we could read (13:34) was
-# "Deployment/default/cloudflared-deployment dry-run failed (Invalid)" --
-# and if that validation stage aborts, nothing in the whole set is
-# applied. That would mean every change pushed into deploy/setup/ during
-# this incident (the heartbeat, cloudflared's QoS fix, the CoreDNS
-# fallback) has been silently discarded at validation for hours, which
-# fits the total absence of any signal.
-#
-# Shrinking to a single trivial resource tests that directly: if the
-# heartbeat appears, kustomize-controller is alive and one of the
-# commented-out entries was poisoning the set. If it still doesn't, the
-# controller isn't applying anything at all and the problem is upstream
-# of any individual resource.
-#
-# This is SAFE because the setup Kustomization has prune: false --
-# removing entries here does NOT delete the live objects. cert-manager,
-# metallb, traefik et al. keep running exactly as they are, just
-# unmanaged until this list is restored.
 resources:
+  - ./lvm-localpv
+  - ./cert-manager
+  - ./cloudnative-pg
+  - ./coredns
+  - ./metallb
+  - ./traefik
+  - ./api-proxy
+  - ./cloudflared
+  - ./multus
   - ./incident-heartbeat # TEMPORARY, remove with the rest of the incident tooling
-  # - ./lvm-localpv
-  # - ./cert-manager
-  # - ./cloudnative-pg
-  # - ./coredns
-  # - ./metallb
-  # - ./traefik
-  # - ./api-proxy
-  # - ./multus
-  #
-  # cloudflared is deliberately NOT listed here -- it has its own
-  # dedicated Flux Kustomization (flux-system/sync/kustomization-cloudflared.yaml)
-  # for an isolated status signal during the 2026-08-23 tunnel incident.
-  # Applying it from both places would also mean two Kustomizations
-  # claiming the same object.
