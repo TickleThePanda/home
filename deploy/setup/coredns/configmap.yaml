@@ -7,25 +7,6 @@ metadata:
   # supported way to extend it without owning/forking the whole addon.
   name: coredns-custom
 data:
-  # k3s's bundled Corefile has `import /etc/coredns/custom/*.override`
-  # inside its main .:53 block, immediately before its own
-  # `forward . /etc/resolv.conf` -- so this inserted forward runs first
-  # and effectively replaces that default for every query except the
-  # internal zone (which the separate internal.server block below
-  # already handles via its own more-specific match, unaffected by this).
-  #
-  # policy sequential is required: forward's default policy is random
-  # across upstreams, which would send roughly half of all cluster DNS
-  # queries to quad9 even when pihole is perfectly healthy. sequential
-  # tries pihole first and only moves to quad9 once health-checking
-  # marks it down, which is the intended "primary + fallback" behavior.
-  # Added 2026-08-23 during an incident where pihole's availability was
-  # suspected in a chain of DNS-dependent failures.
-  default.override: |
-    forward . 192.168.1.10 9.9.9.9 {
-        policy sequential
-        health_check 5s
-    }
   internal.server: |
     # Delegate the internal zone to pihole so pods can resolve
     # *.internal.ticklethepanda.co.uk the same way LAN clients do, instead

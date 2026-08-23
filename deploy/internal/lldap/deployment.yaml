@@ -1,8 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    kustomize.toolkit.fluxcd.io/force: Enabled
   name: lldap
   labels:
     app: lldap

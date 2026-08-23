@@ -2,18 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cloudflared-deployment
-  # force: Enabled removed -- it already did its job (the Deployment was
-  # deleted and recreated at 13:50:45, exactly when the tunnel went
-  # inactive). Leaving it on would risk another delete/recreate cycle on
-  # any future drift, and the immutable-selector conflict it was working
-  # around is gone once the object has been recreated.
 spec:
-  # 2 -> 1: both replicas land on the same node anyway (single-node
-  # cluster), so the second buys redundancy only against a single pod
-  # crash, not against node loss -- while doubling the memory footprint on
-  # a Pi that's now also running Flux's controllers. Halving it makes this
-  # far easier to schedule and keep running.
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       pod: cloudflared
@@ -22,46 +12,6 @@ spec:
       labels:
         pod: cloudflared
     spec:
-      # priorityClassName: system-cluster-critical removed. It was copied
-      # from Traefik's pattern, but Traefik runs in kube-system while this
-      # runs in default -- and it's the one genuinely novel field added to
-      # this pod spec before the tunnel went down at 13:50:45 (exactly
-      # when the force-replace recreated this Deployment). Not proven to
-      # be the cause (Flux's own controllers use the same priority class
-      # outside kube-system without trouble), but it's the highest-value
-      # thing to rule out, and this Deployment ran fine without it for
-      # 411 days. Reverting to maximise the chance the recreated pods can
-      # actually schedule whenever kustomize-controller next applies.
-      # TEMPORARY (2026-08-23 incident), but arguably worth keeping: let
-      # this pod schedule even when the node carries a pressure taint.
-      #
-      # Leading theory for why the tunnel never came back: under
-      # DiskPressure/MemoryPressure the kubelet taints the node
-      # NoSchedule, so *new* pods can't start while already-running ones
-      # (source-controller etc.) carry on untouched. That would make the
-      # force-replace fatal -- deleting both replicas was survivable only
-      # if replacements could be scheduled, and under a pressure taint
-      # they never can. It also explains why a minimal single-Deployment
-      # Kustomization produced no pod either.
-      #
-      # CI's only route into this cluster runs through this pod, so it
-      # should be among the last things prevented from running, not the
-      # first. Combined with the resource requests added earlier (moving
-      # it off BestEffort), this makes the tunnel substantially harder to
-      # lose to node pressure.
-      tolerations:
-        - key: node.kubernetes.io/disk-pressure
-          operator: Exists
-          effect: NoSchedule
-        - key: node.kubernetes.io/memory-pressure
-          operator: Exists
-          effect: NoSchedule
-        - key: node.kubernetes.io/pid-pressure
-          operator: Exists
-          effect: NoSchedule
-        - key: node.kubernetes.io/unschedulable
-          operator: Exists
-          effect: NoSchedule
       securityContext:
         sysctls:
         # Allows ICMP traffic (ping, traceroute) to resources behind cloudflared.
@@ -70,27 +20,6 @@ spec:
       containers:
         - image: cloudflare/cloudflared:latest
           name: cloudflared
-          # This Deployment previously declared no requests or limits at
-          # all, which put it in the BestEffort QoS class -- the first
-          # pods the kubelet evicts under memory pressure and the first
-          # the OOM killer targets. That was survivable for 411 days, but
-          # this node now also runs Flux's controllers, which DO declare
-          # requests and so outrank it. The tunnel going down at 13:50:45
-          # (exactly when the force-replace recreated both replicas onto
-          # that busier node) and never recovering is consistent with
-          # these pods being evicted or OOM-killed on sight.
-          #
-          # Explicit requests move it to Burstable, so it's no longer
-          # first in line. Modest values: cloudflared is a lightweight
-          # connector, and over-requesting on a Pi would cause the
-          # scheduling problem it's meant to avoid.
-          resources:
-            requests:
-              cpu: 10m
-              memory: 64Mi
-            limits:
-              cpu: 200m
-              memory: 192Mi
           env:
             # Defines an environment variable for the tunnel token.
             - name: TUNNEL_TOKEN
@@ -114,13 +43,6 @@ spec:
               # it has an active connection to Cloudflare's network.
               path: /ready
               port: 2000
-            # Previously failureThreshold: 1 with the default 1s timeout --
-            # a single slow response from any transient CPU blip killed and
-            # restarted the whole pod (51-53 restarts over 411 days,
-            # confirmed via `kubectl describe`: Last State Terminated,
-            # Reason: Completed -- the probe, not a crash). More headroom
-            # to start and to absorb a slow response before restarting.
-            initialDelaySeconds: 20
+            failureThreshold: 1
+            initialDelaySeconds: 10
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3

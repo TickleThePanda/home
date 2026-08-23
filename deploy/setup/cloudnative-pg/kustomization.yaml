@@ -3,18 +3,3 @@ kind: Kustomization
 
 resources:
   - https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.0/cnpg-1.30.0.yaml
-
-# TEMPORARY, one-off: forces Flux to recreate this Deployment instead of
-# failing dry-run on its immutable spec.selector, which already carries
-# ticklethepanda.dev/managed-by from the old kubectl --prune pipeline (see
-# CLAUDE.md's Deploy pattern history / the Flux migration plan's "Legacy
-# label cleanup" step). Remove this patch once confirmed Ready.
-patches:
-  - patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: cnpg-controller-manager
-        namespace: cnpg-system
-        annotations:
-          kustomize.toolkit.fluxcd.io/force: Enabled

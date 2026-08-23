@@ -1,8 +1,6 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  annotations:
-    kustomize.toolkit.fluxcd.io/force: Enabled
   name: kube-api-proxy
 spec:
   selector:

@@ -11,4 +11,3 @@ resources:
   - ./api-proxy
   - ./cloudflared
   - ./multus
-  - ./incident-heartbeat # TEMPORARY, remove with the rest of the incident tooling
