@@ -214,6 +214,18 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
 
+      # TEMPORARY -- extra visibility while chasing intermittent
+      # connection failures right at the start of this job, moments after
+      # preflight already confirmed the API and cloudflared were healthy.
+      # Pinpoints whether the connection is already bad by the time this
+      # job starts, or breaks specifically during a later step.
+      - name: Snapshot cluster health at job start
+        run: |
+          echo "### readyz ###"
+          kubectl get --raw /readyz || true
+          echo "### cloudflared pods ###"
+          kubectl get pods -n default -l pod=cloudflared -o wide || true
+
       - name: Install the flux CLI
         uses: fluxcd/flux2/action@main
 
@@ -234,14 +246,20 @@ jobs:
       # Kustomization (sync/self.yaml) reconciles the combined
       # ./flux-system tree just fine -- kustomize-controller handles this
       # ordering more gracefully than plain kubectl apply does.
+      # --validate=false: this step has now twice failed specifically on
+      # the OpenAPI schema download client-side validation triggers
+      # ("failed to download openapi: ... no route to host"), not on the
+      # apply itself. That's an extra network round-trip this bootstrap
+      # doesn't need -- dropping it shrinks the window for a brief
+      # connection blip to land on exactly this call.
       - name: Apply flux-system
         run: |
-          kubectl apply -k flux-system/install
+          kubectl apply -k flux-system/install --validate=false
           kubectl wait --for=condition=Established --timeout=60s \
             crd/gitrepositories.source.toolkit.fluxcd.io \
             crd/ocirepositories.source.toolkit.fluxcd.io \
             crd/kustomizations.kustomize.toolkit.fluxcd.io
-          kubectl apply -k flux-system/sync
+          kubectl apply -k flux-system/sync --validate=false
 
       # TEMPORARY, one-off -- flux-system/install/kustomization.yaml now
       # deletes these from the applied set, but the earlier successful
