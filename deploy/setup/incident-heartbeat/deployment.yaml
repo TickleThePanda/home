@@ -1,50 +1,9 @@
-# TEMPORARY, for the 2026-08-23 tunnel incident.
-#
-# Posts to a cloudflared quick tunnel (*.trycloudflare.com) fronting a
-# listener on the operator's laptop. Chosen over webhook.site (which is
-# blackholed from this cluster -- every channel timed out, including a
-# DNS-bypassed one) because trycloudflare.com lives on Cloudflare's edge,
-# the same edge this cluster's own tunnel connects to. So reachability
-# here is itself diagnostic:
-#   - payloads arrive  -> edge egress works; tunnel-down is a pod problem
-#   - nothing arrives  -> the node may have lost egress to Cloudflare's
-#                         edge specifically (docker.io still working
-#                         doesn't rule this out), which would explain the
-#                         tunnel being down with no pod fault at all
-#
-# The payload carries cloudflared's actual pod state, read from the
-# Kubernetes API with this pod's own ServiceAccount token -- the exact
-# thing that otherwise needs kubectl on the LAN.
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: incident-diag
-  namespace: default
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: incident-diag
-  namespace: default
-rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: incident-diag
-  namespace: default
-subjects:
-  - kind: ServiceAccount
-    name: incident-diag
-    namespace: default
-roleRef:
-  kind: Role
-  name: incident-diag
-  apiGroup: rbac.authorization.k8s.io
----
+# TEMPORARY, for the 2026-08-23 tunnel incident. Deliberately as simple as
+# possible: just prove a pod can run in this cluster and reach the
+# internet at all, before layering anything else back on. The previous
+# version (k8s API query + string encoding, in curlimages/curl's minimal
+# busybox sh) had enough moving parts that a silent script failure and a
+# genuine cluster/network problem would look identical from outside.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -60,35 +19,17 @@ spec:
       labels:
         app: incident-heartbeat
     spec:
-      serviceAccountName: incident-diag
       containers:
         - name: heartbeat
           image: curlimages/curl:latest
-          env:
-            - name: HOOK
-              value: https://phenomenon-coordinates-remained-retired.trycloudflare.com
           command:
             - sh
             - -c
-            - |
-              SA=/var/run/secrets/kubernetes.io/serviceaccount
-              API=https://kubernetes.default.svc
-              while true; do
-                NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-                PODS=$(curl -s -m 15 --cacert "$SA/ca.crt" \
-                  -H "Authorization: Bearer $(cat $SA/token)" \
-                  "$API/api/v1/namespaces/default/pods?labelSelector=pod%3Dcloudflared" \
-                  | tr -d '\n' | tr '{}' '()' | cut -c1-1800)
-                curl -s -m 15 -X POST "$HOOK" \
-                  -H "Content-Type: application/json" \
-                  -d "{\"time\":\"$NOW\",\"from\":\"$(hostname)\",\"cloudflared_pods\":\"$PODS\"}" \
-                  >/dev/null 2>&1 || true
-                sleep 30
-              done
+            - "while true; do curl -v -m 15 -X POST https://phenomenon-coordinates-remained-retired.trycloudflare.com -d hello; sleep 15; done"
           resources:
             requests:
               cpu: 5m
               memory: 16Mi
             limits:
-              cpu: 100m
-              memory: 64Mi
+              cpu: 50m
+              memory: 32Mi
