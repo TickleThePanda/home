@@ -3,3 +3,62 @@ kind: Kustomization
 
 resources:
   - https://github.com/fluxcd/flux2/releases/download/v2.9.4/install.yaml
+
+# Image tag automation is out of scope for this migration (see the
+# migration plan), and every extra pod is real load on the cluster's
+# single Raspberry Pi node. `flux install --export` with the default
+# --components list looked like a cleaner way to drop these, but it
+# turned out to silently omit unrelated RBAC/quota objects (flux-edit,
+# flux-view, the crd-controller ClusterRole/Binding, the critical-pods
+# ResourceQuota) that this exact release's install.yaml does include --
+# a mismatch between that generation path and the published asset, not
+# something to reproduce here. Deleting just the specific unused
+# objects from the full official manifest keeps everything else exactly
+# as released.
+patches:
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: image-reflector-controller
+        namespace: flux-system
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: image-automation-controller
+        namespace: flux-system
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: image-reflector-controller
+        namespace: flux-system
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: image-automation-controller
+        namespace: flux-system
+  - patch: |-
+      $patch: delete
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: imagepolicies.image.toolkit.fluxcd.io
+  - patch: |-
+      $patch: delete
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: imagerepositories.image.toolkit.fluxcd.io
+  - patch: |-
+      $patch: delete
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: imageupdateautomations.image.toolkit.fluxcd.io
