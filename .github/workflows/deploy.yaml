@@ -164,5 +164,64 @@ jobs:
             --namespace flux-system \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy cluster
+      # Legacy applier. Milestone 1 (dual-run): kept in place, running
+      # first, alongside the new Flux-based steps below -- both write to
+      # the same live objects for a short bake period so field-manager
+      # conflicts show up before this step is retired at Milestone 2.
+      - name: Deploy cluster (legacy)
         run: kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize
+
+      # Push deploy/ as an OCI artifact tagged with the git SHA, then move
+      # the moving `deploy` tag to point at it -- the promotion boundary
+      # flux-system/sync/oci-repository.yaml's OCIRepository follows. This
+      # is what lets Flux reconcile only revisions this job has already
+      # applied via the legacy step above (Milestone 1), and later --
+      # once the legacy step is gone (Milestone 2) -- revisions CI has
+      # otherwise vetted, without ever watching `main` directly.
+      - name: Push and promote the deploy/ OCI artifact
+        run: |
+          set -euo pipefail
+          sha="${GITHUB_SHA::12}"
+          flux push artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
+            --path="./deploy" \
+            --source="$(git config --get remote.origin.url)" \
+            --revision="main@sha1:${GITHUB_SHA}"
+          flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
+            --tag deploy
+
+      # Trigger reconciliation immediately over the same WARP+KUBE_CONFIG
+      # credential already in this job, rather than waiting for the
+      # OCIRepository's own polling interval -- no new exposed surface.
+      - name: Trigger Flux reconciliation
+        run: |
+          set -euo pipefail
+          flux reconcile source oci deploy -n flux-system
+          flux reconcile kustomization setup    -n flux-system --with-source
+          flux reconcile kustomization home     -n flux-system
+          flux reconcile kustomization internal -n flux-system
+
+      # Confirms the *specific promoted SHA* reached Ready, not just a
+      # stale Ready=True left over from a previous revision -- mirrors the
+      # node job's own k3s kubectl get --raw /readyz retry idiom rather
+      # than trusting a bare condition check.
+      - name: Wait for the promoted revision to be Ready
+        run: |
+          set -euo pipefail
+          expected="sha1:${GITHUB_SHA}"
+          for ks in setup home internal; do
+            echo "waiting for kustomization/$ks to reach $expected ..."
+            for i in $(seq 1 60); do
+              applied=$(kubectl -n flux-system get kustomization "$ks" -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)
+              ready=$(kubectl -n flux-system get kustomization "$ks" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+              if [[ "$applied" == *"$expected"* && "$ready" == "True" ]]; then
+                echo "OK: $ks is Ready at $applied"
+                break
+              fi
+              if [[ $i -eq 60 ]]; then
+                echo "::error::Timed out waiting for kustomization/$ks at $expected (applied=$applied ready=$ready)"
+                kubectl -n flux-system get kustomization "$ks" -o yaml
+                exit 1
+              fi
+              sleep 10
+            done
+          done
