@@ -12,6 +12,11 @@ spec:
       labels:
         pod: cloudflared
     spec:
+      # CI's own access to the cluster runs through this pod (see
+      # CLAUDE.md's Node pattern notes) -- give it the same scheduling/
+      # eviction priority as Traefik so it isn't first to be squeezed
+      # under node resource pressure.
+      priorityClassName: system-cluster-critical
       securityContext:
         sysctls:
         # Allows ICMP traffic (ping, traceroute) to resources behind cloudflared.
@@ -43,6 +48,13 @@ spec:
               # it has an active connection to Cloudflare's network.
               path: /ready
               port: 2000
-            failureThreshold: 1
-            initialDelaySeconds: 10
+            # Previously failureThreshold: 1 with the default 1s timeout --
+            # a single slow response from any transient CPU blip killed and
+            # restarted the whole pod (51-53 restarts over 411 days,
+            # confirmed via `kubectl describe`: Last State Terminated,
+            # Reason: Completed -- the probe, not a crash). More headroom
+            # to start and to absorb a slow response before restarting.
+            initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
