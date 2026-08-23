@@ -8,5 +8,3 @@ resources:
   - ./kustomization-setup.yaml
   - ./kustomization-home.yaml
   - ./kustomization-internal.yaml
-  - ./webhook-provider.yaml
-  - ./webhook-alert.yaml

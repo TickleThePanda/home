@@ -58,27 +58,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     steps:
-      # Checks the tunnel connector's health directly via Cloudflare's API,
-      # independent of WARP or the cluster -- this is what actually being
-      # asked is "is cloudflared itself connected to Cloudflare's edge",
-      # not "can this runner currently route to it". Runs first and needs
-      # no WARP connection, so a genuinely down tunnel fails in seconds
-      # with a clear message instead of a WARP connect plus a 60s readyz
-      # timeout. A "healthy" WARP connect tells you nothing about this --
-      # they're separate layers (see 2026-08-23's tunnel outage: WARP
-      # connected fine in every run while the tunnel itself had zero
-      # active connections for 40+ minutes).
-      - name: Check the tunnel connector's health via Cloudflare's API
-        run: |
-          status=$(curl -s -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/cfd_tunnel/${{ secrets.CLOUDFLARE_TUNNEL_ID }}" \
-            | jq -r '.result.status')
-          echo "Tunnel status: $status"
-          if [[ "$status" != "healthy" ]]; then
-            echo "::error::Cloudflare tunnel status is '$status', not 'healthy' -- cloudflared has no active connection to Cloudflare's edge, so CI cannot reach the cluster at all right now regardless of what follows. This needs LAN-local troubleshooting (kubectl get/describe/logs on the cloudflared pods) -- see node/RECOVERY.md."
-            exit 1
-          fi
-
       - name: Connect to Cloudflare Warp
         uses: Boostport/setup-cloudflare-warp@v1
         with:
@@ -213,51 +192,8 @@ jobs:
             exit 1
           fi
 
-  # TEMPORARY split, for the 2026-08-23 tunnel-down incident. Normally
-  # publish and cluster should stay merged as one validated pipeline --
-  # keeping them apart long-term would mean an artifact can get promoted
-  # without ever being proven against a reachable cluster. Split out only
-  # so a new deploy/ revision can still get published while cloudflared is
-  # down (Flux's own in-cluster reconciliation, entirely independent of
-  # the tunnel, will pick it up regardless of whether the cluster job
-  # below can run). Re-merge this back into a single job once the tunnel
-  # is confirmed healthy again.
-  publish:
-    needs: check
-    if: github.event_name == 'push' || inputs.check_only != true
-    runs-on: ubuntu-latest
-    environment: prod
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install the flux CLI
-        uses: fluxcd/flux2/action@main
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      # Push deploy/ as an OCI artifact tagged with the git SHA, then move
-      # the moving `deploy` tag to point at it -- the promotion boundary
-      # flux-system/sync/oci-repository.yaml's OCIRepository follows. This
-      # is what lets Flux reconcile only revisions CI has vetted, without
-      # ever watching `main` directly.
-      - name: Push and promote the deploy/ OCI artifact
-        run: |
-          set -euo pipefail
-          sha="${GITHUB_SHA::12}"
-          flux push artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
-            --path="./deploy" \
-            --source="$(git config --get remote.origin.url)" \
-            --revision="main@sha1:${GITHUB_SHA}"
-          flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
-            --tag deploy
-
   cluster:
-    needs: [node, publish]
+    needs: node
     if: github.event_name == 'push' || inputs.check_only != true
     runs-on: ubuntu-latest
     environment: prod
@@ -277,18 +213,6 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
-
-      # TEMPORARY -- extra visibility while chasing intermittent
-      # connection failures right at the start of this job, moments after
-      # preflight already confirmed the API and cloudflared were healthy.
-      # Pinpoints whether the connection is already bad by the time this
-      # job starts, or breaks specifically during a later step.
-      - name: Snapshot cluster health at job start
-        run: |
-          echo "### readyz ###"
-          kubectl get --raw /readyz || true
-          echo "### cloudflared pods ###"
-          kubectl get pods -n default -l pod=cloudflared -o wide || true
 
       - name: Install the flux CLI
         uses: fluxcd/flux2/action@main
@@ -310,20 +234,14 @@ jobs:
       # Kustomization (sync/self.yaml) reconciles the combined
       # ./flux-system tree just fine -- kustomize-controller handles this
       # ordering more gracefully than plain kubectl apply does.
-      # --validate=false: this step has now twice failed specifically on
-      # the OpenAPI schema download client-side validation triggers
-      # ("failed to download openapi: ... no route to host"), not on the
-      # apply itself. That's an extra network round-trip this bootstrap
-      # doesn't need -- dropping it shrinks the window for a brief
-      # connection blip to land on exactly this call.
       - name: Apply flux-system
         run: |
-          kubectl apply -k flux-system/install --validate=false
+          kubectl apply -k flux-system/install
           kubectl wait --for=condition=Established --timeout=60s \
             crd/gitrepositories.source.toolkit.fluxcd.io \
             crd/ocirepositories.source.toolkit.fluxcd.io \
             crd/kustomizations.kustomize.toolkit.fluxcd.io
-          kubectl apply -k flux-system/sync --validate=false
+          kubectl apply -k flux-system/sync
 
       # TEMPORARY, one-off -- flux-system/install/kustomization.yaml now
       # deletes these from the applied set, but the earlier successful
@@ -341,11 +259,15 @@ jobs:
             imageupdateautomations.image.toolkit.fluxcd.io \
             --ignore-not-found=true
 
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
       # Lets flux-system/sync/oci-repository.yaml's OCIRepository pull the
-      # promoted deploy/ artifact from a private Docker Hub repo. Uses the
-      # plain username/password directly -- no docker/login-action needed
-      # here, that's only for the actual image push, which now happens in
-      # the publish job.
+      # promoted deploy/ artifact from a private Docker Hub repo. Reuses
+      # the credentials already in this job rather than a new secret.
       - name: Provision the OCIRepository pull secret
         run: |
           set -euo pipefail
@@ -354,6 +276,24 @@ jobs:
             --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
             --namespace flux-system \
             --dry-run=client --validate=false -o yaml | kubectl apply -f -
+
+      # Push deploy/ as an OCI artifact tagged with the git SHA, then move
+      # the moving `deploy` tag to point at it -- the promotion boundary
+      # flux-system/sync/oci-repository.yaml's OCIRepository follows. This
+      # is what lets Flux reconcile only revisions this job has already
+      # applied via the legacy step above (Milestone 1), and later --
+      # once the legacy step is gone (Milestone 2) -- revisions CI has
+      # otherwise vetted, without ever watching `main` directly.
+      - name: Push and promote the deploy/ OCI artifact
+        run: |
+          set -euo pipefail
+          sha="${GITHUB_SHA::12}"
+          flux push artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
+            --path="./deploy" \
+            --source="$(git config --get remote.origin.url)" \
+            --revision="main@sha1:${GITHUB_SHA}"
+          flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
+            --tag deploy
 
       # Trigger reconciliation immediately over the same WARP+KUBE_CONFIG
       # credential already in this job, rather than waiting for the
