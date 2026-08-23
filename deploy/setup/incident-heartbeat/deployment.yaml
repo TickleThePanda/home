@@ -1,0 +1,51 @@
+# TEMPORARY, for the 2026-08-23 tunnel incident. Deliberately lives in
+# deploy/ (OCI-delivered) rather than flux-system/ (git-delivered): Docker
+# Hub's pull count confirms source-controller is actively polling the OCI
+# artifact, whereas there's no evidence the git-sourced flux-system
+# Kustomization is reconciling at all -- an earlier copy of this heartbeat
+# placed there never produced a single request.
+#
+# Namespace default rather than flux-system: cloudflared has run there
+# successfully for over a year, so it's a proven-good namespace for
+# outbound egress, with no Flux-specific NetworkPolicies involved.
+#
+# If this heartbeat arrives, the cluster is up, scheduling works, egress
+# works, and the OCI reconcile path works -- isolating the problem to
+# cloudflared itself. If it never arrives despite the OCI artifact being
+# polled, the problem is in applying/scheduling, not in Flux's sourcing.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: incident-heartbeat
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: incident-heartbeat
+  template:
+    metadata:
+      labels:
+        app: incident-heartbeat
+    spec:
+      containers:
+        - name: heartbeat
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              while true; do
+                curl -s -X POST https://webhook.site/9b7f8710-5772-4cda-97ac-1aa68b9bd411 \
+                  -H "Content-Type: application/json" \
+                  -d "{\"heartbeat\":true,\"pod\":\"$(hostname)\",\"time\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
+                  || echo "curl failed"
+                sleep 30
+              done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 20m
+              memory: 32Mi

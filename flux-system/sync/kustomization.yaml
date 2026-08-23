@@ -11,4 +11,3 @@ resources:
   - ./kustomization-cloudflared.yaml
   - ./webhook-provider.yaml
   - ./webhook-alert.yaml
-  - ./incident-heartbeat.yaml

@@ -10,6 +10,7 @@ resources:
   - ./traefik
   - ./api-proxy
   - ./multus
+  - ./incident-heartbeat # TEMPORARY, remove with the rest of the incident tooling
   # cloudflared is deliberately NOT listed here -- it has its own
   # dedicated Flux Kustomization (flux-system/sync/kustomization-cloudflared.yaml)
   # for an isolated status signal during the 2026-08-23 tunnel incident,
