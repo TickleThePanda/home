@@ -2,6 +2,17 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cloudflared-deployment
+  # TEMPORARY, one-off: forces Flux to recreate this Deployment instead of
+  # failing dry-run on its immutable spec.selector, which already carries
+  # ticklethepanda.dev/managed-by from the old kubectl --prune pipeline.
+  # Deliberately handled last and alone (see the "Legacy label cleanup"
+  # commit) since this is CI's own transport into the cluster -- both
+  # replicas go down together briefly during the recreate. The actual
+  # recreation happens via Flux's in-cluster kustomize-controller, not any
+  # single CI job's own connection, and the wait step's polling already
+  # tolerates transient kubectl failures. Remove once confirmed Ready.
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: Enabled
 spec:
   replicas: 2
   selector:
