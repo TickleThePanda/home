@@ -9,5 +9,11 @@ resources:
   - ./metallb
   - ./traefik
   - ./api-proxy
-  - ./cloudflared
   - ./multus
+  # cloudflared is deliberately NOT listed here -- it has its own
+  # dedicated Flux Kustomization (flux-system/sync/kustomization-cloudflared.yaml)
+  # for an isolated status signal during the 2026-08-23 tunnel incident,
+  # separate from this Kustomization's other 8 resources' combined
+  # history. Applying it from both places would also mean two
+  # Kustomizations claiming the same object. Revert once the incident is
+  # resolved, if the isolation isn't otherwise worth keeping.

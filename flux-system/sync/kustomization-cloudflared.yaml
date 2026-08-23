@@ -1,0 +1,19 @@
+# TEMPORARY isolation, see deploy/setup/kustomization.yaml's comment.
+# Gives cloudflared its own clean Ready/history signal, separate from
+# setup's other 8 resources, for the incident-webhook Alert to report on.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cloudflared
+  namespace: flux-system
+spec:
+  interval: 10m
+  sourceRef:
+    kind: OCIRepository
+    name: deploy
+  # Relative to the pushed OCI artifact's own root -- see
+  # kustomization-setup.yaml's comment.
+  path: ./setup/cloudflared
+  prune: false
+  wait: true
+  timeout: 5m
