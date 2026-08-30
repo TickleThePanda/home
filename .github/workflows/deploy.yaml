@@ -300,7 +300,7 @@ jobs:
         run: |
           set -euo pipefail
           expected="${PROMOTED_REVISION}"
-          for ks in flux-system setup home internal; do
+          for ks in flux-system setup setup-config home internal; do
             echo "waiting for kustomization/$ks to reach $expected ..."
             for i in $(seq 1 60); do
               applied=$(kubectl -n flux-system get kustomization "$ks" -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)
