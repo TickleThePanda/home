@@ -280,14 +280,26 @@ jobs:
       - name: Trigger Flux reconciliation
         run: flux reconcile source oci deploy -n flux-system
 
-      # Confirms the *specific promoted SHA* reached Ready, not just a
-      # stale Ready=True left over from a previous revision -- mirrors the
-      # node job's own k3s kubectl get --raw /readyz retry idiom rather
-      # than trusting a bare condition check.
+      # A Kustomization's lastAppliedRevision mirrors its OCIRepository
+      # source's own artifact.revision (deploy@sha256:<digest>) -- not the
+      # --revision string passed to `flux push artifact` above, which is
+      # metadata carried inside the artifact, not what source-controller
+      # reports. Read the real value straight from the source right after
+      # reconciling it, rather than constructing a sha1-based string that
+      # can never match an OCI-sourced Kustomization.
+      - name: Read the promoted revision
+        run: |
+          revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
+          echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
+
+      # Confirms the *specific promoted revision* reached Ready, not just a
+      # stale Ready=True left over from a previous one -- mirrors the node
+      # job's own k3s kubectl get --raw /readyz retry idiom rather than
+      # trusting a bare condition check.
       - name: Wait for the promoted revision to be Ready
         run: |
           set -euo pipefail
-          expected="sha1:${GITHUB_SHA}"
+          expected="${PROMOTED_REVISION}"
           for ks in flux-system setup home internal; do
             echo "waiting for kustomization/$ks to reach $expected ..."
             for i in $(seq 1 60); do
