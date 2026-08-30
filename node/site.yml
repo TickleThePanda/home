@@ -4,14 +4,13 @@
 # Everything inside the cluster is owned by kustomize (deploy/, applied by
 # .github/workflows/deploy.yaml). This playbook owns the layer below it: the
 # k3s version, k3s's own config files, the directories backing local-volume
-# PVs, the sudoers entries, and (as of 2026-08-30) the node's DNS resolver.
+# PVs, the sudoers entries, and the node's DNS resolver.
 #
 # Deliberately NOT managed:
 #   /var/lib/rancher/k3s/server/manifests/  -- k3s rewrites it on every start
 #
-# tasks/network.yml is the one exception to "no networking here" tonight
-# bought the hard way -- read its header before touching it or extending it
-# to anything beyond DNS.
+# Networking otherwise stays unmanaged -- see tasks/network.yml's header
+# before extending it beyond DNS.
 
 - name: Manage k3s node state
   hosts: k8s-manager-1

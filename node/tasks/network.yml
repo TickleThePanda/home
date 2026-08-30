@@ -1,37 +1,16 @@
 ---
-# DNS only. site.yml's header used to say networking was categorically
-# unmanaged -- deliberately, since a bad remote change on a headless Pi costs
-# a keyboard-and-monitor trip. That blanket rule is gone now: this repo wants
-# IaC coverage even here, accepting the added risk. What replaces it is
-# per-change scrutiny, not a blanket exemption -- so read this before editing:
+# The node's DNS must never depend on anything running on the cluster it
+# hosts (e.g. Pi-hole) -- pulled in here as the one exception to networking
+# otherwise being unmanaged (see site.yml). Quad9's own anycast pair only,
+# not Pi-hole-plus-fallback, so the dependency is actually removed rather
+# than just made less likely. Pod DNS is unaffected -- kube-dns/CoreDNS
+# still forwards to Pi-hole/Unbound as configured in deploy/.
 #
-#   - Touch ipv4.dns only. Never ip4/gw4/method here -- this connection is
-#     ipv4.method: manual (a static address), and those are what would
-#     actually strand SSH/the API if broken. A DNS-only mistake degrades name
-#     resolution, not routability.
-#   - Apply with `nmcli device reapply`, never `nmcli connection up`. reapply
-#     pushes config to the already-active device in place; connection up
-#     deactivates and reactivates it, which is a real (if brief) interface
-#     bounce on the same link this session and the k3s API run over.
-#   - Quad9 only, deliberately not Pi-hole. See below.
-#
-# Why this exists: 2026-08-30, Pi-hole got deleted (a one-off fix for a
-# selector conflict) while mid-migration to Flux. The node's own resolv.conf
-# pointed only at Pi-hole's LoadBalancer IP -- so with Pi-hole down,
-# containerd couldn't resolve registry-1.docker.io either, and cloudflared
-# (needed to reach the node from CI at all) couldn't pull a fresh image. A
-# pod on the cluster this node hosts became a hard dependency for recovering
-# that same cluster.
-#
-# The fix is Quad9 only, not Pi-hole-plus-fallback: the node's own DNS must
-# not depend on anything running on the cluster it hosts, full stop. This
-# only affects host-level resolution (containerd image pulls, the node's own
-# system needs) -- pod DNS is unaffected, still resolved via kube-dns/CoreDNS
-# forwarding to Pi-hole/Unbound as configured in deploy/, and unblocking
-# ad/tracker filtering for the node's own traffic. Both are Quad9's own
-# anycast addresses (9.9.9.9 primary, 149.112.112.112 secondary), not a
-# second provider, so this stays a one-vendor dependency rather than trading
-# a cluster dependency for an arbitrary new one.
+# Editing this: touch ipv4.dns only, never ip4/gw4/method -- this connection
+# is ipv4.method: manual, and those are what would strand SSH/the API if
+# broken. Apply with `nmcli device reapply`, never `connection up`: reapply
+# pushes config to the live device in place, connection up bounces the
+# interface this session and the k3s API run over.
 
 - name: Read the wired connection's current DNS servers
   ansible.builtin.command:
