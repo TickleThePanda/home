@@ -1,7 +1,7 @@
 # Flux managing its own upgrade: bumping the pinned install.yaml URL in
-# ../install/kustomization.yaml is a normal git commit, reconciled from
-# `main` like any other change here -- no promotion boundary needed for
-# Flux's own components.
+# ../install/kustomization.yaml is a normal git commit, promoted through
+# oci-repository.yaml like the rest of this repo -- not tracked straight
+# off `main`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -10,7 +10,7 @@ metadata:
 spec:
   interval: 10m
   sourceRef:
-    kind: GitRepository
-    name: flux-system
+    kind: OCIRepository
+    name: deploy
   path: ./flux-system
   prune: true

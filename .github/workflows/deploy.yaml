@@ -277,19 +277,20 @@ jobs:
             --namespace flux-system \
             --dry-run=client --validate=false -o yaml | kubectl apply -f -
 
-      # Push deploy/ as an OCI artifact tagged with the git SHA, then move
-      # the moving `deploy` tag to point at it -- the promotion boundary
-      # flux-system/sync/oci-repository.yaml's OCIRepository follows. This
-      # is what lets Flux reconcile only revisions this job has already
-      # applied via the legacy step above (Milestone 1), and later --
-      # once the legacy step is gone (Milestone 2) -- revisions CI has
-      # otherwise vetted, without ever watching `main` directly.
-      - name: Push and promote the deploy/ OCI artifact
+      # Push the whole repo as one sha-tagged OCI artifact, then move the
+      # moving `deploy` tag to point at it -- the promotion boundary both
+      # flux-system/sync/oci-repository.yaml's OCIRepository (deploy/ *and*
+      # flux-system/, at different paths within the same artifact) follow.
+      # Neither tree is ever watched straight off `main`; this is what lets
+      # Flux reconcile only revisions this job has already applied via the
+      # legacy step above (Milestone 1), and later -- once the legacy step
+      # is gone (Milestone 2) -- revisions CI has otherwise vetted.
+      - name: Push and promote the OCI artifact
         run: |
           set -euo pipefail
           sha="${GITHUB_SHA::12}"
           flux push artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
-            --path="./deploy" \
+            --path="." \
             --source="$(git config --get remote.origin.url)" \
             --revision="main@sha1:${GITHUB_SHA}"
           flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
@@ -317,7 +318,7 @@ jobs:
         run: |
           set -euo pipefail
           expected="sha1:${GITHUB_SHA}"
-          for ks in setup home internal; do
+          for ks in flux-system setup home internal; do
             echo "waiting for kustomization/$ks to reach $expected ..."
             for i in $(seq 1 60); do
               applied=$(kubectl -n flux-system get kustomization "$ks" -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)

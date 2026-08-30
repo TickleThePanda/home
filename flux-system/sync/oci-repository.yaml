@@ -1,8 +1,10 @@
-# deploy/ is promoted through this OCI artifact rather than tracked
-# straight off `main`, so Flux never reconciles a deploy/ revision before
-# CI has proven the underlying infrastructure (the `node` job) is ready --
-# see .github/workflows/deploy.yaml's `cluster` job, which pushes a
-# sha-tagged artifact and only then moves the `deploy` tag to point at it.
+# The whole repo is promoted through this one OCI artifact rather than
+# tracked straight off `main` -- both deploy/ (setup/home/internal
+# Kustomizations) and flux-system/ (self.yaml) read from it, at different
+# paths, so Flux never reconciles a revision before CI has proven the
+# underlying infrastructure (the `node` job) is ready. See
+# .github/workflows/deploy.yaml's `cluster` job, which pushes a sha-tagged
+# artifact and only then moves the `deploy` tag to point at it.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:

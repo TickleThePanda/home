@@ -1,17 +1,18 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: setup
+  name: setup-config
   namespace: flux-system
 spec:
   interval: 10m
+  dependsOn:
+    - name: setup # the CRs here need setup's controllers/webhooks already running to pass admission
   sourceRef:
     kind: OCIRepository
     name: deploy
-  # Relative to the pushed OCIRepository artifact's own root, which is the
-  # git repo root -- CI's `flux push artifact --path=.` pushes the whole
-  # repo as one artifact, shared with flux-system/sync/self.yaml.
-  path: ./deploy/setup
+  # Relative to the pushed OCIRepository artifact's own root -- see
+  # kustomization-setup.yaml's comment.
+  path: ./deploy/setup-config
   prune: false # flip to true at Migration Milestone 3, once inventory/health are proven
   wait: true
   timeout: 5m

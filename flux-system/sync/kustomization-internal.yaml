@@ -6,13 +6,13 @@ metadata:
 spec:
   interval: 10m
   dependsOn:
-    - name: setup # postgres/cluster.yaml's Cluster needs cloudnative-pg's CRDs
+    - name: setup-config # postgres/cluster.yaml's Cluster needs cloudnative-pg's CRDs (from setup); pihole-lb needs MetalLB's IPAddressPool (from setup-config)
   sourceRef:
     kind: OCIRepository
     name: deploy
   # Relative to the pushed OCIRepository artifact's own root -- see
   # kustomization-setup.yaml's comment.
-  path: ./internal
+  path: ./deploy/internal
   prune: false # flip to true at Migration Milestone 3, once inventory/health are proven
   wait: true
   timeout: 5m
