@@ -1,0 +1,12 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: traccar
+spec:
+  cluster:
+    name: postgres
+  name: traccar
+  login: true
+  clientCertificate:
+    enabled: true
+  databaseRoleReclaimPolicy: retain

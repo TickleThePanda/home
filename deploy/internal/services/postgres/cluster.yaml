@@ -1,0 +1,12 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+spec:
+  instances: 1
+  storage:
+    storageClassName: lvm-data
+    size: 20Gi
+  postgresql:
+    pg_hba:
+      - hostssl all all all cert
