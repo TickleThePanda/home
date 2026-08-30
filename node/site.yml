@@ -9,8 +9,10 @@
 # Deliberately NOT managed:
 #   /var/lib/rancher/k3s/server/manifests/  -- k3s rewrites it on every start
 #
-# Networking otherwise stays unmanaged -- see tasks/network.yml's header
-# before extending it beyond DNS.
+# Networking changes need more care than most: a bad one strands SSH/the API
+# on a headless box. See tasks/network.yml's header for the guardrails that
+# keep its DNS-only scope safe, and apply the same scrutiny before widening
+# it to anything else.
 
 - name: Manage k3s node state
   hosts: k8s-manager-1
