@@ -21,6 +21,23 @@ Write documentation that is simple, concise, and practical.
 - Do not document every edge case unless it is important to normal usage.
 - Assume the reader is a competent software developer.
 
+## Code comments
+
+Most of the time, we shouldn't need a comment. Prefer clear, self-explanatory code.
+
+When comments are necessary:
+
+* Describe the current code, not the history of how it was developed.
+* Do not let conversation context leak into comments.
+* Do not mention this conversation, prior prompts, requested changes, or the sequence of decisions
+  that led to the final code.
+* Explain only non-obvious behaviour, constraints, invariants, or surprising implementation choices
+  that a future reader of the code needs to know.
+* Do not document previous implementations, rejected approaches, debugging history, or decision history.
+* Assume the reader only needs to understand the final state of the code.
+* Keep comments concise.
+
+
 ## Cluster
 
 - Node: `k8s-manager-1`, `192.168.1.2`, Raspberry Pi (arm64), single node

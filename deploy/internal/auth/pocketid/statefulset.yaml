@@ -30,7 +30,6 @@ spec:
                 secretKeyRef:
                   name: pocket-id-secret
                   key: ENCRYPTION_KEY
-            # LDAP Configuration
             - name: UI_CONFIG_DISABLED
               value: "true"
             - name: LDAP_ENABLED
@@ -68,7 +67,6 @@ spec:
               value: "firstname"
             - name: LDAP_ATTRIBUTE_USER_LAST_NAME
               value: "lastname"
-            # SMTP Configuration (ProtonMail)
             - name: SMTP_HOST
               value: "smtp.protonmail.ch"
             - name: SMTP_PORT

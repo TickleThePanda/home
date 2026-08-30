@@ -4,17 +4,16 @@ kind: Kustomization
 resources:
   - https://github.com/fluxcd/flux2/releases/download/v2.9.4/install.yaml
 
-# Image tag automation is out of scope for this migration (see the
-# migration plan), and every extra pod is real load on the cluster's
-# single Raspberry Pi node. `flux install --export` with the default
-# --components list looked like a cleaner way to drop these, but it
-# turned out to silently omit unrelated RBAC/quota objects (flux-edit,
-# flux-view, the crd-controller ClusterRole/Binding, the critical-pods
-# ResourceQuota) that this exact release's install.yaml does include --
-# a mismatch between that generation path and the published asset, not
-# something to reproduce here. Deleting just the specific unused
-# objects from the full official manifest keeps everything else exactly
-# as released.
+# Image tag automation is unused here, and every extra pod is real load on
+# the cluster's single Raspberry Pi node.
+#
+# Do not regenerate this via `flux install --export` with a trimmed
+# --components list -- it silently omits RBAC/quota objects unrelated to
+# image automation (flux-edit, flux-view, the crd-controller
+# ClusterRole/Binding, the critical-pods ResourceQuota) that this release's
+# install.yaml does include. Delete the specific unused objects from the
+# full official manifest instead, so everything else stays exactly as
+# released.
 patches:
   - patch: |-
       $patch: delete

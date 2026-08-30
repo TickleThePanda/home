@@ -2,24 +2,17 @@ name: Deploy
 
 # Two layers, applied in order by three sequential jobs:
 #
-#   preflight  the k3s/Traefik pin agrees, and the cluster is actually
-#              reachable and ready right now, before anything else touches it
+#   preflight  the k3s/Traefik pin agrees, and the cluster is reachable
 #   node       node/, applied with Ansible over SSH as the `deploy` user
 #   cluster    deploy/, applied with kustomize
 #
-# Order matters. A k3s upgrade changes which Traefik chart tarball the node
-# serves, so the node must be upgraded before the manifests referencing that
-# chart are applied. Sequential jobs make that explicit; they also mean the
-# node step can restart k3s and let the cluster job reconnect afterwards on a
-# fresh runner.
+# Order matters: a k3s upgrade changes which Traefik chart tarball the node
+# serves, so node must run before cluster.
 #
-# preflight's cluster-reachability checks exist because CI's only path to the
-# node runs through the cluster itself (the in-cluster cloudflared Deployment
-# is the WARP tunnel endpoint) -- if that tunnel or the API server is already
-# unhealthy for unrelated reasons, node/cluster's own failures surface
-# confusingly deep inside Ansible or kubectl output. Checking this up front,
-# before either job starts doing real work, gives a fast, unambiguous signal
-# instead.
+# preflight exists because CI's only path to the node is through the
+# cluster itself (cloudflared runs in-cluster) -- checking reachability
+# first gives a clear signal instead of a confusing failure deep inside
+# Ansible or kubectl output.
 
 on:
   push:
@@ -62,9 +55,7 @@ jobs:
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
 
       # An open port isn't a ready API -- see node/site.yml's own readyz
-      # poll, added after the same lesson. A generous-but-bounded retry
-      # window: if it's not ready within a minute, the cluster is
-      # genuinely down rather than just mid-restart from a previous run.
+      # poll. Not ready within a minute means genuinely down, not mid-restart.
       - name: Confirm the API server is ready
         run: |
           set -euo pipefail
@@ -78,9 +69,8 @@ jobs:
           echo "::error::API server did not report ready after 60s -- the cluster may genuinely be down, not just slow. See node/RECOVERY.md."
           exit 1
 
-      # The tunnel this whole pipeline runs over is a pod inside the
-      # cluster it manages -- confirm it's actually healthy, not just
-      # that the API happens to be responding right now.
+      # cloudflared is itself a pod inside the cluster this pipeline
+      # manages -- confirm it's healthy, not just that the API responds.
       - name: Confirm cloudflared is Ready
         run: |
           kubectl wait --namespace default --for=condition=Ready pod \
@@ -102,11 +92,10 @@ jobs:
           auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
 
-      # The WARP route into the LAN demonstrably carries port 22, but those
-      # flows come from a *user* identity; CI authenticates with a service
-      # token, and a Zero Trust network policy could permit 6443 without
-      # permitting 22. Checking both means a policy problem reports itself
-      # plainly instead of surfacing as an Ansible "unreachable".
+      # CI authenticates with a service token, not a user identity, so a
+      # Zero Trust policy could permit 6443 without permitting 22. Checking
+      # both surfaces a policy problem plainly instead of as an Ansible
+      # "unreachable".
       - name: Check the node is reachable
         run: |
           set -euo pipefail
@@ -134,13 +123,9 @@ jobs:
           install -m 600 /dev/null ~/.ssh/node_key
           printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/node_key
 
-      # Local, no SSH -- catches a broken playbook before spending an SSH
-      # round trip on it. Not a substitute for the dry run this replaced:
-      # that also caught bad *state* (e.g. an unreachable host) with zero
-      # changes made. Apply below is now the first SSH-based run, so a task
-      # that fails partway can leave real changes applied where the old
-      # dry-run-first order wouldn't have. Acceptable here -- single host,
-      # already-idempotent tasks -- but worth knowing if this pipeline grows.
+      # Syntax only, not state -- Apply below is the first SSH-based run,
+      # so a partial failure there can still leave real changes applied.
+      # Acceptable for a single, idempotent host.
       - name: Syntax check
         working-directory: node
         run: ansible-playbook site.yml --syntax-check
@@ -187,23 +172,15 @@ jobs:
       - name: Install the flux CLI
         uses: fluxcd/flux2/action@main
 
-      # Plain apply, no --prune -- flux-system/ is not part of the
-      # ticklethepanda.dev/managed-by=kustomize tree below, deliberately,
-      # so Flux's own objects never get the label/selector pruning
-      # footgun this pipeline is migrating away from. Idempotent, so it's
-      # safe to run on every invocation rather than as a one-off.
+      # No --prune -- flux-system/ isn't part of the managed-by=kustomize
+      # tree below, so Flux's own objects are never pruned by it.
       #
-      # Split into two applies with an explicit CRD-Established wait in
-      # between: a single `kubectl apply -k flux-system` hits the same
-      # missing-kind race CLAUDE.md documents for other vendored operators
-      # (kubectl's own implicit retry gives up before ~18 freshly-created
-      # CRDs finish becoming Established) -- confirmed the hard way on the
-      # first bootstrap attempt. This is the documented remedy: a two-pass
-      # split for just the one directory observed to flake, not a blanket
-      # change. Once Flux itself is running, its self-management
-      # Kustomization (sync/self.yaml) reconciles the combined
-      # ./flux-system tree just fine -- kustomize-controller handles this
-      # ordering more gracefully than plain kubectl apply does.
+      # Two applies with a CRD-Established wait between them: a single
+      # `kubectl apply -k flux-system` hits the same missing-kind race
+      # CLAUDE.md documents for other vendored operators (kubectl's retry
+      # gives up before ~18 new CRDs finish becoming Established). Once
+      # Flux is running, its own reconciliation of ./flux-system handles
+      # this ordering fine -- only the one-time bootstrap needs the split.
       - name: Apply flux-system
         run: |
           kubectl apply -k flux-system/install
@@ -212,22 +189,6 @@ jobs:
             crd/ocirepositories.source.toolkit.fluxcd.io \
             crd/kustomizations.kustomize.toolkit.fluxcd.io
           kubectl apply -k flux-system/sync
-
-      # TEMPORARY, one-off -- flux-system/install/kustomization.yaml now
-      # deletes these from the applied set, but the earlier successful
-      # bootstrap already created them live and plain `kubectl apply`
-      # (deliberately unlabeled, no --prune) doesn't remove resources that
-      # disappear from the manifest. Remove this step once run once.
-      - name: Clean up the now-unused image-automation components
-        run: |
-          kubectl delete deployment image-reflector-controller image-automation-controller \
-            -n flux-system --ignore-not-found=true
-          kubectl delete serviceaccount image-reflector-controller image-automation-controller \
-            -n flux-system --ignore-not-found=true
-          kubectl delete crd imagepolicies.image.toolkit.fluxcd.io \
-            imagerepositories.image.toolkit.fluxcd.io \
-            imageupdateautomations.image.toolkit.fluxcd.io \
-            --ignore-not-found=true
 
       - name: Login to DockerHub
         uses: docker/login-action@v3
@@ -247,14 +208,11 @@ jobs:
             --namespace flux-system \
             --dry-run=client --validate=false -o yaml | kubectl apply -f -
 
-      # Push the whole repo as one sha-tagged OCI artifact, then move the
-      # moving `deploy` tag to point at it -- the promotion boundary both
-      # flux-system/sync/oci-repository.yaml's OCIRepository (deploy/ *and*
-      # flux-system/, at different paths within the same artifact) follow.
-      # Neither tree is ever watched straight off `main`; this is what lets
-      # Flux reconcile only revisions this job has already applied via the
-      # legacy step above (Milestone 1), and later -- once the legacy step
-      # is gone (Milestone 2) -- revisions CI has otherwise vetted.
+      # Push as one sha-tagged OCI artifact, then move the moving `deploy`
+      # tag to point at it -- the promotion boundary flux-system/sync/
+      # oci-repository.yaml's OCIRepository follows for both deploy/ and
+      # flux-system/. Neither tree is watched straight off `main`, so Flux
+      # only ever reconciles revisions this job has vetted.
       - name: Push and promote the OCI artifact
         run: |
           set -euo pipefail
@@ -266,36 +224,28 @@ jobs:
           flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
             --tag deploy
 
-      # Trigger reconciliation immediately over the same WARP+KUBE_CONFIG
-      # credential already in this job, rather than waiting for the
-      # OCIRepository's own polling interval -- no new exposed surface.
-      # Only the source needs an explicit trigger: kustomize-controller
-      # watches its sourceRef and auto-reconciles on every artifact
-      # revision change, so setup/home/internal pick this up on their own.
-      # `flux reconcile kustomization ...` also blocks waiting for each
-      # Kustomization to finish, with its own default timeout -- which
-      # exceeded here on the first-ever reconcile of the whole
-      # resource-heavy setup tree. The dedicated wait step below does that
-      # waiting instead, with its own patient, independent budget.
+      # Trigger reconciliation immediately rather than waiting for the
+      # OCIRepository's own polling interval. Only the source needs an
+      # explicit trigger: kustomize-controller watches its sourceRef and
+      # auto-reconciles on every artifact revision change, so
+      # setup/home/internal pick this up on their own. The wait step below
+      # does the actual waiting, with its own independent budget.
       - name: Trigger Flux reconciliation
         run: flux reconcile source oci deploy -n flux-system
 
-      # A Kustomization's lastAppliedRevision mirrors its OCIRepository
-      # source's own artifact.revision (deploy@sha256:<digest>) -- not the
-      # --revision string passed to `flux push artifact` above, which is
-      # metadata carried inside the artifact, not what source-controller
-      # reports. Read the real value straight from the source right after
-      # reconciling it, rather than constructing a sha1-based string that
-      # can never match an OCI-sourced Kustomization.
+      # lastAppliedRevision mirrors the OCIRepository's own
+      # artifact.revision (deploy@sha256:<digest>) -- not the --revision
+      # string passed to `flux push artifact` above, which is metadata
+      # inside the artifact, not what source-controller reports. Read it
+      # straight from the source rather than constructing a sha1-based
+      # string that could never match.
       - name: Read the promoted revision
         run: |
           revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
           echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
 
-      # Confirms the *specific promoted revision* reached Ready, not just a
-      # stale Ready=True left over from a previous one -- mirrors the node
-      # job's own k3s kubectl get --raw /readyz retry idiom rather than
-      # trusting a bare condition check.
+      # Confirms the *specific promoted revision* reached Ready, not a
+      # stale Ready=True left over from a previous one.
       - name: Wait for the promoted revision to be Ready
         run: |
           set -euo pipefail

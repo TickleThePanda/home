@@ -34,8 +34,7 @@
   register: k3s_config_files
 
 # Without this, removing an entry from git never removes it from the node,
-# which defeats the point. Supersedes 10-disable-servicelb.yaml and
-# 20-disable-traefik.yaml, both folded into 10-k3s.yaml above.
+# which defeats the point.
 - name: Purge config.yaml.d files this playbook does not manage
   ansible.builtin.file:
     path: "{{ item.path }}"
@@ -47,8 +46,8 @@
   notify: restart k3s
 
 # k3s options belong in the drop-in above, so this file stays free of them --
-# it once also carried K3S_DISABLE=servicelb, giving that setting two owners.
-# Kept present but empty rather than deleted: the stock k3s systemd unit
+# a setting living in both places would have two owners. Kept present but
+# empty rather than deleted: the stock k3s systemd unit
 # references it with EnvironmentFile= and no leading '-', so a missing file
 # fails the unit. The k3s installer rewrites it on every version change, which
 # is why the upgrade script preserves it across the install.
