@@ -5,7 +5,7 @@ metadata:
 spec:
   instances: 1
   storage:
-    storageClassName: lvm-data
+    storageClass: lvm-data
     size: 20Gi
   postgresql:
     pg_hba:

@@ -134,9 +134,16 @@ jobs:
           install -m 600 /dev/null ~/.ssh/node_key
           printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/node_key
 
-      - name: Dry run
+      # Local, no SSH -- catches a broken playbook before spending an SSH
+      # round trip on it. Not a substitute for the dry run this replaced:
+      # that also caught bad *state* (e.g. an unreachable host) with zero
+      # changes made. Apply below is now the first SSH-based run, so a task
+      # that fails partway can leave real changes applied where the old
+      # dry-run-first order wouldn't have. Acceptable here -- single host,
+      # already-idempotent tasks -- but worth knowing if this pipeline grows.
+      - name: Syntax check
         working-directory: node
-        run: ansible-playbook site.yml --check --diff --private-key ~/.ssh/node_key
+        run: ansible-playbook site.yml --syntax-check
 
       - name: Apply
         working-directory: node
