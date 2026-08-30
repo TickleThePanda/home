@@ -1,0 +1,37 @@
+---
+# The stock 200Mi dphys-swapfile fully exhausted within minutes during
+# tonight's cold-start thundering herd (many controllers restarting at once
+# after a mass Flux re-bootstrap) -- a plain node reboot reproduces the same
+# scenario, since containerd loses every running container at once. This
+# buys real headroom for that. Lives on the root partition, not the `data`
+# LVM VG -- that free space is reserved for PVs (see STORAGE.md).
+
+- name: Read the configured swap size
+  ansible.builtin.command:
+    cmd: grep -oP '^CONF_SWAPSIZE=\K\d+' /etc/dphys-swapfile
+  register: node_swap_configured_size
+  changed_when: false
+
+- name: Resize the swapfile to 2048Mi
+  when: node_swap_configured_size.stdout != "2048"
+  block:
+    - name: Turn swap off before resizing
+      ansible.builtin.command:
+        cmd: dphys-swapfile swapoff
+      changed_when: true
+
+    - name: Update CONF_SWAPSIZE
+      ansible.builtin.lineinfile:
+        path: /etc/dphys-swapfile
+        regexp: '^CONF_SWAPSIZE='
+        line: CONF_SWAPSIZE=2048
+
+    - name: Recreate the swapfile at the new size
+      ansible.builtin.command:
+        cmd: dphys-swapfile setup
+      changed_when: true
+
+    - name: Turn swap back on
+      ansible.builtin.command:
+        cmd: dphys-swapfile swapon
+      changed_when: true

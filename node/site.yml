@@ -52,6 +52,10 @@
       ansible.builtin.import_tasks: tasks/network.yml
       tags: [network]
 
+    - name: Swap
+      ansible.builtin.import_tasks: tasks/swap.yml
+      tags: [swap]
+
   handlers:
     # device reapply, not connection up -- see tasks/network.yml's header.
     # Applies to the live device in place, no interface bounce.
