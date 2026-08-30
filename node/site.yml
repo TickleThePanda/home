@@ -4,12 +4,14 @@
 # Everything inside the cluster is owned by kustomize (deploy/, applied by
 # .github/workflows/deploy.yaml). This playbook owns the layer below it: the
 # k3s version, k3s's own config files, the directories backing local-volume
-# PVs, and the sudoers entries.
+# PVs, the sudoers entries, and (as of 2026-08-30) the node's DNS resolver.
 #
 # Deliberately NOT managed:
 #   /var/lib/rancher/k3s/server/manifests/  -- k3s rewrites it on every start
-#   /etc/dhcpcd.conf                        -- a bad networking change costs a
-#                                              keyboard-and-monitor trip
+#
+# tasks/network.yml is the one exception to "no networking here" tonight
+# bought the hard way -- read its header before touching it or extending it
+# to anything beyond DNS.
 
 - name: Manage k3s node state
   hosts: k8s-manager-1
@@ -45,7 +47,19 @@
       ansible.builtin.import_tasks: tasks/argon-fan.yml
       tags: [argon-fan]
 
+    - name: Network
+      ansible.builtin.import_tasks: tasks/network.yml
+      tags: [network]
+
   handlers:
+    # device reapply, not connection up -- see tasks/network.yml's header.
+    # Applies to the live device in place, no interface bounce.
+    - name: Reapply the wired connection's network config
+      listen: Reapply the wired connection's network config
+      ansible.builtin.command:
+        cmd: nmcli device reapply eth0
+      changed_when: true
+
     # Unit-file changes only. Deliberately not chained to the k3s restart
     # below: RequiresMountsFor takes effect on the next start, and bouncing
     # the API to apply a drop-in that changes nothing about a running server
