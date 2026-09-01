@@ -1,0 +1,6 @@
+# Extra packages baked into the image, on top of the target defaults.
+# One per line; # comments and blank lines are ignored.
+
+luci-ssl        # LuCI over HTTPS -- the manual-recovery UI
+ppp-mod-pppoe   # PPPoE WAN (explicit; usually already in the default set)
+tailscale       # subnet router / exit node

@@ -1,0 +1,39 @@
+#!/bin/sh
+WIFI_KEY={{ ROUTER_WIFI_KEY | shquote }}
+
+# On the very first boot /etc/config/wireless may not exist yet.
+[ -f /etc/config/wireless ] || wifi config
+
+# Drop the stock placeholder interfaces; we add our own below.
+while uci -q delete wireless.@wifi-iface[0]; do :; done
+
+add_ap() {
+	radio=$1
+	ssid=$2
+	s=$(uci add wireless wifi-iface)
+	uci set "wireless.$s.device=$radio"
+	uci set "wireless.$s.mode=ap"
+	uci set "wireless.$s.network=lan"
+	uci set "wireless.$s.ssid=$ssid"
+	uci set "wireless.$s.encryption=sae-mixed"
+	uci set "wireless.$s.key=$WIFI_KEY"
+}
+
+for radio in $(uci show wireless | sed -n "s/=wifi-device$//p" | cut -d. -f2); do
+	band=$(uci -q get "wireless.$radio.band")
+	uci set "wireless.$radio.country=GB"
+	uci set "wireless.$radio.channel=auto"
+	uci -q delete "wireless.$radio.disabled"
+	case "$band" in
+	2g)
+		uci set "wireless.$radio.htmode=HE40"
+		add_ap "$radio" 'It reaches out (2.4G)'
+		;;
+	5g)
+		uci set "wireless.$radio.htmode=HE160"
+		add_ap "$radio" 'It reaches out'
+		;;
+	esac
+done
+
+uci commit wireless

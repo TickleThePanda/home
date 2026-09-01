@@ -39,7 +39,9 @@ Source for the apps this repo builds and deploys. Each has its own
 
 ## Network
 
-Router: 192.168.1.1
+Router: 192.168.1.1 — a GL.iNet Flint 2 (GL-MT6000). Its configuration is a
+vanilla-OpenWrt image built by [`router/`](router/) and flashed by hand — a
+one-time bootstrap, not applied by CI. See [`router/README.md`](router/README.md).
 
 ### Kubernetes
 

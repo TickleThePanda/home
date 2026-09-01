@@ -1,0 +1,25 @@
+#!/bin/sh
+# Register with the tailnet once WAN is up. Idempotent: a no-op once the
+# node is logged in (state persists in /etc/tailscale/tailscaled.state).
+# Sourced by hotplug-call, so no `exit` here -- guard with an if block.
+TS_AUTHKEY={{ ROUTER_TS_AUTHKEY | shquote }}
+SELF=/etc/hotplug.d/iface/99-tailscale-up
+
+if [ "$ACTION" = ifup ] && [ "$INTERFACE" = wan ] &&
+	[ -n "$TS_AUTHKEY" ] && [ -x /usr/sbin/tailscale ]; then
+	(
+		for _ in $(seq 1 30); do
+			[ -S /var/run/tailscale/tailscaled.sock ] && break
+			sleep 1
+		done
+		if tailscale status 2>&1 | grep -q 'Logged out'; then
+			tailscale up \
+				--auth-key="$TS_AUTHKEY" \
+				--advertise-routes=192.168.1.0/24 \
+				--advertise-exit-node \
+				--accept-dns=false \
+				--hostname=gateway &&
+				sed -i "s|^TS_AUTHKEY=.*|TS_AUTHKEY=|" "$SELF"
+		fi
+	) &
+fi

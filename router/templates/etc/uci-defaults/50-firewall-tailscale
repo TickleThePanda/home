@@ -1,0 +1,26 @@
+#!/bin/sh
+# Stock OpenWrt firewall, with two changes: wan drops rather than rejects,
+# and a tailscale0 zone so forwarded tailnet traffic isn't dropped by fw4.
+
+wan_zone=$(uci show firewall | sed -n "s/^firewall\.\(@zone\[[0-9]*\]\)\.name='wan'$/\1/p" | head -1)
+[ -n "$wan_zone" ] && uci set "firewall.$wan_zone.input=DROP"
+
+if ! uci show firewall | grep -q "\.name='tailscale0'"; then
+	z=$(uci add firewall zone)
+	uci set "firewall.$z.name=tailscale0"
+	uci set "firewall.$z.input=ACCEPT"
+	uci set "firewall.$z.output=ACCEPT"
+	uci set "firewall.$z.forward=REJECT"
+	uci set "firewall.$z.mtu_fix=1"
+	uci add_list "firewall.$z.device=tailscale0"
+
+	for pair in 'tailscale0 lan' 'tailscale0 wan' 'lan tailscale0'; do
+		# shellcheck disable=SC2086
+		set -- $pair
+		f=$(uci add firewall forwarding)
+		uci set "firewall.$f.src=$1"
+		uci set "firewall.$f.dest=$2"
+	done
+fi
+
+uci commit firewall

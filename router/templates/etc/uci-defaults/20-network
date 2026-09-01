@@ -1,0 +1,35 @@
+#!/bin/sh
+PPPOE_USER={{ ROUTER_PPPOE_USERNAME | shquote }}
+PPPOE_PASS={{ ROUTER_PPPOE_PASSWORD | shquote }}
+
+uci set network.lan.ipaddr='192.168.1.1'
+uci set network.lan.netmask='255.255.255.0'
+uci set network.lan.ip6assign='60'
+
+uci set network.wan.proto='pppoe'
+uci set network.wan.device='eth1'
+uci set network.wan.username="$PPPOE_USER"
+uci set network.wan.password="$PPPOE_PASS"
+uci set network.wan.ipv6='0'
+uci set network.wan.metric='10'
+# Ignore the ISP's DNS servers entirely -- the router resolves via Quad9
+# (dnsmasq config in 40-dhcp-dns).
+uci set network.wan.peerdns='0'
+
+uci -q get network.wan6 >/dev/null && uci set network.wan6.disabled='1'
+
+uci set network.globals.ula_prefix='fd5f:fc76:3aac::/48'
+
+# Keep the current LAN/WAN hardware identities so switches, APs and any
+# MAC-keyed reservations elsewhere on the network don't have to relearn.
+lan_dev=$(uci show network | grep "\.name='br-lan'" | head -1 | cut -d. -f2)
+[ -n "$lan_dev" ] && uci set "network.$lan_dev.macaddr=94:83:c4:e5:2f:59"
+
+uci show network | grep -q "\.name='eth1'" || {
+	s=$(uci add network device)
+	uci set "network.$s.name=eth1"
+}
+eth1_dev=$(uci show network | grep "\.name='eth1'" | head -1 | cut -d. -f2)
+[ -n "$eth1_dev" ] && uci set "network.$eth1_dev.macaddr=94:83:c4:e5:2f:57"
+
+uci commit network

@@ -1,0 +1,5 @@
+#!/bin/sh
+# The mainline package only runs tailscaled; login happens on wan up, see
+# /etc/hotplug.d/iface/99-tailscale-up.
+/etc/init.d/tailscale enable 2>/dev/null
+exit 0

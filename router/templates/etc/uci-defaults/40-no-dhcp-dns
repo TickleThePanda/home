@@ -1,0 +1,23 @@
+#!/bin/sh
+# The router runs no DNS or DHCP. Kea (192.168.1.11) leases; BIND / Unbound /
+# Pi-hole resolve. dnsmasq is disabled outright; the router resolves for
+# itself straight against Quad9.
+
+# odhcpd: nothing to do on the LAN -- Kea owns v4, v6 is dormant.
+uci set dhcp.lan.ignore='1'
+uci set dhcp.lan.dhcpv6='disabled'
+uci set dhcp.lan.ra='disabled'
+uci set dhcp.lan.ndp='disabled'
+uci commit dhcp
+
+# Stop the DNS server for good (peerdns=0 is set in 20-network).
+/etc/init.d/dnsmasq disable
+/etc/init.d/dnsmasq stop 2>/dev/null
+
+# System resolver: a plain file straight to Quad9 -- no local daemon, no
+# netifd dependency. Shadows the base image's /etc/resolv.conf symlink.
+rm -f /etc/resolv.conf
+cat > /etc/resolv.conf <<'EOF'
+nameserver 9.9.9.9
+nameserver 149.112.112.112
+EOF
