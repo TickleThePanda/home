@@ -29,7 +29,8 @@ spec:
             - --rfc2136-zone=1.168.192.in-addr.arpa
             - --source=service
             - --source=ingress
-            - --policy=upsert-only
+            - --policy=sync
+            - --rfc2136-axfr
             - --registry=txt
             - --txt-owner-id=external-dns
             - --txt-prefix=_edns.
