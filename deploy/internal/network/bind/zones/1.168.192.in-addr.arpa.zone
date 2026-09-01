@@ -1,14 +1,14 @@
 $ORIGIN 1.168.192.in-addr.arpa.
 $TTL 300
 
-@   IN SOA ns.lan.internal.ticklethepanda.co.uk. admin.ticklethepanda.co.uk. (
-        2026090100 ; serial (named bumps this on every update)
+@   IN SOA ns.home.arpa. admin.ticklethepanda.co.uk. (
+        2026090110 ; serial (named bumps this on every update)
         3600       ; refresh
         600        ; retry
         86400      ; expire
         300 )      ; minimum
 
-@   IN NS  ns.lan.internal.ticklethepanda.co.uk.
+@   IN NS  ns.home.arpa.
 
-; Seeded (see the forward zone); the rest is written by Kea / ExternalDNS.
-1   IN PTR gateway.lan.internal.ticklethepanda.co.uk.
+; Seeded (see home.arpa.zone); the rest is written by Kea / ExternalDNS.
+1   IN PTR gateway.home.arpa.

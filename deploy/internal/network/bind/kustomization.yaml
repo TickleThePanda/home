@@ -13,5 +13,5 @@ configMapGenerator:
   - name: bind-config
     files:
       - named.conf
-      - zones/lan.internal.ticklethepanda.co.uk.zone
+      - zones/home.arpa.zone
       - zones/1.168.192.in-addr.arpa.zone
