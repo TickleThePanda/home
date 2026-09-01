@@ -6,7 +6,8 @@ metadata:
   labels:
     app: audiobookshelf
 spec:
-  replicas: 1
+  # Scaled to 0 to free node RAM. Scale up when audiobook syncing is needed.
+  replicas: 0
   selector:
     matchLabels:
       app: audiobookshelf

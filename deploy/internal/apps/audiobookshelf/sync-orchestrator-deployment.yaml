@@ -6,7 +6,8 @@ metadata:
   labels:
     app: sync-orchestrator
 spec:
-  replicas: 1
+  # Scaled to 0 alongside audiobookshelf to free node RAM.
+  replicas: 0
   selector:
     matchLabels:
       app: sync-orchestrator
