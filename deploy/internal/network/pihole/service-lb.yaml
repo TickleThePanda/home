@@ -6,6 +6,7 @@ metadata:
   namespace: pihole
   annotations:
     metallb.universe.tf/address-pool: pihole
+    external-dns.alpha.kubernetes.io/hostname: pihole.home.arpa
 spec:
   selector:
     app: pihole
