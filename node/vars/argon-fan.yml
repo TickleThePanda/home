@@ -11,7 +11,7 @@ argon_fan_poll_interval: 5
 # argon_fan_max_temp. Below argon_fan_min_temp the fan is off.
 # argon_fan_curve_steepness controls the bend -- higher stays quieter for
 # longer before ramping hard near the top of the range.
-argon_fan_min_temp: 50.0
+argon_fan_min_temp: 60.0
 argon_fan_max_temp: 75.0
 argon_fan_min_speed: 20
 argon_fan_max_speed: 100
@@ -19,4 +19,4 @@ argon_fan_curve_steepness: 2.0
 
 # Degrees below argon_fan_min_temp the temperature must drop before the fan
 # switches off, once running -- stops it flickering on/off right at 50C.
-argon_fan_hysteresis: 3.0
+argon_fan_hysteresis: 10.0
