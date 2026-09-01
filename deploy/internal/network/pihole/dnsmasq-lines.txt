@@ -1,2 +1,0 @@
-server=/home.arpa/10.43.53.54
-server=/1.168.192.in-addr.arpa/10.43.53.54
