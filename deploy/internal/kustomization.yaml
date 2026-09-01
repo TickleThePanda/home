@@ -9,7 +9,9 @@ resources:
 - ./auth/pocketid
 - ./auth/tinyauth
 - ./index
+- ./network/bind
 - ./network/coredns
+- ./network/externaldns
 - ./network/dhcp-kea
 - ./network/pihole
 - ./network/unbound

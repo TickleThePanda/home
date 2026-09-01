@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bind
+  namespace: bind
+  labels:
+    app: bind
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bind
+  template:
+    metadata:
+      labels:
+        app: bind
+    spec:
+      initContainers:
+        # Seed the zone files onto the PVC once. named rewrites them (plus a
+        # .jnl journal) on every dynamic update, so it must own them and the
+        # seed must not clobber a live zone.
+        - name: seed
+          image: ubuntu/bind9:9.20-24.04_stable
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              for z in home.arpa 1.168.192.in-addr.arpa; do
+                if [ ! -f "/var/lib/bind/$z.zone" ]; then
+                  cp "/seed/$z.zone" "/var/lib/bind/$z.zone"
+                fi
+              done
+              chown -R bind:bind /var/lib/bind
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/bind
+            - name: config
+              mountPath: /seed
+      containers:
+        - name: bind
+          image: ubuntu/bind9:9.20-24.04_stable
+          imagePullPolicy: IfNotPresent
+          command: ["named", "-g", "-u", "bind", "-c", "/etc/bind/named.conf"]
+          ports:
+            - { containerPort: 53, name: dns-udp, protocol: UDP }
+            - { containerPort: 53, name: dns-tcp, protocol: TCP }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/bind/named.conf
+              subPath: named.conf
+              readOnly: true
+            - name: keys
+              mountPath: /etc/bind/keys
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/bind
+          livenessProbe:
+            tcpSocket: { port: 53 }
+            initialDelaySeconds: 5
+          readinessProbe:
+            tcpSocket: { port: 53 }
+      volumes:
+        - name: config
+          configMap:
+            name: bind-config
+        - name: keys
+          secret:
+            secretName: bind-tsig
+        - name: data
+          persistentVolumeClaim:
+            claimName: bind-data

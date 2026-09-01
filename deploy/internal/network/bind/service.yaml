@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bind
+  namespace: bind
+spec:
+  type: ClusterIP
+  clusterIP: 10.43.53.55
+  selector:
+    app: bind
+  ports:
+    - name: dns-udp
+      port: 53
+      targetPort: 53
+      protocol: UDP
+    - name: dns-tcp
+      port: 53
+      targetPort: 53
+      protocol: TCP

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns
+  namespace: external-dns
+  labels:
+    app: external-dns
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: external-dns
+  template:
+    metadata:
+      labels:
+        app: external-dns
+    spec:
+      serviceAccountName: external-dns
+      containers:
+        - name: external-dns
+          image: registry.k8s.io/external-dns/external-dns:v0.22.0
+          args:
+            - --provider=rfc2136
+            - --rfc2136-host=10.43.53.55
+            - --rfc2136-port=53
+            - --rfc2136-zone=home.arpa
+            - --rfc2136-zone=1.168.192.in-addr.arpa
+            - --source=service
+            - --source=ingress
+            - --policy=upsert-only
+            - --registry=txt
+            - --txt-owner-id=external-dns
+            - --txt-prefix=_edns.
+            - --domain-filter=home.arpa
+            - --domain-filter=1.168.192.in-addr.arpa
+            - --managed-record-types=A
+            - --managed-record-types=AAAA
+            - --managed-record-types=PTR
+            - --create-ptr
+          env:
+            - name: EXTERNAL_DNS_RFC2136_TSIG_SECRET_ALG
+              value: hmac-sha256
+            - name: EXTERNAL_DNS_RFC2136_TSIG_KEYNAME
+              valueFrom:
+                secretKeyRef:
+                  name: externaldns-tsig
+                  key: key-name
+            - name: EXTERNAL_DNS_RFC2136_TSIG_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: externaldns-tsig
+                  key: key-secret

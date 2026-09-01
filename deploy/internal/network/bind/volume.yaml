@@ -1,0 +1,14 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: bind-data
+  namespace: bind
+  labels:
+    app: bind
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lvm-data
+  resources:
+    requests:
+      storage: 128Mi

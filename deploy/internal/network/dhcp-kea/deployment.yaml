@@ -43,6 +43,22 @@ spec:
               readOnly: true
             - name: kea-leases
               mountPath: /kea/leases
+        # DHCP-DDNS: turns every lease's hostname into a signed DNS UPDATE
+        # to BIND (10.43.53.55). Reached by kea-dhcp4 over localhost:53001.
+        - name: kea-dhcp-ddns
+          image: jonasal/kea-dhcp-ddns:3.2.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-c"
+            - "/kea/config/kea-dhcp-ddns.json"
+          volumeMounts:
+            - name: kea-config
+              mountPath: /kea/config/kea-dhcp-ddns.json
+              subPath: kea-dhcp-ddns.json
+              readOnly: true
+            - name: kea-ddns-tsig
+              mountPath: /kea/secret
+              readOnly: true
       volumes:
         - name: kea-config
           configMap:
@@ -50,3 +66,6 @@ spec:
         - name: kea-leases
           persistentVolumeClaim:
             claimName: kea-leases
+        - name: kea-ddns-tsig
+          secret:
+            secretName: kea-ddns-tsig

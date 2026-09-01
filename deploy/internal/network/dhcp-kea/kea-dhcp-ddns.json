@@ -1,0 +1,44 @@
+{
+  "DhcpDdns": {
+    "ip-address": "127.0.0.1",
+    "port": 53001,
+
+    // secret-file points at the kea-ddns-tsig Secret (raw base64, no quotes).
+    // The same key material is in BIND's keys.conf.
+    "tsig-keys": [
+      {
+        "name": "kea",
+        "algorithm": "HMAC-SHA256",
+        "secret-file": "/kea/secret/ddns-secret"
+      }
+    ],
+
+    "forward-ddns": {
+      "ddns-domains": [
+        {
+          "name": "home.arpa.",
+          "key-name": "kea",
+          "dns-servers": [ { "ip-address": "10.43.53.55", "port": 53 } ]
+        }
+      ]
+    },
+
+    "reverse-ddns": {
+      "ddns-domains": [
+        {
+          "name": "1.168.192.in-addr.arpa.",
+          "key-name": "kea",
+          "dns-servers": [ { "ip-address": "10.43.53.55", "port": 53 } ]
+        }
+      ]
+    },
+
+    "loggers": [
+      {
+        "name": "kea-dhcp-ddns",
+        "output_options": [ { "output": "stdout" } ],
+        "severity": "INFO"
+      }
+    ]
+  }
+}

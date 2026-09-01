@@ -1,0 +1,16 @@
+$ORIGIN home.arpa.
+$TTL 300
+
+@   IN SOA ns.home.arpa. admin.ticklethepanda.co.uk. (
+        2026090100 ; serial (named bumps this on every update)
+        3600       ; refresh
+        600        ; retry
+        86400      ; expire
+        300 )      ; minimum
+
+@       IN NS ns.home.arpa.
+ns      IN A  10.43.53.55
+
+; The gateway is not a DHCP client, so Kea can't register it -- seeded here.
+; Everything else in this zone is written by Kea DHCP-DDNS / ExternalDNS.
+gateway IN A  192.168.1.1
