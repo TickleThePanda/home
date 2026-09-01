@@ -6,7 +6,8 @@ metadata:
   labels:
     app: label-studio
 spec:
-  replicas: 1
+  # Scaled to 0 to free node RAM. Scale up when Label Studio is needed.
+  replicas: 0
   selector:
     matchLabels:
       app: label-studio

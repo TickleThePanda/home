@@ -2,6 +2,10 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: postgres
+  annotations:
+    # Hibernated (pods scaled to 0, PVC kept) until a consumer needs it.
+    # The node has no spare RAM to run an idle Postgres.
+    cnpg.io/hibernation: "on"
 spec:
   instances: 1
   storage:
