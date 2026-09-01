@@ -2,7 +2,7 @@ $ORIGIN internal.ticklethepanda.co.uk.
 $TTL 300
 
 @   IN SOA internal-ns.internal.ticklethepanda.co.uk. admin.ticklethepanda.co.uk. (
-        2026081902 ; serial
+        2026090100 ; serial
         3600       ; refresh
         600        ; retry
         86400      ; expire
@@ -12,5 +12,6 @@ $TTL 300
 internal-ns IN A  10.43.53.53
 @           IN A  192.168.1.19
 *           IN A  192.168.1.19
+gateway     IN A  192.168.1.1
 k8s-control IN A  192.168.1.2
 ha          IN A  192.168.1.5

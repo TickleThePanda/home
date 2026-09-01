@@ -43,6 +43,12 @@
           {
             "name": "domain-name-servers",
             "data": "192.168.1.10"
+          },
+          {
+            // RFC 8375: put home.arpa in the search list (option 119), never
+            // as the domain-name -- it isn't globally unique.
+            "name": "domain-search",
+            "data": "home.arpa"
           }
         ],
 
