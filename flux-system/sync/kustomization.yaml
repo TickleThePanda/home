@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ./self.yaml
   - ./oci-repository.yaml
+  - ./notifications.yaml
   - ./kustomization-setup.yaml
   - ./kustomization-setup-config.yaml
   - ./kustomization-home.yaml

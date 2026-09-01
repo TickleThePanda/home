@@ -267,26 +267,35 @@ jobs:
           revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
           echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
 
-      # Confirms the *specific promoted revision* reached Ready, not a
-      # stale Ready=True left over from a previous one.
-      - name: Wait for the promoted revision to be Ready
+      # Fast feedback on an obviously-broken revision (bad manifest, a
+      # dangling reference) -- not an authoritative gate. The artifact is
+      # already promoted and Flux keeps reconciling on its own 10m interval
+      # regardless. A failure here, or one that only surfaces after this
+      # step's short budget, lands as a red commit status via the Flux
+      # GitHub Alert (flux-system/sync/notifications.yaml).
+      #
+      # continue-on-error plus the tight timeout-minutes keep a cancel or a
+      # stuck run down to seconds -- the old poll loop could hold the
+      # `cluster` concurrency lock for ~50 minutes and swallowed SIGTERM.
+      # `flux reconcile` is a single interruptible process; the loop does
+      # not abort on one bad Kustomization so every commit status still
+      # gets posted.
+      - name: Confirm the promoted revision reconciles
+        continue-on-error: true
+        timeout-minutes: 10
         run: |
-          set -euo pipefail
+          set -uo pipefail
           expected="${PROMOTED_REVISION}"
+          rc=0
+          flux reconcile source oci deploy -n flux-system --timeout=2m || rc=1
           for ks in flux-system setup setup-config home internal; do
-            echo "waiting for kustomization/$ks to reach $expected ..."
-            for i in $(seq 1 60); do
-              applied=$(kubectl -n flux-system get kustomization "$ks" -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)
-              ready=$(kubectl -n flux-system get kustomization "$ks" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
-              if [[ "$applied" == *"$expected"* && "$ready" == "True" ]]; then
-                echo "OK: $ks is Ready at $applied"
-                break
-              fi
-              if [[ $i -eq 60 ]]; then
-                echo "::error::Timed out waiting for kustomization/$ks at $expected (applied=$applied ready=$ready)"
-                kubectl -n flux-system get kustomization "$ks" -o yaml
-                exit 1
-              fi
-              sleep 10
-            done
+            if ! flux reconcile kustomization "$ks" -n flux-system --timeout=3m; then
+              echo "::warning::kustomization/$ks did not reconcile cleanly"
+              rc=1
+            fi
+            applied=$(kubectl -n flux-system get kustomization "$ks" \
+              -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)
+            [[ "$applied" == *"$expected"* ]] \
+              || echo "::warning::kustomization/$ks applied ${applied:-<none>}, expected $expected"
           done
+          exit $rc

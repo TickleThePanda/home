@@ -1,0 +1,47 @@
+# Flux -> GitHub commit status.
+#
+# Every Kustomization reconcile posts a pass/fail status against the git
+# commit CI promoted, so a revision that reconciles green in the pipeline
+# but goes unhealthy minutes later (or on a later 10m interval) still shows
+# up -- as a red check on that commit on GitHub -- without the pipeline
+# having to block and wait.
+#
+# The source is the `deploy` OCIRepository, not a GitRepository, so the
+# commit SHA isn't in the reconcile revision (that's `deploy@sha256:...`).
+# notification-controller recovers it from the artifact's
+# `org.opencontainers.image.revision` annotation, which CI sets via
+# `flux push artifact --revision=main@sha1:<sha>`.
+#
+# Needs an out-of-band Secret `github-commit-status` with key `token`: a
+# GitHub PAT scoped to commit-status write on this repo (fine-grained:
+# "Commit statuses: Read and write"; classic: `repo:status`). See
+# node/RECOVERY.md.
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: github-commit-status
+  namespace: flux-system
+spec:
+  type: github
+  address: https://github.com/ticklethepanda/home
+  secretRef:
+    name: github-commit-status
+  # Status key shown on the commit, one per Kustomization
+  # (e.g. `kustomization/internal`). Stable across runs so each new commit
+  # updates the same check rather than stacking new ones.
+  commitStatusExpr: "(event.involvedObject.kind + '/' + event.involvedObject.name).lowerAscii()"
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: github-commit-status
+  namespace: flux-system
+spec:
+  providerRef:
+    name: github-commit-status
+  # `info` still forwards errors -- it means "don't drop info-level events",
+  # which is what makes the green (success) status post too.
+  eventSeverity: info
+  eventSources:
+    - kind: Kustomization
+      name: "*"

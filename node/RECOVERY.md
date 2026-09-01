@@ -197,5 +197,9 @@ sudo cat /etc/rancher/k3s/k3s.yaml     # then copy to ~/.kube/config
   every start. Never put anything there expecting it to survive.
 - The out-of-band Secrets (`tunnel-token`, `cloudflare-api-token-secret`,
   `lldap-credentials`, `pocket-id-secret`, `tinyauth-secrets`,
-  `label-studio-admin`). Nothing in this repo records how to recreate them —
-  a genuine gap, worth closing separately.
+  `label-studio-admin`, `github-commit-status`). Nothing in this repo
+  records how to recreate them — a genuine gap, worth closing separately.
+  `github-commit-status` (namespace `flux-system`, key `token`) is a GitHub
+  PAT with commit-status write on `ticklethepanda/home`; without it the
+  Flux → GitHub commit-status Alert just logs auth errors and deploys are
+  unaffected.
