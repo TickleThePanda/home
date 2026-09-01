@@ -9,7 +9,7 @@ Records are written by dynamic update, not by hand:
   hostname, qualified into `lan.internal.ticklethepanda.co.uk`, plus its PTR.
 - **ExternalDNS** (`deploy/internal/network/externaldns/`) — MetalLB
   `LoadBalancer` Services / Ingresses annotated with
-  `external-dns.alpha.kubernetes.io/hostname`.
+  `external-dns.kubernetes.io/hostname` (v0.22 dropped the `.alpha`).
 
 The only seeded record is `gateway` → `192.168.1.1` (in `zones/*.zone`) — the
 router can't be a DHCP client. The seed is copied to the PVC once; `named`

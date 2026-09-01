@@ -40,7 +40,6 @@ spec:
             - --managed-record-types=AAAA
             - --managed-record-types=PTR
             - --create-ptr
-            - --log-level=debug
           env:
             - name: EXTERNAL_DNS_RFC2136_TSIG_SECRET_ALG
               value: hmac-sha256
