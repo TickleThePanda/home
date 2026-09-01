@@ -16,7 +16,7 @@
     "forward-ddns": {
       "ddns-domains": [
         {
-          "name": "home.arpa.",
+          "name": "lan.internal.ticklethepanda.co.uk.",
           "key-name": "kea",
           "dns-servers": [ { "ip-address": "10.43.53.55", "port": 53 } ]
         }

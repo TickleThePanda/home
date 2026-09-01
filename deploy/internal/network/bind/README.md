@@ -1,12 +1,12 @@
 # bind
 
-Authoritative-only BIND9 for the local zones `home.arpa` and
+Authoritative-only BIND9 for the local zones `lan.internal.ticklethepanda.co.uk` and
 `1.168.192.in-addr.arpa`. No recursion — Unbound stub-zones both zones here.
 
 Records are written by dynamic update, not by hand:
 
 - **Kea DHCP-DDNS** (`deploy/internal/network/dhcp-kea/`) — every lease's
-  hostname, qualified into `home.arpa`, plus its PTR.
+  hostname, qualified into `lan.internal.ticklethepanda.co.uk`, plus its PTR.
 - **ExternalDNS** (`deploy/internal/network/externaldns/`) — MetalLB
   `LoadBalancer` Services / Ingresses annotated with
   `external-dns.alpha.kubernetes.io/hostname`.

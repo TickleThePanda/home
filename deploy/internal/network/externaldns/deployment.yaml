@@ -25,7 +25,7 @@ spec:
             - --provider=rfc2136
             - --rfc2136-host=10.43.53.55
             - --rfc2136-port=53
-            - --rfc2136-zone=home.arpa
+            - --rfc2136-zone=lan.internal.ticklethepanda.co.uk
             - --rfc2136-zone=1.168.192.in-addr.arpa
             - --source=service
             - --source=ingress
@@ -34,7 +34,7 @@ spec:
             - --registry=txt
             - --txt-owner-id=external-dns
             - --txt-prefix=_edns.
-            - --domain-filter=home.arpa
+            - --domain-filter=lan.internal.ticklethepanda.co.uk
             - --domain-filter=1.168.192.in-addr.arpa
             - --managed-record-types=A
             - --managed-record-types=AAAA

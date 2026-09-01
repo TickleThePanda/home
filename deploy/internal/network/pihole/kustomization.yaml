@@ -20,4 +20,3 @@ configMapGenerator:
       - FTLCONF_dns_hosts=dns-hosts.txt
       - FTLCONF_dns_upstreams=dns-upstreams.txt
       - FTLCONF_dns_revServers=dns-revservers.txt
-      - FTLCONF_misc_dnsmasq_lines=dnsmasq-lines.txt
