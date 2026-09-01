@@ -180,9 +180,10 @@ When comments are necessary:
 - The corollary: **when k3s is down, CI cannot reach the node at all.**
   Recovery is LAN-local — see `node/RECOVERY.md`.
 - The workflow holds `concurrency: group: cluster` so two runs can never
-  touch the cluster at once. The `node` job runs on every push to either
-  path, not just `node/**` — it's idempotent, and a no-op run doubles as
-  drift detection.
+  touch the cluster at once. A `dorny/paths-filter` step in `preflight`
+  skips the whole `node` job when the push changed nothing under `node/`;
+  `cluster` then runs straight after `preflight` (its `if:` treats a
+  skipped `node` as a pass, but still blocks on a real `node` failure).
 
 ## Storage
 

@@ -9,6 +9,9 @@ name: Deploy
 # Order matters: a k3s upgrade changes which Traefik chart tarball the node
 # serves, so node must run before cluster.
 #
+# node is skipped when the push changed nothing under node/; cluster then
+# runs straight after preflight.
+#
 # preflight exists because CI's only path to the node is through the
 # cluster itself (cloudflared runs in-cluster) -- checking reachability
 # first gives a clear signal instead of a confusing failure deep inside
@@ -34,9 +37,21 @@ jobs:
   preflight:
     runs-on: ubuntu-latest
     environment: prod
+    outputs:
+      node-changed: ${{ steps.changes.outputs.node }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # The node job is skipped entirely when nothing under node/ changed --
+      # cluster then runs straight after preflight. See its `if:` below.
+      - name: Detect node changes
+        uses: dorny/paths-filter@v4
+        id: changes
+        with:
+          filters: |
+            node:
+              - 'node/**'
 
       - name: Check the Traefik chart pin
         run: ./node/scripts/check-traefik-pin.sh --online
@@ -79,6 +94,7 @@ jobs:
 
   node:
     needs: preflight
+    if: needs.preflight.outputs.node-changed == 'true'
     runs-on: ubuntu-latest
     environment: prod
     steps:
@@ -149,7 +165,14 @@ jobs:
           fi
 
   cluster:
-    needs: node
+    needs: [preflight, node]
+    # node is skipped when nothing under node/ changed; still run cluster.
+    # Guard against a genuine node failure with an explicit result check,
+    # since always() would otherwise run cluster even then.
+    if: >-
+      always() &&
+      needs.preflight.result == 'success' &&
+      (needs.node.result == 'success' || needs.node.result == 'skipped')
     runs-on: ubuntu-latest
     environment: prod
     steps:
