@@ -12,3 +12,30 @@ resources:
 images:
   - name: openebs/lvm-driver
     newTag: "1.9.1"
+
+# The node plugin only advertises a CSI topology segment for a label key that is
+# both listed here and present on the Node. Add this repo's volume-group
+# capability key so the lvm-data StorageClass can pin provisioning to it without
+# referencing node identity. `kubernetes.io/hostname` stays for parity with
+# upstream and is inert -- nothing references it.
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: DaemonSet
+      name: openebs-lvm-node
+      namespace: kube-system
+    patch: |-
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: openebs-lvm-node
+        namespace: kube-system
+      spec:
+        template:
+          spec:
+            containers:
+              - name: openebs-lvm-plugin
+                env:
+                  - name: ALLOWED_TOPOLOGIES
+                    value: kubernetes.io/hostname,ticklethepanda.dev/lvm-vg

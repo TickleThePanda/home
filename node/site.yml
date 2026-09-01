@@ -44,6 +44,10 @@
       ansible.builtin.import_tasks: tasks/k3s-version.yml
       tags: [version]
 
+    - name: Label the node with its storage capabilities
+      ansible.builtin.import_tasks: tasks/k3s-node-labels.yml
+      tags: [storage, labels]
+
     - name: Argon ONE fan controller
       ansible.builtin.import_tasks: tasks/argon-fan.yml
       tags: [argon-fan]

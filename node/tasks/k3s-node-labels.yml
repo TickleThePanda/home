@@ -1,0 +1,37 @@
+---
+# Cluster-visible capability labels for this k3s node.
+#
+# Separate from tasks/k3s-config.yml because k3s only reads `node-label` from
+# its config at first registration -- an already-registered node is labelled
+# through the API.
+
+- name: Wait for the k3s API to be ready
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw /readyz
+  register: k3s_node_labels_readyz
+  until: k3s_node_labels_readyz.rc == 0
+  retries: 12
+  delay: 5
+  changed_when: false
+  check_mode: false
+
+# The `data` volume group only exists on this host (tasks/storage.yml fails the
+# run if it is missing). This label is the cluster-visible projection of that:
+# the lvm-data StorageClass allowedTopologies and the LVM CSI node plugin both
+# key off it, so a hostname or k3s node-name change never has to touch the
+# StorageClass. Value mirrors `node_vg`.
+- name: Label the node as the host of the lvm-data volume group
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - label
+      - node
+      - "{{ ansible_hostname | lower }}"
+      - "ticklethepanda.dev/lvm-vg={{ node_vg }}"
+      - --overwrite
+  register: node_lvm_vg_label
+  # `kubectl label --overwrite` prints "<node> labeled" on a change and
+  # "<node> not labeled" on a no-op, both to stdout, rc 0 either way.
+  changed_when: >-
+    'labeled' in node_lvm_vg_label.stdout
+    and 'not labeled' not in node_lvm_vg_label.stdout

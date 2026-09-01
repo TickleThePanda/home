@@ -22,14 +22,35 @@ metadata:
 provisioner: local.csi.openebs.io
 parameters:
   storage: lvm
-  # Must match `node_vg` in node/vars/storage.yml. Two owners for one name is
-  # unavoidable across the Ansible/kustomize boundary; this is the other end.
+  # Must match `node_vg` in node/vars/storage.yml, and the `allowedTopologies`
+  # value below. Three mirrors of one name across the Ansible/kustomize boundary;
+  # keep them in step.
   volgroup: data
   fsType: ext4
 # The driver carves the LV on the node the pod lands on, so binding has to wait
 # for a scheduling decision. Single node here, but it is a hard requirement of
 # the driver rather than a tuning choice.
 volumeBindingMode: WaitForFirstConsumer
+# Pin provisioning to the node whose LVM volume group backs this class, so a
+# second node added later cannot get a pod scheduled onto it with no backing VG
+# and leave the PVC unbindable. The gate is a capability label, not node
+# identity: `ticklethepanda.dev/lvm-vg` is set from `node_vg` by
+# node/tasks/k3s-node-labels.yml, so renaming the OS hostname or the k3s node
+# name never touches this class or the label wiring. The value mirrors
+# `parameters.volgroup` above.
+#
+# The driver still stamps every PV it creates with an `openebs.io/nodename`
+# nodeAffinity keyed to the k3s node name, regardless of this block. On a node
+# rename that is the one thing that breaks, and the one accepted manual fix:
+# re-point existing PVs' nodeAffinity by hand.
+#
+# The node plugin only publishes this key as a CSI topology segment when it is
+# listed in `ALLOWED_TOPOLOGIES` -- see the patch in kustomization.yaml.
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: ticklethepanda.dev/lvm-vg
+        values:
+          - data
 # The reason this class exists at all: `local-path` is allowVolumeExpansion
 # false, so growing any volume today means recreate-and-copy. Here it is
 # `kubectl patch pvc` with the pod still running.
