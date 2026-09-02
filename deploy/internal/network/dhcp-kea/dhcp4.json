@@ -13,11 +13,23 @@
     "renew-timer": 43200,
     "rebind-timer": 75600,
 
+    // Kea 3.x defaults cache-threshold to 0.25: a renewal within the first
+    // quarter of the lease reuses the cached lease and skips DDNS entirely,
+    // which would defeat ddns-update-on-renew. 0 disables lease caching.
+    "cache-threshold": 0.0,
+
     "lease-database": {
       "type": "memfile",
       "persist": true,
       "name": "/kea/leases/kea-leases4.csv",
       "lfc-interval": 3600
+    },
+
+    // Unix control channel for kea-dhcp4 (lease queries, lease4-resend-ddns,
+    // stats). The image only permits sockets under /kea/sockets.
+    "control-socket": {
+      "socket-type": "unix",
+      "socket-name": "/kea/sockets/kea4-ctrl-socket"
     },
 
     // Hand every lease's name to the DHCP-DDNS sidecar (127.0.0.1:53001),
