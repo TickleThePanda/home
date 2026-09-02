@@ -1,0 +1,105 @@
+---
+# Ongoing configuration for the home gateway (GL.iNet Flint 2, OpenWrt).
+#
+# This is the source of truth for the router's config. router/bootstrap/ only
+# has to get a bare router far enough for this playbook to take over.
+#
+# Reached from CI over the same Cloudflare tunnel as the node. A `network`
+# reload can briefly drop that tunnel, so the disruptive handlers detach with
+# nohup and reconnect with wait_for_connection -- mirroring node/site.yml's
+# handling of the k3s restart. Never fold them back into a synchronous restart.
+#
+# Deliberately NOT managed: the root password (router/bootstrap/ sets it once
+# from the GL.iNet backup hash) and the Tailscale login itself (persists in
+# /etc/tailscale/tailscaled.state; only the advertised routes are enforced).
+
+- name: Configure the gateway
+  hosts: gateway
+  gather_facts: false
+
+  roles:
+    - role: community.openwrt.init
+      vars:
+        # The router has busybox base64 + sha256sum; skip the opkg checks so a
+        # stale package list can't make a run report "changed".
+        openwrt_install_recommended_packages: false
+
+  vars_files:
+    - vars/router.yml
+    - vars/secrets.yml
+
+  tasks:
+    - name: System identity
+      ansible.builtin.import_tasks: tasks/system.yml
+      tags: [system]
+
+    - name: Management access
+      ansible.builtin.import_tasks: tasks/mgmt-access.yml
+      tags: [mgmt]
+
+    - name: Network / WAN / LAN
+      ansible.builtin.import_tasks: tasks/network.yml
+      tags: [network]
+
+    - name: Wireless
+      ansible.builtin.import_tasks: tasks/wireless.yml
+      tags: [wireless]
+
+    - name: No DHCP or DNS on the router
+      ansible.builtin.import_tasks: tasks/dhcp-dns.yml
+      tags: [dhcp-dns]
+
+    - name: Firewall
+      ansible.builtin.import_tasks: tasks/firewall.yml
+      tags: [firewall]
+
+    - name: Tailscale
+      ansible.builtin.import_tasks: tasks/tailscale.yml
+      tags: [tailscale]
+
+  handlers:
+    - name: Reload network
+      community.openwrt.nohup:
+        command: /etc/init.d/network reload
+        delay: 1
+
+    - name: Restart dropbear
+      community.openwrt.nohup:
+        command: /etc/init.d/dropbear restart
+        delay: 1
+
+    # network reload can bounce the WAN/PPPoE link the CI tunnel egresses
+    # through; a dropbear restart drops this very session. Both detach above,
+    # so wait for the router to answer again before the play continues.
+    - name: Wait for the router
+      community.openwrt.wait_for_connection:
+        delay: 5
+        timeout: 300
+      listen:
+        - Reload network
+        - Restart dropbear
+
+    - name: Reload firewall
+      community.openwrt.service:
+        name: firewall
+        state: reloaded
+
+    - name: Reload wifi config
+      community.openwrt.nohup:
+        command: /sbin/wifi reload
+        delay: 1
+
+    - name: Restart uhttpd
+      community.openwrt.service:
+        name: uhttpd
+        state: restarted
+
+    - name: Reload odhcpd
+      community.openwrt.service:
+        name: odhcpd
+        state: reloaded
+
+    - name: Reload system config
+      community.openwrt.service:
+        name: system
+        state: reloaded

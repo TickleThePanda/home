@@ -6,11 +6,11 @@ deploy_key
 deploy_key.pub
 __pycache__
 
-# Router bootstrap (router/). The GL.iNet backup and secrets.env hold live
-# credentials (PPPoE, Wi-Fi PSK, WireGuard/host keys, /etc/shadow); build/
+# Router bootstrap (router/bootstrap/). The GL.iNet backup and secrets.env hold
+# live credentials (PPPoE, Wi-Fi PSK, WireGuard/host keys, /etc/shadow); build/
 # holds the rendered overlay with secrets substituted in.
 backup-GL-MT6000-*.tar.gz
-router/secrets.env
-router/authorized_keys.extra
-router/build/
-router/out/
+router/bootstrap/secrets.env
+router/bootstrap/authorized_keys.extra
+router/bootstrap/build/
+router/bootstrap/out/

@@ -1,0 +1,31 @@
+---
+# Non-secret desired state for the gateway. Secrets (PPPoE, Wi-Fi PSK) come
+# from the environment via vars/secrets.yml.
+
+router_hostname: gateway
+router_timezone: GMT0BST,M3.5.0/1,M10.5.0
+router_zonename: Europe/London
+
+router_lan_ipaddr: 192.168.1.1
+router_lan_netmask: 255.255.255.0
+router_lan_ip6assign: "60"
+router_lan_subnet: 192.168.1.0/24
+
+# Hardware identities carried over from the stock GL.iNet config so switches,
+# APs and MAC-keyed reservations elsewhere don't have to relearn.
+router_lan_macaddr: "94:83:c4:e5:2f:59"
+router_wan_device: eth1
+router_wan_macaddr: "94:83:c4:e5:2f:57"
+router_wan_metric: "10"
+
+router_ula_prefix: "fd5f:fc76:3aac::/48"
+
+# The router resolves for itself straight against Quad9 -- no local daemon,
+# no dependency on anything running in the cluster it fronts.
+router_resolvers:
+  - 9.9.9.9
+  - 149.112.112.112
+
+router_wifi_country: GB
+router_wifi_ssid_24g: It reaches out (2.4G)
+router_wifi_ssid_5g: It reaches out

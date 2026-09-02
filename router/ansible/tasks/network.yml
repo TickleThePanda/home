@@ -1,0 +1,82 @@
+---
+- name: LAN address
+  community.openwrt.uci:
+    key: "network.lan.{{ item.key }}"
+    value: "{{ item.value }}"
+    autocommit: true
+  loop:
+    - { key: ipaddr, value: "{{ router_lan_ipaddr }}" }
+    - { key: netmask, value: "{{ router_lan_netmask }}" }
+    - { key: ip6assign, value: "{{ router_lan_ip6assign }}" }
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Reload network
+
+- name: WAN is PPPoE, IPv4 only, ignoring ISP DNS
+  community.openwrt.uci:
+    key: "network.wan.{{ item.key }}"
+    value: "{{ item.value }}"
+    autocommit: true
+  loop:
+    - { key: proto, value: pppoe }
+    - { key: device, value: "{{ router_wan_device }}" }
+    - { key: ipv6, value: "0" }
+    - { key: metric, value: "{{ router_wan_metric }}" }
+    # The router resolves via Quad9 (tasks/dhcp-dns.yml), never the ISP.
+    - { key: peerdns, value: "0" }
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Reload network
+
+- name: PPPoE credentials
+  community.openwrt.uci:
+    key: "network.wan.{{ item.key }}"
+    value: "{{ item.value }}"
+    autocommit: true
+  loop:
+    - { key: username, value: "{{ router_pppoe_username }}" }
+    - { key: password, value: "{{ router_pppoe_password }}" }
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: true
+  notify: Reload network
+
+- name: Check whether a wan6 interface exists
+  community.openwrt.uci:
+    command: get
+    key: network.wan6
+  register: router_wan6
+  changed_when: false
+  failed_when: false
+
+- name: Disable the wan6 interface
+  community.openwrt.uci:
+    key: network.wan6.disabled
+    value: "1"
+    autocommit: true
+  when: router_wan6.result | default('') | length > 0
+  notify: Reload network
+
+- name: IPv6 ULA prefix
+  community.openwrt.uci:
+    key: network.globals.ula_prefix
+    value: "{{ router_ula_prefix }}"
+    autocommit: true
+  notify: Reload network
+
+- name: Pin the LAN bridge and WAN port MAC addresses
+  community.openwrt.uci:
+    command: section
+    config: network
+    type: device
+    find: { name: "{{ item.name }}" }
+    set_find: true
+    value:
+      macaddr: "{{ item.macaddr }}"
+    autocommit: true
+  loop:
+    - { name: br-lan, macaddr: "{{ router_lan_macaddr }}" }
+    - { name: "{{ router_wan_device }}", macaddr: "{{ router_wan_macaddr }}" }
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload network

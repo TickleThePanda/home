@@ -1,0 +1,46 @@
+---
+# Stock OpenWrt firewall with two changes: wan drops rather than rejects, and
+# a tailscale0 zone so forwarded tailnet traffic isn't dropped by fw4.
+
+- name: wan zone drops input
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: zone
+    find: { name: wan }
+    value:
+      input: DROP
+    autocommit: true
+  notify: Reload firewall
+
+- name: tailscale0 zone
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: zone
+    find: { name: tailscale0 }
+    set_find: true
+    value:
+      input: ACCEPT
+      output: ACCEPT
+      forward: REJECT
+      mtu_fix: "1"
+      device: [tailscale0]
+    autocommit: true
+  notify: Reload firewall
+
+- name: tailnet forwardings
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: forwarding
+    find: { src: "{{ item.src }}", dest: "{{ item.dest }}" }
+    set_find: true
+    autocommit: true
+  loop:
+    - { src: tailscale0, dest: lan }
+    - { src: tailscale0, dest: wan }
+    - { src: lan, dest: tailscale0 }
+  loop_control:
+    label: "{{ item.src }} -> {{ item.dest }}"
+  notify: Reload firewall

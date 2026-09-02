@@ -1,0 +1,11 @@
+all:
+  hosts:
+    gateway:
+      ansible_host: 192.168.1.1
+      # Dropbear only offers a root login. The CI key (deploy_key, the same
+      # private half as the NODE_SSH_KEY secret) is in the router's
+      # /etc/dropbear/authorized_keys, baked in by router/bootstrap/.
+      ansible_user: root
+      # OpenWrt ships no Python. Every task uses community.openwrt modules,
+      # which run in ash; this stops Ansible probing for an interpreter.
+      ansible_python_interpreter: /dev/null

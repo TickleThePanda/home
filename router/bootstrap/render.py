@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render router/templates/ into router/build/files/ with Jinja2.
+"""Render router/bootstrap/templates/ into router/bootstrap/build/files/ with Jinja2.
 
 Every file under templates/ is a Jinja template mirroring its path in the
 image rootfs; a file with no `{{ }}` passes through unchanged. The context

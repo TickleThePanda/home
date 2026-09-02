@@ -1,0 +1,60 @@
+---
+- name: Confirm the radio-to-band mapping this playbook assumes
+  community.openwrt.uci:
+    command: get
+    key: "wireless.{{ item.radio }}.band"
+  register: router_radio_band
+  changed_when: false
+  failed_when: router_radio_band.result != item.band
+  loop:
+    - { radio: radio0, band: "2g" }
+    - { radio: radio1, band: "5g" }
+  loop_control:
+    label: "{{ item.radio }} == {{ item.band }}"
+
+- name: Radio country, channel and channel width
+  community.openwrt.uci:
+    key: "wireless.{{ item.radio }}.{{ item.key }}"
+    value: "{{ item.value }}"
+    autocommit: true
+  loop:
+    - { radio: radio0, key: country, value: "{{ router_wifi_country }}" }
+    - { radio: radio0, key: channel, value: auto }
+    - { radio: radio0, key: htmode, value: HE40 }
+    - { radio: radio1, key: country, value: "{{ router_wifi_country }}" }
+    - { radio: radio1, key: channel, value: auto }
+    - { radio: radio1, key: htmode, value: HE160 }
+  loop_control:
+    label: "{{ item.radio }}.{{ item.key }}"
+  notify: Reload wifi config
+
+- name: Radios enabled
+  community.openwrt.uci:
+    command: absent
+    key: "wireless.{{ item }}.disabled"
+    autocommit: true
+  loop: [radio0, radio1]
+  notify: Reload wifi config
+
+- name: Access points
+  community.openwrt.uci:
+    command: section
+    config: wireless
+    type: wifi-iface
+    name: "{{ item.name }}"
+    find: { device: "{{ item.radio }}" }
+    set_find: true
+    value:
+      mode: ap
+      network: lan
+      ssid: "{{ item.ssid }}"
+      encryption: sae-mixed
+      key: "{{ router_wifi_key }}"
+    autocommit: true
+  loop:
+    - { name: wifinet0, radio: radio0, ssid: "{{ router_wifi_ssid_24g }}" }
+    - { name: wifinet1, radio: radio1, ssid: "{{ router_wifi_ssid_5g }}" }
+  loop_control:
+    label: "{{ item.name }} ({{ item.ssid }})"
+  no_log: true
+  notify: Reload wifi config

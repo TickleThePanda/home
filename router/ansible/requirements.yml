@@ -1,0 +1,12 @@
+---
+# The only collection beyond ansible-core. community.openwrt's modules run in
+# ash on the router, so nothing needs Python on the target.
+#
+# Pinned like every other node/router dependency: an unpinned release could
+# change what a deploy does to the gateway without a commit.
+#
+# Install with:  ansible-galaxy collection install -r requirements.yml
+
+collections:
+  - name: community.openwrt
+    version: "1.6.0"

@@ -1,0 +1,34 @@
+---
+# The router runs no DHCP or DNS. Kea (192.168.1.11) leases; BIND / Unbound /
+# Pi-hole resolve. The router resolves for itself straight against Quad9.
+
+- name: odhcpd does nothing on the LAN
+  community.openwrt.uci:
+    key: "dhcp.lan.{{ item.key }}"
+    value: "{{ item.value }}"
+    autocommit: true
+  loop:
+    - { key: ignore, value: "1" }
+    - { key: dhcpv6, value: disabled }
+    - { key: ra, value: disabled }
+    - { key: ndp, value: disabled }
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Reload odhcpd
+
+- name: dnsmasq disabled and stopped
+  community.openwrt.service:
+    name: dnsmasq
+    enabled: false
+    state: stopped
+
+- name: System resolver points straight at Quad9
+  community.openwrt.copy:
+    dest: /etc/resolv.conf
+    # Replace the base image's symlink with a plain file; no local daemon,
+    # no netifd dependency.
+    follow: false
+    content: |
+      {% for ns in router_resolvers %}
+      nameserver {{ ns }}
+      {% endfor %}

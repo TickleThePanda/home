@@ -1,21 +1,24 @@
 name: Deploy
 
-# Two layers, applied in order by three sequential jobs:
+# Two layers, applied in order by sequential jobs:
 #
 #   preflight  the k3s/Traefik pin agrees, and the cluster is reachable
 #   node       node/, applied with Ansible over SSH as the `deploy` user
+#   router     router/ansible/, applied with Ansible over SSH as root
 #   cluster    deploy/, applied with kustomize
 #
 # Order matters: a k3s upgrade changes which Traefik chart tarball the node
-# serves, so node must run before cluster.
+# serves, so node must run before cluster. A coupled k3s/Traefik bump touches
+# deploy/setup/traefik/, so cluster still runs for it.
 #
-# node is skipped when the push changed nothing under node/; cluster then
-# runs straight after preflight.
+# Each of node, router and cluster is skipped when the push changed nothing
+# under its tree; a skipped job counts as a pass for the jobs after it. A
+# manual workflow_dispatch runs all three.
 #
-# preflight exists because CI's only path to the node is through the
-# cluster itself (cloudflared runs in-cluster) -- checking reachability
-# first gives a clear signal instead of a confusing failure deep inside
-# Ansible or kubectl output.
+# preflight exists because CI's only path to the node and the router is
+# through the cluster itself (cloudflared runs in-cluster) -- checking
+# reachability first gives a clear signal instead of a confusing failure
+# deep inside Ansible or kubectl output.
 
 on:
   push:
@@ -24,6 +27,7 @@ on:
       - deploy/**
       - flux-system/**
       - node/**
+      - router/ansible/**
       - .github/workflows/deploy.yaml
   workflow_dispatch: {}
 
@@ -39,19 +43,32 @@ jobs:
     environment: prod
     outputs:
       node-changed: ${{ steps.changes.outputs.node }}
+      router-changed: ${{ steps.changes.outputs.router }}
+      cluster-changed: ${{ steps.changes.outputs.cluster }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # The node job is skipped entirely when nothing under node/ changed --
-      # cluster then runs straight after preflight. See its `if:` below.
-      - name: Detect node changes
+      # Each downstream job is skipped when nothing under its tree changed --
+      # see the `if:` on each. On workflow_dispatch paths-filter diffs HEAD
+      # against its own merge-base and finds nothing, so every filter reports
+      # false; each downstream `if:` special-cases workflow_dispatch to run
+      # anyway.
+      - name: Detect which trees changed
         uses: dorny/paths-filter@v4
         id: changes
         with:
           filters: |
             node:
               - 'node/**'
+              - '.github/workflows/deploy.yaml'
+            router:
+              - 'router/ansible/**'
+              - '.github/workflows/deploy.yaml'
+            cluster:
+              - 'deploy/**'
+              - 'flux-system/**'
+              - '.github/workflows/deploy.yaml'
 
       - name: Check the Traefik chart pin
         run: ./node/scripts/check-traefik-pin.sh --online
@@ -94,7 +111,9 @@ jobs:
 
   node:
     needs: preflight
-    if: needs.preflight.outputs.node-changed == 'true'
+    if: >-
+      needs.preflight.outputs.node-changed == 'true' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: prod
     steps:
@@ -164,15 +183,96 @@ jobs:
             exit 1
           fi
 
-  cluster:
+  router:
     needs: [preflight, node]
-    # node is skipped when nothing under node/ changed; still run cluster.
-    # Guard against a genuine node failure with an explicit result check,
-    # since always() would otherwise run cluster even then.
+    # Depends on node purely for ordering: node and router both mutate infra
+    # CI reaches through the same tunnel, so they must not run at once. node
+    # is skipped when nothing under node/ changed -- treat that as a pass.
     if: >-
       always() &&
       needs.preflight.result == 'success' &&
-      (needs.node.result == 'success' || needs.node.result == 'skipped')
+      (needs.node.result == 'success' || needs.node.result == 'skipped') &&
+      (needs.preflight.outputs.router-changed == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Connect to Cloudflare Warp
+        uses: Boostport/setup-cloudflare-warp@v1
+        with:
+          organization: ticklethepanda
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
+      # The router rides the same WARP route as the node (192.168.1.0/24). If
+      # 22 is unreachable the tunnel is down, not a per-host policy -- there
+      # is no service-token policy gating the router specifically.
+      - name: Check the router is reachable
+        run: |
+          set -euo pipefail
+          if ! nc -zv -w 10 192.168.1.1 22; then
+            echo "::error::Cannot reach the router on 22 -- the cloudflared tunnel is down. It runs in-cluster; see node/RECOVERY.md."
+            exit 1
+          fi
+
+      - name: Install ansible-core
+        run: pipx install ansible-core
+
+      # ansible-core ships no collections; the router tasks need
+      # community.openwrt. Pinned in router/ansible/requirements.yml.
+      - name: Install Ansible collections
+        working-directory: router/ansible
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Install the SSH key
+        run: |
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/router_key
+          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/router_key
+
+      - name: Syntax check
+        working-directory: router/ansible
+        run: ansible-playbook site.yml --syntax-check
+
+      - name: Apply
+        working-directory: router/ansible
+        env:
+          ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
+          ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
+          ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
+        run: ansible-playbook site.yml --diff --private-key ~/.ssh/router_key
+
+      # Idempotence is the proof the automation is honest about what it owns.
+      - name: Confirm no drift remains
+        working-directory: router/ansible
+        env:
+          ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
+          ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
+          ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
+        run: |
+          set -euo pipefail
+          ansible-playbook site.yml --check --diff --private-key ~/.ssh/router_key \
+            | tee /tmp/router-recheck.log
+          if sed -n '/PLAY RECAP/,$p' /tmp/router-recheck.log | grep -qE 'changed=[1-9]'; then
+            echo "::error::Playbook is not idempotent -- a second --check run still reports changes."
+            exit 1
+          fi
+
+  cluster:
+    needs: [preflight, node, router]
+    # Runs when deploy/ or flux-system/ changed (or on a manual dispatch),
+    # and only after node/router either passed or were themselves skipped --
+    # router lands before Flux reconciles through the same tunnel. always()
+    # plus explicit result checks: a genuine node/router failure blocks
+    # cluster, a skip does not.
+    if: >-
+      always() &&
+      needs.preflight.result == 'success' &&
+      (needs.node.result == 'success' || needs.node.result == 'skipped') &&
+      (needs.router.result == 'success' || needs.router.result == 'skipped') &&
+      (needs.preflight.outputs.cluster-changed == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: prod
     steps:

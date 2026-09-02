@@ -39,9 +39,11 @@ Source for the apps this repo builds and deploys. Each has its own
 
 ## Network
 
-Router: 192.168.1.1 — a GL.iNet Flint 2 (GL-MT6000). Its configuration is a
-vanilla-OpenWrt image built by [`router/`](router/) and flashed by hand — a
-one-time bootstrap, not applied by CI. See [`router/README.md`](router/README.md).
+Router: 192.168.1.1 — a GL.iNet Flint 2 (GL-MT6000) running vanilla OpenWrt.
+Ongoing config is a `community.openwrt` Ansible playbook
+([`router/ansible/`](router/ansible/)), applied by CI over SSH. The initial
+image ([`router/bootstrap/`](router/bootstrap/)) is built and flashed by hand —
+the break-glass path. See [`router/README.md`](router/README.md).
 
 ### Kubernetes
 

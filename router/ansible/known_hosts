@@ -1,0 +1,13 @@
+# SSH host key for the router (gateway, 192.168.1.1).
+#
+# Pinned so CI verifies the host instead of trusting on first use -- CI
+# reaches the router through a Cloudflare tunnel, so whatever answers on the
+# far side would otherwise be trusted blindly.
+#
+# Fingerprint: SHA256:bgvWTex2p2/Kinj2cs34Tq7956P/jA88S54MZ/5C9ag
+#
+# Dropbear regenerates its host key on a factory reset / reflash. If this
+# legitimately changes, refresh it with:
+#   ssh-keyscan -t ed25519 192.168.1.1
+# and verify the fingerprint from the router console before committing.
+192.168.1.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGLtKMY1neXa1H9W6tNoY03BUt7OWEI9Rrst9s5rdWEL

@@ -1,0 +1,31 @@
+---
+# Keep every management surface on the LAN. The wan zone drops input
+# (tasks/firewall.yml); this binds the services themselves to the LAN too.
+
+# @dropbear[0] resolves whether the section is anonymous (fresh flash) or
+# named (this router's `main`).
+- name: Dropbear bound to the LAN interface
+  community.openwrt.uci:
+    key: "dropbear.@dropbear[0].{{ item.key }}"
+    value: "{{ item.value }}"
+    autocommit: true
+  loop:
+    - { key: Interface, value: lan }
+    - { key: Port, value: "22" }
+    - { key: PasswordAuth, value: "on" }
+    - { key: RootPasswordAuth, value: "on" }
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Restart dropbear
+
+- name: LuCI (uhttpd) listening on the LAN address only
+  community.openwrt.uci:
+    key: "uhttpd.main.{{ item.key }}"
+    value: "{{ item.value }}"
+    autocommit: true
+  loop:
+    - { key: listen_http, value: ["{{ router_lan_ipaddr }}:80"] }
+    - { key: listen_https, value: ["{{ router_lan_ipaddr }}:443"] }
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Restart uhttpd

@@ -1,0 +1,13 @@
+---
+- name: Hostname, timezone and zone name
+  community.openwrt.uci:
+    key: "system.@system[0].{{ item.key }}"
+    value: "{{ item.value }}"
+    autocommit: true
+  loop:
+    - { key: hostname, value: "{{ router_hostname }}" }
+    - { key: timezone, value: "{{ router_timezone }}" }
+    - { key: zonename, value: "{{ router_zonename }}" }
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Reload system config

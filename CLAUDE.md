@@ -108,11 +108,16 @@ When comments are necessary:
 ## Deploy pattern
 
 - `.github/workflows/deploy.yaml` is the single pipeline for both layers,
-  running three sequential jobs on push to `deploy/**` or `node/**`:
-  `check` (the k3s/Traefik pin guard — no secrets, fails fast), then `node`
-  (Ansible, see below), then `cluster`. Order matters: a k3s upgrade changes
-  which Traefik chart tarball the node serves, so the node must move before
-  the manifests that reference it.
+  running sequential jobs on push to `deploy/**`, `node/**` or
+  `router/ansible/**`: `preflight` (the k3s/Traefik pin guard + tunnel
+  reachability — no secrets, fails fast), then `node` (Ansible, see below),
+  then `router` (Ansible against the gateway, see `router/ansible/`), then
+  `cluster`. Order matters: a k3s upgrade changes which Traefik chart tarball
+  the node serves, so the node must move before the manifests that reference
+  it. `node`, `router` and `cluster` each skip when their own tree is
+  unchanged (`cluster` = `deploy/**` + `flux-system/**`; all three also
+  trigger on the workflow file itself); a skipped job counts as a pass for
+  the jobs that follow, and a manual `workflow_dispatch` runs all three.
 - The `cluster` job applies everything under `deploy/` via kustomize:
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
@@ -181,9 +186,35 @@ When comments are necessary:
   Recovery is LAN-local — see `node/RECOVERY.md`.
 - The workflow holds `concurrency: group: cluster` so two runs can never
   touch the cluster at once. A `dorny/paths-filter` step in `preflight`
-  skips the whole `node` job when the push changed nothing under `node/`;
-  `cluster` then runs straight after `preflight` (its `if:` treats a
-  skipped `node` as a pass, but still blocks on a real `node` failure).
+  drives the per-tree skips (see "Deploy pattern"); each downstream `if:`
+  treats an upstream *skip* as a pass but still blocks on a real failure.
+
+## Router pattern
+
+- `router/` has two halves. `router/bootstrap/` is the OpenWrt Image Builder
+  setup — a known-good baseline, built and flashed **by hand**, the
+  break-glass path. `router/ansible/` is a `community.openwrt` playbook, the
+  source of truth for ongoing config, applied by the `router` job in
+  `.github/workflows/deploy.yaml`. The two need not stay in sync: bootstrap
+  only has to get a bare router far enough for the playbook to take over.
+- The `router` job connects as `root` over SSH (reusing `NODE_SSH_KEY`, whose
+  public half `router/bootstrap/` bakes into the router's
+  `authorized_keys`) through the **same cloudflared tunnel as `node`** — the
+  WARP route covers `192.168.1.0/24`, so no separate route is needed. PPPoE
+  and Wi-Fi secrets come from `ROUTER_PPPOE_USERNAME` / `ROUTER_PPPOE_PASSWORD`
+  / `ROUTER_WIFI_KEY` in the `prod` environment.
+- **Same tunnel-through-the-thing-you're-changing risk as k3s.** CI egresses
+  through this router's WAN. `router/ansible/site.yml`'s network / dropbear
+  handlers detach with `community.openwrt.nohup` and reconnect with
+  `wait_for_connection` — do not fold them into a synchronous restart. Do the
+  first apply after any reflash from the LAN, not through CI.
+- `community.openwrt` modules run in ash — no Python on the router. The play
+  is `gather_facts: false` and includes the `community.openwrt.init` role
+  with `openwrt_install_recommended_packages: false` (busybox already has
+  `base64` / `sha256sum`; the opkg path can otherwise make a run report
+  "changed" off a stale package list).
+- The root password is the one thing `router/ansible/` does not manage —
+  `router/bootstrap/` writes it once from the GL.iNet backup hash.
 
 ## Storage
 

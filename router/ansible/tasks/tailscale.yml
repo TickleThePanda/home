@@ -1,0 +1,24 @@
+---
+# Only the steady-state config: forwarding sysctls and the service being
+# enabled. The tailnet login and the advertised routes / exit node are set
+# once by router/bootstrap/ (hotplug on first WAN up) and persist in
+# /etc/tailscale/tailscaled.state -- change them with `tailscale set` by hand.
+
+- name: Subnet-routing / exit-node sysctls
+  community.openwrt.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-tailscale.conf
+    sysctl_set: true
+  loop:
+    - { key: net.ipv4.ip_forward, value: "1" }
+    - { key: net.ipv6.conf.all.forwarding, value: "1" }
+    - { key: net.ipv4.conf.all.rp_filter, value: "2" }
+    - { key: net.ipv4.conf.default.rp_filter, value: "2" }
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: tailscaled enabled at boot
+  community.openwrt.service:
+    name: tailscale
+    enabled: true

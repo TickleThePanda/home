@@ -15,13 +15,13 @@ for bin in "$RUNTIME" openssl python3; do
 done
 
 [ -f secrets.env ] || {
-  echo "create router/secrets.env from router/secrets.env.example" >&2; exit 1
+  echo "create router/bootstrap/secrets.env from secrets.env.example" >&2; exit 1
 }
 set -a; . ./secrets.env; set +a
 : "${ROUTER_PPPOE_USERNAME:?}" "${ROUTER_PPPOE_PASSWORD:?}" "${ROUTER_WIFI_KEY:?}" \
   "${ROUTER_TS_AUTHKEY:?}"
 
-[ -s ../deploy_key.pub ] || {
+[ -s ../../deploy_key.pub ] || {
   echo "deploy_key.pub not found in the repo root (from the node bootstrap)" >&2
   exit 1
 }
@@ -49,7 +49,7 @@ python3 render.py
 # 0644, not 0600: the Image Builder runs as an unprivileged container user
 # that must read it, and dropbear only rejects a *writable* file. Public
 # keys -- nothing to hide.
-cat ../deploy_key.pub $([ -f authorized_keys.extra ] && echo authorized_keys.extra) \
+cat ../../deploy_key.pub $([ -f authorized_keys.extra ] && echo authorized_keys.extra) \
   > build/files/etc/dropbear/authorized_keys
 chmod 644 build/files/etc/dropbear/authorized_keys
 
@@ -80,4 +80,4 @@ trap '"$RUNTIME" rm -f "$cid" >/dev/null 2>&1 || true' EXIT
 image="$(find out -name "*-${PROFILE}-squashfs-sysupgrade.bin" | head -1)"
 [ -n "$image" ] || { echo "build produced no sysupgrade image" >&2; exit 1; }
 echo
-echo "built: router/$image"
+echo "built: router/bootstrap/$image"
