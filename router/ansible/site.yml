@@ -54,6 +54,10 @@
       ansible.builtin.import_tasks: tasks/firewall.yml
       tags: [firewall]
 
+    - name: mDNS reflector
+      ansible.builtin.import_tasks: tasks/mdns-reflector.yml
+      tags: [mdns]
+
     - name: Tailscale
       ansible.builtin.import_tasks: tasks/tailscale.yml
       tags: [tailscale]
@@ -106,6 +110,12 @@
     - name: Restart dnsmasq
       community.openwrt.service:
         name: dnsmasq
+        state: restarted
+
+    # Not in the CI transport path; a plain restart is fine.
+    - name: Restart avahi-daemon
+      community.openwrt.service:
+        name: avahi-daemon
         state: restarted
 
     - name: Reload system config

@@ -73,6 +73,11 @@ When comments are necessary:
   `10.168.192.in-addr.arpa`) wired through BIND, Unbound, ExternalDNS and Kea
   DDNS. Trusted clients get DNS `192.168.1.10` and resolve via routed access
   to Pi-hole (which runs `listeningMode=ALL` so it answers off-subnet).
+- **mDNS**: an Avahi reflector on the router (`router/ansible/tasks/mdns-reflector.yml`)
+  forwards mDNS between `br-lan` and `br-trusted` — link-local multicast does
+  not route on its own. This is what lets Home Assistant (`homelab`) rediscover
+  ESPHome devices on the `trusted` Wi-Fi after a DHCP address change, instead of
+  waiting out the stale record's TTL.
 - **MetalLB** (L2 mode) hands out LoadBalancer IPs from pools: `external`
   (WAN-facing ingress), `internal` (LAN-only ingress), `pihole`, `kube-api`.
 - **Traefik** is the sole ingress controller. Internal-only apps use

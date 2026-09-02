@@ -18,6 +18,7 @@ tunnel the `node` job uses.
 | radios + both APs (on `trusted`) | `tasks/wireless.yml` |
 | `dhcp.lan`/`dhcp.trusted` ignored, dnsmasq as a DHCP relay for the trusted VLAN, `/etc/resolv.conf` → Quad9 | `tasks/dhcp-dns.yml` |
 | `wan` drops, `tailscale0` + `trusted` zones + forwardings | `tasks/firewall.yml` |
+| Avahi mDNS reflector (homelab ↔ trusted) | `tasks/mdns-reflector.yml` |
 | forwarding sysctls, `tailscaled` enabled, advertised subnet routes | `tasks/tailscale.yml` |
 
 Not managed: the **root password** (`../bootstrap/` sets it once from the

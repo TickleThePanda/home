@@ -1,0 +1,47 @@
+---
+# Avahi in pure-reflector mode: it forwards mDNS between br-lan (homelab) and
+# br-trusted, so Home Assistant on homelab keeps discovering the ESPHome
+# sensors that sit on the trusted Wi-Fi VLAN. mDNS is link-local multicast and
+# does not cross the router on its own; without this, a sensor's IP change is
+# invisible to HA until the stale DNS record expires (Kea DDNS default TTL is
+# lease-lifetime / 3 = 8h).
+#
+# lan and trusted zones are both input ACCEPT for now, so no firewall rule is
+# needed. When that is tightened, UDP 5353 to the router must stay open on both.
+#
+# avahi-nodbus-daemon (the D-Bus-free build) is installed here via opkg, not
+# baked into the image -- the stat guard means opkg only runs on the first
+# apply and again after a reflash, so steady-state runs stay offline and
+# idempotent. Install the real package, not `avahi-daemon`: on 24.10 that name
+# is a transitional alias that pulls in the D-Bus build plus dbus/libdbus.
+
+- name: Check for the avahi-daemon binary
+  community.openwrt.stat:
+    path: /usr/sbin/avahi-daemon
+    get_checksum: false
+    get_md5: false
+  register: router_avahi_bin
+
+- name: Install avahi-nodbus-daemon
+  community.openwrt.opkg:
+    name: avahi-nodbus-daemon
+    state: present
+    update_cache: true
+  when: not router_avahi_bin.stat.exists
+
+- name: Avahi config directory
+  community.openwrt.file:
+    path: /etc/avahi
+    state: directory
+
+- name: Avahi reflector config
+  community.openwrt.template:
+    src: avahi-daemon.conf.j2
+    dest: /etc/avahi/avahi-daemon.conf
+  notify: Restart avahi-daemon
+
+- name: avahi-daemon enabled and running
+  community.openwrt.service:
+    name: avahi-daemon
+    enabled: true
+    state: started

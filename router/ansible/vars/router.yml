@@ -22,6 +22,12 @@ router_trusted_macaddr: "96:83:c4:e5:2f:59"  # router_lan_macaddr, locally-admin
 # Kea's macvlan address in the cluster -- the DHCP relay's upstream server.
 router_kea_dhcp_ip: 192.168.1.11
 
+# Bridges the Avahi mDNS reflector spans (homelab <-> trusted). Anything not
+# listed here -- pppoe-wan, tailscale0 -- is never reflected onto.
+mdns_reflector_interfaces:
+  - br-lan
+  - br-trusted
+
 # Hardware identities carried over from the stock GL.iNet config so switches,
 # APs and MAC-keyed reservations elsewhere don't have to relearn.
 router_lan_macaddr: "94:83:c4:e5:2f:59"
