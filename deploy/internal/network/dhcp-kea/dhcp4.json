@@ -93,6 +93,41 @@
             "ip-address": "192.168.1.5"
           }
         ]
+      },
+      {
+        // Trusted VLAN. Reached only via the DHCP relay on the router
+        // (192.168.10.1 -> 192.168.1.11); Kea matches it by giaddr. Replies
+        // go back to the relay as an L2 frame on net1, so no extra interface
+        // or route is needed here.
+        "id": 2,
+        "subnet": "192.168.10.0/24",
+
+        "relay": { "ip-addresses": [ "192.168.10.1" ] },
+
+        "pools": [
+          {
+            "pool": "192.168.10.21 - 192.168.10.200"
+          }
+        ],
+
+        "option-data": [
+          {
+            "name": "routers",
+            "data": "192.168.10.1"
+          },
+          {
+            "name": "subnet-mask",
+            "data": "255.255.255.0"
+          },
+          {
+            "name": "domain-name-servers",
+            "data": "192.168.1.10"
+          },
+          {
+            "name": "domain-search",
+            "data": "home.arpa"
+          }
+        ]
       }
     ],
 

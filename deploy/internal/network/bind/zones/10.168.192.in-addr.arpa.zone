@@ -1,0 +1,14 @@
+$ORIGIN 10.168.192.in-addr.arpa.
+$TTL 300
+
+@   IN SOA ns.home.arpa. admin.ticklethepanda.co.uk. (
+        2026090110 ; serial (named bumps this on every update)
+        3600       ; refresh
+        600        ; retry
+        86400      ; expire
+        300 )      ; minimum
+
+@   IN NS  ns.home.arpa.
+
+; Seeded (see home.arpa.zone); the rest is written by Kea / ExternalDNS.
+1   IN PTR gateway.home.arpa.
