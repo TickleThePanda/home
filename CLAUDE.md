@@ -77,7 +77,8 @@ When comments are necessary:
   forwards mDNS between `br-lan` and `br-trusted` — link-local multicast does
   not route on its own. This is what lets Home Assistant (`homelab`) rediscover
   ESPHome devices on the `trusted` Wi-Fi after a DHCP address change, instead of
-  waiting out the stale record's TTL.
+  waiting out the stale record's TTL. It also publishes `gateway.local` (the
+  router's per-VLAN address) on both bridges.
 - **MetalLB** (L2 mode) hands out LoadBalancer IPs from pools: `external`
   (WAN-facing ingress), `internal` (LAN-only ingress), `pihole`, `kube-api`.
 - **Traefik** is the sole ingress controller. Internal-only apps use

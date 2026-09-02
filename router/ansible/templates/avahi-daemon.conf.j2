@@ -1,10 +1,13 @@
 # Managed by router/ansible (tasks/mdns-reflector.yml).
 #
-# mDNS reflector: forward mDNS between the homelab and trusted bridges.
-# allow-interfaces keeps reflection off pppoe-wan and tailscale0; publishing is
-# disabled so the router adds no service records of its own.
+# mDNS reflector between the homelab and trusted bridges, plus it publishes the
+# router's own address as {{ router_hostname }}.local (per-interface: the
+# homelab clients get 192.168.1.1, trusted clients get 192.168.10.1).
+# allow-interfaces keeps both reflection and publishing off pppoe-wan and
+# tailscale0.
 
 [server]
+host-name={{ router_hostname }}
 use-ipv4=yes
 use-ipv6=no
 allow-interfaces={{ mdns_reflector_interfaces | join(',') }}
@@ -14,10 +17,11 @@ disallow-other-stacks=yes
 enable-wide-area=no
 
 [publish]
-disable-publishing=yes
-disable-user-service-publishing=yes
+publish-addresses=yes
 publish-hinfo=no
 publish-workstation=no
+publish-domain=no
+disable-user-service-publishing=yes
 
 [reflector]
 enable-reflector=yes
