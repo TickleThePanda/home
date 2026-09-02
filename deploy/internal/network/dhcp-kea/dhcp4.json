@@ -32,6 +32,11 @@
       "socket-name": "/kea/sockets/kea4-ctrl-socket"
     },
 
+    // lease_cmds adds lease4-get-* and lease4-resend-ddns over the socket.
+    "hooks-libraries": [
+      { "library": "/usr/local/lib/kea/hooks/libdhcp_lease_cmds.so" }
+    ],
+
     // Hand every lease's name to the DHCP-DDNS sidecar (127.0.0.1:53001),
     // which updates BIND. Qualified into the local zone; sanitise odd names.
     "dhcp-ddns": {
