@@ -13,7 +13,7 @@ tunnel the `node` job uses.
 | Area | File |
 |---|---|
 | hostname, timezone | `tasks/system.yml` |
-| dropbear + LuCI bound to the LAN | `tasks/mgmt-access.yml` |
+| dropbear + LuCI on the homelab + trusted gateway addresses | `tasks/mgmt-access.yml` |
 | LAN address, PPPoE WAN, MACs, ULA, `br-trusted` + `trusted` VLAN | `tasks/network.yml` |
 | radios + both APs (on `trusted`) | `tasks/wireless.yml` |
 | `dhcp.lan`/`dhcp.trusted` ignored, dnsmasq as a DHCP relay for the trusted VLAN, `/etc/resolv.conf` → Quad9 | `tasks/dhcp-dns.yml` |

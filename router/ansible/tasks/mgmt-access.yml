@@ -1,31 +1,40 @@
 ---
-# Keep every management surface on the LAN. The wan zone drops input
-# (tasks/firewall.yml); this binds the services themselves to the LAN too.
+# Management surfaces stay off the WAN (the wan zone drops input,
+# tasks/firewall.yml) and the services bind explicitly rather than to
+# 0.0.0.0. SSH and LuCI both listen on the homelab and trusted VLAN gateway
+# addresses so the router is reachable from the Wi-Fi side. Both zones
+# accept input today; when that is tightened, 22/80/443 to the router must
+# stay open from trusted.
 
-# @dropbear[0] resolves whether the section is anonymous (fresh flash) or
-# named (this router's `main`).
-- name: Dropbear bound to the LAN interface
+# @dropbear[0] is this router's one dropbear section (named `main` once the
+# playbook has run, anonymous on a fresh flash). `Interface` is a list --
+# dropbear binds the current address(es) of each named interface. `command:
+# set` with a dict `value:` sets the listed options and leaves the rest of
+# the section alone (a bare `value:` dict defaults `command` to `get`).
+- name: Dropbear bound to the homelab and trusted interfaces
   community.openwrt.uci:
-    key: "dropbear.@dropbear[0].{{ item.key }}"
-    value: "{{ item.value }}"
+    command: set
+    config: dropbear
+    section: "@dropbear[0]"
+    value:
+      Interface: [lan, trusted]
+      Port: "22"
+      PasswordAuth: "on"
+      RootPasswordAuth: "on"
     autocommit: true
-  loop:
-    - { key: Interface, value: lan }
-    - { key: Port, value: "22" }
-    - { key: PasswordAuth, value: "on" }
-    - { key: RootPasswordAuth, value: "on" }
-  loop_control:
-    label: "{{ item.key }}"
   notify: Restart dropbear
 
-- name: LuCI (uhttpd) listening on the LAN address only
+- name: LuCI (uhttpd) listening on the homelab and trusted gateway addresses
   community.openwrt.uci:
-    key: "uhttpd.main.{{ item.key }}"
-    value: "{{ item.value }}"
+    command: set
+    config: uhttpd
+    section: main
+    value:
+      listen_http:
+        - "{{ router_lan_ipaddr }}:80"
+        - "{{ router_trusted_ipaddr }}:80"
+      listen_https:
+        - "{{ router_lan_ipaddr }}:443"
+        - "{{ router_trusted_ipaddr }}:443"
     autocommit: true
-  loop:
-    - { key: listen_http, value: ["{{ router_lan_ipaddr }}:80"] }
-    - { key: listen_https, value: ["{{ router_lan_ipaddr }}:443"] }
-  loop_control:
-    label: "{{ item.key }}"
   notify: Restart uhttpd
