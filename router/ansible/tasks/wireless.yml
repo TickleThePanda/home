@@ -46,7 +46,7 @@
     set_find: true
     value:
       mode: ap
-      network: lan
+      network: trusted
       ssid: "{{ item.ssid }}"
       encryption: sae-mixed
       key: "{{ router_wifi_key }}"

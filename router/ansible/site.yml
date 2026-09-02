@@ -11,7 +11,8 @@
 #
 # Deliberately NOT managed: the root password (router/bootstrap/ sets it once
 # from the GL.iNet backup hash) and the Tailscale login itself (persists in
-# /etc/tailscale/tailscaled.state; only the advertised routes are enforced).
+# /etc/tailscale/tailscaled.state). The advertised subnet routes ARE enforced
+# here (tasks/tailscale.yml).
 
 - name: Configure the gateway
   hosts: gateway
@@ -98,6 +99,14 @@
       community.openwrt.service:
         name: odhcpd
         state: reloaded
+
+    # dnsmasq is a DHCP relay only and not in the CI transport path, so a
+    # plain restart is fine. Runs after the network handlers so 192.168.10.1
+    # exists when the relay binds it.
+    - name: Restart dnsmasq
+      community.openwrt.service:
+        name: dnsmasq
+        state: restarted
 
     - name: Reload system config
       community.openwrt.service:

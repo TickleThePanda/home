@@ -14,16 +14,17 @@ tunnel the `node` job uses.
 |---|---|
 | hostname, timezone | `tasks/system.yml` |
 | dropbear + LuCI bound to the LAN | `tasks/mgmt-access.yml` |
-| LAN address, PPPoE WAN, MACs, ULA | `tasks/network.yml` |
-| radios + both APs | `tasks/wireless.yml` |
-| `dhcp.lan` ignored, dnsmasq off, `/etc/resolv.conf` → Quad9 | `tasks/dhcp-dns.yml` |
-| `wan` drops, `tailscale0` zone + forwardings | `tasks/firewall.yml` |
-| forwarding sysctls, `tailscaled` enabled | `tasks/tailscale.yml` |
+| LAN address, PPPoE WAN, MACs, ULA, `br-trusted` + `trusted` VLAN | `tasks/network.yml` |
+| radios + both APs (on `trusted`) | `tasks/wireless.yml` |
+| `dhcp.lan`/`dhcp.trusted` ignored, dnsmasq as a DHCP relay for the trusted VLAN, `/etc/resolv.conf` → Quad9 | `tasks/dhcp-dns.yml` |
+| `wan` drops, `tailscale0` + `trusted` zones + forwardings | `tasks/firewall.yml` |
+| forwarding sysctls, `tailscaled` enabled, advertised subnet routes | `tasks/tailscale.yml` |
 
 Not managed: the **root password** (`../bootstrap/` sets it once from the
-GL.iNet backup hash) and the **Tailscale login / advertised routes** (persist in
+GL.iNet backup hash) and the **Tailscale login** (persists in
 `/etc/tailscale/tailscaled.state`; `../bootstrap/`'s hotplug script logs in on
-first WAN up — change routes later with `tailscale set` by hand).
+first WAN up). The advertised routes (`router_tailscale_routes`) *are* enforced
+by `tasks/tailscale.yml`.
 
 ## Secrets
 

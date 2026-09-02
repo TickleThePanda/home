@@ -206,9 +206,10 @@ jobs:
           auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
 
-      # The router rides the same WARP route as the node (192.168.1.0/24). If
-      # 22 is unreachable the tunnel is down, not a per-host policy -- there
-      # is no service-token policy gating the router specifically.
+      # The router rides the same cloudflared tunnel as the node (Zero Trust
+      # routes 192.168.1.0/24 + 192.168.10.0/24). If 22 is unreachable the
+      # tunnel is down, not a per-host policy -- there is no service-token
+      # policy gating the router specifically.
       - name: Check the router is reachable
         run: |
           set -euo pipefail

@@ -45,6 +45,18 @@ Ongoing config is a `community.openwrt` Ansible playbook
 image ([`router/bootstrap/`](router/bootstrap/)) is built and flashed by hand —
 the break-glass path. See [`router/README.md`](router/README.md).
 
+Two VLANs, routed by the gateway, currently with fully open traffic between
+them:
+
+| VLAN | Subnet | Gateway | Ports / SSIDs |
+|---|---|---|---|
+| homelab | 192.168.1.0/24 | 192.168.1.1 | LAN2 (node), LAN3 (Home Assistant), LAN1 + the 2.5G jack (spare) |
+| trusted | 192.168.10.0/24 | 192.168.10.1 | LAN4 (downstairs switch), Wi-Fi `It reaches out` / `It reaches out (2.4G)` |
+
+Kea serves both subnets — homelab directly on its macvlan, trusted via a DHCP
+relay on the router. Trusted clients resolve through routed access to Pi-hole
+at 192.168.1.10.
+
 ### Kubernetes
 
 `k3s-manager-1` Node IP / SSH: 192.168.1.2

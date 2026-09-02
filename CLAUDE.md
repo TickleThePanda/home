@@ -58,6 +58,21 @@ When comments are necessary:
 
 ## Networking
 
+- **Two VLANs**, routed by the gateway with **fully open traffic between them
+  for now** (separation is planned, not yet enforced): `homelab`
+  (`192.168.1.0/24`, gw `192.168.1.1`) holds the node, Home Assistant, and all
+  cluster IPs; `trusted` (`192.168.10.0/24`, gw `192.168.10.1`) holds the
+  Wi-Fi SSIDs and the LAN4 jack. On the router they are separate bridges
+  (`br-lan` / `br-trusted`), no 802.1q. Everything cluster-side stays on
+  `homelab` — MetalLB L2 only ARPs on the node's segment.
+- **DHCP**: Kea (`deploy/internal/network/dhcp-kea/`) serves both subnets. It
+  is L2-attached to `homelab` via macvlan; `trusted` requests reach it through
+  a **dnsmasq DHCP relay on the router** (`192.168.10.1` → `192.168.1.11`,
+  relay-only, DNS listener off), and Kea picks the subnet by `giaddr`. Reverse
+  DNS for each subnet is a separate zone (`1.168.192.in-addr.arpa` /
+  `10.168.192.in-addr.arpa`) wired through BIND, Unbound, ExternalDNS and Kea
+  DDNS. Trusted clients get DNS `192.168.1.10` and resolve via routed access
+  to Pi-hole (which runs `listeningMode=ALL` so it answers off-subnet).
 - **MetalLB** (L2 mode) hands out LoadBalancer IPs from pools: `external`
   (WAN-facing ingress), `internal` (LAN-only ingress), `pihole`, `kube-api`.
 - **Traefik** is the sole ingress controller. Internal-only apps use
@@ -200,9 +215,11 @@ When comments are necessary:
 - The `router` job connects as `root` over SSH (reusing `NODE_SSH_KEY`, whose
   public half `router/bootstrap/` bakes into the router's
   `authorized_keys`) through the **same cloudflared tunnel as `node`** — the
-  WARP route covers `192.168.1.0/24`, so no separate route is needed. PPPoE
-  and Wi-Fi secrets come from `ROUTER_PPPOE_USERNAME` / `ROUTER_PPPOE_PASSWORD`
-  / `ROUTER_WIFI_KEY` in the `prod` environment.
+  Cloudflare Zero Trust private-network routes cover `192.168.1.0/24` and
+  `192.168.10.0/24` (both configured in the dashboard, not this repo), so no
+  separate route is needed. PPPoE and Wi-Fi secrets come from
+  `ROUTER_PPPOE_USERNAME` / `ROUTER_PPPOE_PASSWORD` / `ROUTER_WIFI_KEY` in the
+  `prod` environment.
 - **Same tunnel-through-the-thing-you're-changing risk as k3s.** CI egresses
   through this router's WAN. `router/ansible/site.yml`'s network / dropbear
   handlers detach with `community.openwrt.nohup` and reconnect with

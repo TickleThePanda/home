@@ -1,26 +1,77 @@
 ---
-# The router runs no DHCP or DNS. Kea (192.168.1.11) leases; BIND / Unbound /
-# Pi-hole resolve. The router resolves for itself straight against Quad9.
+# The router serves no DHCP leases and no DNS of its own. Kea
+# ({{ router_kea_dhcp_ip }}) leases; BIND / Unbound / Pi-hole resolve; the
+# router resolves for itself straight against Quad9.
+#
+# dnsmasq runs in one narrow role: a DHCP relay for the trusted VLAN, whose
+# clients are not on Kea's broadcast domain. DNS is off (port 0) and no
+# subnet is served directly.
+#
+# The relay's server-side reply from Kea arrives on br-lan (Kea is L2-adjacent
+# there, not on br-trusted). For dnsmasq to accept it:
+#  - dhcp.lan uses `dhcpv4 disabled` + `force 1`, NOT `ignore 1`: `ignore`
+#    emits `no-dhcp-interface=br-lan`, which drops the reply; `dhcpv4 disabled`
+#    keeps dnsmasq listening on br-lan without serving a range, and `force`
+#    skips the "another DHCP server on br-lan" guard (that server is Kea).
+#  - `config relay` sets no `interface`: with one, dnsmasq only accepts the
+#    server reply on that interface (br-trusted); without it, any interface.
+#  - `authoritative 0`: dnsmasq must never NAK a homelab client (Kea owns it).
 
-- name: odhcpd does nothing on the LAN
+- name: dnsmasq neither serves nor NAKs
+  community.openwrt.uci:
+    key: "dhcp.@dnsmasq[0].{{ item.key }}"
+    value: "{{ item.value }}"
+    autocommit: true
+  loop:
+    - { key: port, value: "0" }
+    - { key: authoritative, value: "0" }
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Restart dnsmasq
+
+- name: dhcp.lan -- dnsmasq listens (for relay replies) but never serves it
   community.openwrt.uci:
     key: "dhcp.lan.{{ item.key }}"
     value: "{{ item.value }}"
     autocommit: true
   loop:
-    - { key: ignore, value: "1" }
+    - { key: dhcpv4, value: disabled }
+    - { key: force, value: "1" }
     - { key: dhcpv6, value: disabled }
     - { key: ra, value: disabled }
     - { key: ndp, value: disabled }
   loop_control:
     label: "{{ item.key }}"
-  notify: Reload odhcpd
+  notify: Restart dnsmasq
 
-- name: dnsmasq disabled and stopped
+- name: dhcp.lan -- drop the `ignore` flag (would exclude br-lan from dnsmasq)
+  community.openwrt.uci:
+    command: absent
+    key: dhcp.lan.ignore
+    autocommit: true
+  notify: Restart dnsmasq
+
+# No `config dhcp 'trusted'` section: odhcpd has maindhcp=0 so it ignores any
+# interface without one, and adding one with ignore=1 makes OpenWrt emit
+# `no-dhcp-interface=br-trusted`, which disables the relay on br-trusted.
+
+- name: DHCP relay -- trusted VLAN to Kea
+  community.openwrt.uci:
+    command: section
+    config: dhcp
+    type: relay
+    find:
+      local_addr: "{{ router_trusted_ipaddr }}"
+      server_addr: "{{ router_kea_dhcp_ip }}"
+    set_find: true
+    autocommit: true
+  notify: Restart dnsmasq
+
+- name: dnsmasq enabled and running (relay only)
   community.openwrt.service:
     name: dnsmasq
-    enabled: false
-    state: stopped
+    enabled: true
+    state: started
 
 - name: System resolver points straight at Quad9
   community.openwrt.copy:

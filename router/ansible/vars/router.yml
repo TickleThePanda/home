@@ -11,6 +11,17 @@ router_lan_netmask: 255.255.255.0
 router_lan_ip6assign: "60"
 router_lan_subnet: 192.168.1.0/24
 
+# Trusted VLAN: the two Wi-Fi SSIDs + the LAN4 jack (downstairs switch), on a
+# separate bridge / broadcast domain. DHCP is relayed from here to Kea.
+router_trusted_ipaddr: 192.168.10.1
+router_trusted_netmask: 255.255.255.0
+router_trusted_subnet: 192.168.10.0/24
+router_trusted_port: lan4
+router_trusted_macaddr: "96:83:c4:e5:2f:59"  # router_lan_macaddr, locally-administered bit set
+
+# Kea's macvlan address in the cluster -- the DHCP relay's upstream server.
+router_kea_dhcp_ip: 192.168.1.11
+
 # Hardware identities carried over from the stock GL.iNet config so switches,
 # APs and MAC-keyed reservations elsewhere don't have to relearn.
 router_lan_macaddr: "94:83:c4:e5:2f:59"
@@ -29,3 +40,10 @@ router_resolvers:
 router_wifi_country: GB
 router_wifi_ssid_24g: It reaches out (2.4G)
 router_wifi_ssid_5g: It reaches out
+
+# Subnets the router advertises into the tailnet (subnet router + exit node).
+# tag:home-router autoApprovers covers 192.168.0.0/16, so new entries here
+# take effect without an admin-console approval.
+router_tailscale_routes:
+  - 192.168.1.0/24
+  - 192.168.10.0/24

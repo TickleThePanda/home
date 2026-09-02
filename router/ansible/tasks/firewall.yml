@@ -1,6 +1,8 @@
 ---
-# Stock OpenWrt firewall with two changes: wan drops rather than rejects, and
-# a tailscale0 zone so forwarded tailnet traffic isn't dropped by fw4.
+# Stock OpenWrt firewall with these changes: wan drops rather than rejects, a
+# tailscale0 zone so forwarded tailnet traffic isn't dropped by fw4, and a
+# trusted zone for the trusted VLAN. Traffic between lan and trusted is fully
+# open for now; tighten later.
 
 - name: wan zone drops input
   community.openwrt.uci:
@@ -10,6 +12,21 @@
     find: { name: wan }
     value:
       input: DROP
+    autocommit: true
+  notify: Reload firewall
+
+- name: trusted zone
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: zone
+    find: { name: trusted }
+    set_find: true
+    value:
+      input: ACCEPT
+      output: ACCEPT
+      forward: REJECT
+      network: [trusted]
     autocommit: true
   notify: Reload firewall
 
@@ -29,7 +46,7 @@
     autocommit: true
   notify: Reload firewall
 
-- name: tailnet forwardings
+- name: zone forwardings
   community.openwrt.uci:
     command: section
     config: firewall
@@ -41,6 +58,11 @@
     - { src: tailscale0, dest: lan }
     - { src: tailscale0, dest: wan }
     - { src: lan, dest: tailscale0 }
+    - { src: tailscale0, dest: trusted }
+    - { src: trusted, dest: tailscale0 }
+    - { src: trusted, dest: wan }
+    - { src: trusted, dest: lan }
+    - { src: lan, dest: trusted }
   loop_control:
     label: "{{ item.src }} -> {{ item.dest }}"
   notify: Reload firewall

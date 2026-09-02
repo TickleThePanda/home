@@ -80,3 +80,64 @@
   loop_control:
     label: "{{ item.name }}"
   notify: Reload network
+
+# Trusted VLAN: a second bridge on its own DSA port, no 802.1q tagging.
+# `br-lan` keeps vlan_filtering off -- toggling it recreates the whole bridge
+# and would blip the node's port (and the CI tunnel). One reload at the end
+# converges to the target: the trusted port lives only in br-trusted.
+
+- name: Locate the LAN bridge device section
+  community.openwrt.uci:
+    command: find
+    config: network
+    type: device
+    find: { name: br-lan }
+  register: router_br_lan_device
+  changed_when: false
+
+- name: Read the LAN bridge port list
+  community.openwrt.uci:
+    command: get
+    key: "network.{{ router_br_lan_device.result }}.ports"
+  register: router_br_lan_ports
+  changed_when: false
+
+# `uci del_list` of an absent value still stages a change on this OpenWrt, so
+# guard it -- otherwise the CI idempotence recheck never settles.
+- name: Trusted port leaves the LAN bridge
+  community.openwrt.uci:
+    command: del_list
+    key: "network.{{ router_br_lan_device.result }}.ports"
+    value: "{{ router_trusted_port }}"
+    autocommit: true
+  when: router_trusted_port in (router_br_lan_ports.result_list | default([]))
+  notify: Reload network
+
+- name: Trusted VLAN bridge device
+  community.openwrt.uci:
+    command: section
+    config: network
+    type: device
+    find: { name: br-trusted }
+    set_find: true
+    value:
+      type: bridge
+      macaddr: "{{ router_trusted_macaddr }}"
+      ports: ["{{ router_trusted_port }}"]
+    autocommit: true
+  notify: Reload network
+
+- name: Trusted VLAN interface
+  community.openwrt.uci:
+    command: section
+    config: network
+    type: interface
+    name: trusted
+    find: { device: br-trusted }
+    set_find: true
+    value:
+      proto: static
+      ipaddr: "{{ router_trusted_ipaddr }}"
+      netmask: "{{ router_trusted_netmask }}"
+    autocommit: true
+  notify: Reload network

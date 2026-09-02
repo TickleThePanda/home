@@ -1,8 +1,11 @@
 ---
-# Only the steady-state config: forwarding sysctls and the service being
-# enabled. The tailnet login and the advertised routes / exit node are set
-# once by router/bootstrap/ (hotplug on first WAN up) and persist in
-# /etc/tailscale/tailscaled.state -- change them with `tailscale set` by hand.
+# Steady-state config: forwarding sysctls, the service being enabled, and the
+# advertised subnet routes + exit node. The tailnet *login* is set once by
+# router/bootstrap/ (hotplug on first WAN up) and persists in
+# /etc/tailscale/tailscaled.state -- that part is not managed here.
+#
+# tag:home-router autoApprovers covers 192.168.0.0/16, so a route added to
+# router_tailscale_routes is approved without an admin-console step.
 
 - name: Subnet-routing / exit-node sysctls
   community.openwrt.sysctl:
@@ -22,3 +25,19 @@
   community.openwrt.service:
     name: tailscale
     enabled: true
+
+- name: Read current Tailscale prefs
+  ansible.builtin.raw: tailscale debug prefs
+  register: router_ts_prefs
+  changed_when: false
+
+- name: Advertise the LAN subnets and exit node
+  ansible.builtin.raw: >-
+    tailscale set --advertise-exit-node
+    --advertise-routes={{ router_tailscale_routes | join(',') }}
+  # AdvertiseRoutes also carries 0.0.0.0/0 + ::/0 when the exit node is on;
+  # compare only the subnet routes so a matched state is a no-op.
+  when: >-
+    (router_ts_prefs.stdout | from_json).AdvertiseRoutes | default([], true)
+      | difference(['0.0.0.0/0', '::/0']) | sort
+    != router_tailscale_routes | sort
