@@ -34,6 +34,21 @@
           "name": "10.168.192.in-addr.arpa.",
           "key-name": "kea",
           "dns-servers": [ { "ip-address": "10.43.53.55", "port": 53 } ]
+        },
+        {
+          "name": "20.168.192.in-addr.arpa.",
+          "key-name": "kea",
+          "dns-servers": [ { "ip-address": "10.43.53.55", "port": 53 } ]
+        },
+        {
+          "name": "30.168.192.in-addr.arpa.",
+          "key-name": "kea",
+          "dns-servers": [ { "ip-address": "10.43.53.55", "port": 53 } ]
+        },
+        {
+          "name": "40.168.192.in-addr.arpa.",
+          "key-name": "kea",
+          "dns-servers": [ { "ip-address": "10.43.53.55", "port": 53 } ]
         }
       ]
     },

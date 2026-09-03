@@ -16,3 +16,6 @@ configMapGenerator:
       - zones/home.arpa.zone
       - zones/1.168.192.in-addr.arpa.zone
       - zones/10.168.192.in-addr.arpa.zone
+      - zones/20.168.192.in-addr.arpa.zone
+      - zones/30.168.192.in-addr.arpa.zone
+      - zones/40.168.192.in-addr.arpa.zone

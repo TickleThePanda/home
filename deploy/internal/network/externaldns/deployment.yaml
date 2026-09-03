@@ -28,6 +28,9 @@ spec:
             - --rfc2136-zone=home.arpa
             - --rfc2136-zone=1.168.192.in-addr.arpa
             - --rfc2136-zone=10.168.192.in-addr.arpa
+            - --rfc2136-zone=20.168.192.in-addr.arpa
+            - --rfc2136-zone=30.168.192.in-addr.arpa
+            - --rfc2136-zone=40.168.192.in-addr.arpa
             - --source=service
             - --source=ingress
             - --policy=sync
@@ -38,6 +41,9 @@ spec:
             - --domain-filter=home.arpa
             - --domain-filter=1.168.192.in-addr.arpa
             - --domain-filter=10.168.192.in-addr.arpa
+            - --domain-filter=20.168.192.in-addr.arpa
+            - --domain-filter=30.168.192.in-addr.arpa
+            - --domain-filter=40.168.192.in-addr.arpa
             - --managed-record-types=A
             - --managed-record-types=AAAA
             - --managed-record-types=PTR

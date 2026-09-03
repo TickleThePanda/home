@@ -128,6 +128,51 @@
             "data": "home.arpa"
           }
         ]
+      },
+
+      // IoT VLANs. Wi-Fi only, reached via per-VLAN DHCP relays on the router
+      // (192.168.<n>.1 -> 192.168.1.11); Kea matches each by giaddr. Every
+      // IoT subnet points DNS at Pi-hole (192.168.1.10) and NTP at its own
+      // gateway (the router runs an NTP server for these VLANs). iot_local
+      // (id 4) has no route to the internet -- firewall, not DHCP.
+      {
+        "id": 3,
+        "subnet": "192.168.20.0/24",
+        "relay": { "ip-addresses": [ "192.168.20.1" ] },
+        "pools": [ { "pool": "192.168.20.21 - 192.168.20.200" } ],
+        "option-data": [
+          { "name": "routers", "data": "192.168.20.1" },
+          { "name": "subnet-mask", "data": "255.255.255.0" },
+          { "name": "domain-name-servers", "data": "192.168.1.10" },
+          { "name": "ntp-servers", "data": "192.168.20.1" },
+          { "name": "domain-search", "data": "home.arpa" }
+        ]
+      },
+      {
+        "id": 4,
+        "subnet": "192.168.30.0/24",
+        "relay": { "ip-addresses": [ "192.168.30.1" ] },
+        "pools": [ { "pool": "192.168.30.21 - 192.168.30.200" } ],
+        "option-data": [
+          { "name": "routers", "data": "192.168.30.1" },
+          { "name": "subnet-mask", "data": "255.255.255.0" },
+          { "name": "domain-name-servers", "data": "192.168.1.10" },
+          { "name": "ntp-servers", "data": "192.168.30.1" },
+          { "name": "domain-search", "data": "home.arpa" }
+        ]
+      },
+      {
+        "id": 5,
+        "subnet": "192.168.40.0/24",
+        "relay": { "ip-addresses": [ "192.168.40.1" ] },
+        "pools": [ { "pool": "192.168.40.21 - 192.168.40.200" } ],
+        "option-data": [
+          { "name": "routers", "data": "192.168.40.1" },
+          { "name": "subnet-mask", "data": "255.255.255.0" },
+          { "name": "domain-name-servers", "data": "192.168.1.10" },
+          { "name": "ntp-servers", "data": "192.168.40.1" },
+          { "name": "domain-search", "data": "home.arpa" }
+        ]
       }
     ],
 

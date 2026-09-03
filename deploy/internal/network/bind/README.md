@@ -1,7 +1,8 @@
 # bind
 
-Authoritative-only BIND9 for the local zones `home.arpa` and
-`1.168.192.in-addr.arpa`. No recursion — Unbound stub-zones both zones here.
+Authoritative-only BIND9 for `home.arpa` and the per-VLAN reverse zones
+(`1.` / `10.` / `20.` / `30.` / `40.` `.168.192.in-addr.arpa`). No recursion —
+Unbound stub-zones each of them here.
 
 Records are written by dynamic update, not by hand:
 
@@ -11,11 +12,17 @@ Records are written by dynamic update, not by hand:
   `LoadBalancer` Services / Ingresses annotated with
   `external-dns.kubernetes.io/hostname` (v0.22 dropped the `.alpha`).
 
-The only seeded record is `gateway` → `192.168.1.1` (in `zones/*.zone`) — the
-router can't be a DHCP client. The seed is copied to the PVC once; `named`
-owns the zone files thereafter (rewrites them + a `.jnl` journal per update),
-so a change to `zones/*.zone` after first deploy needs a re-seed
-(`kubectl -n bind delete pvc bind-data` + redeploy) or a manual `nsupdate`.
+The only seeded record is `gateway` → `192.168.1.1` (plus each reverse zone's
+NS/SOA) — the router can't be a DHCP client. `entrypoint.sh` seeds each zone
+file into the PVC **only if it isn't already there**, so:
+
+- **Adding a zone** (new `zones/*.zone` + `named.conf` block + kustomization
+  entry) is an ordinary deploy — the configMap hash change rolls the pod, the
+  entrypoint copies just the new file, existing zones and their live dynamic
+  records are untouched.
+- **Changing an existing seed** needs a re-seed of that copy:
+  `kubectl -n bind delete pvc bind-data` + redeploy, or a manual `nsupdate`
+  (`named` owns the file after first seed, rewriting it + a `.jnl` journal).
 
 ## TSIG keys (out-of-band, like `tunnel-token`)
 
