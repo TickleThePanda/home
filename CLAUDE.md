@@ -58,27 +58,44 @@ When comments are necessary:
 
 ## Networking
 
-- **Two VLANs**, routed by the gateway with **fully open traffic between them
-  for now** (separation is planned, not yet enforced): `homelab`
-  (`192.168.1.0/24`, gw `192.168.1.1`) holds the node, Home Assistant, and all
-  cluster IPs; `trusted` (`192.168.10.0/24`, gw `192.168.10.1`) holds the
-  Wi-Fi SSIDs and the LAN4 jack. On the router they are separate bridges
-  (`br-lan` / `br-trusted`), no 802.1q. Everything cluster-side stays on
-  `homelab` — MetalLB L2 only ARPs on the node's segment.
-- **DHCP**: Kea (`deploy/internal/network/dhcp-kea/`) serves both subnets. It
-  is L2-attached to `homelab` via macvlan; `trusted` requests reach it through
-  a **dnsmasq DHCP relay on the router** (`192.168.10.1` → `192.168.1.11`,
+- **Five VLANs**, routed by the gateway, each its own untagged bridge (no
+  802.1q):
+  - `homelab` (`192.168.1.0/24`, gw `.1`, `br-lan`) — node, Home Assistant,
+    all cluster IPs. Everything cluster-side stays here — MetalLB L2 only ARPs
+    on the node's segment.
+  - `trusted` (`192.168.10.0/24`, `br-trusted`) — the `It reaches out` Wi-Fi
+    SSIDs and the LAN4 jack. `homelab` ↔ `trusted` is **fully open for now**
+    (separation planned, not enforced).
+  - `iot_inet` / `iot_local` / `iot_echo` (`192.168.20/30/40.0/24`,
+    `br-iot-inet` / `-local` / `-echo`) — IoT devices, Wi-Fi only. Two 2.4 GHz
+    **PPSK** SSIDs (`It reaches out (IoT)` client-isolated, `It reaches out
+    (IoT peers)` not): full `wpad-mbedtls`, `config wifi-station` maps each
+    key to a `vid`, `config wifi-vlan` bridges that vid, `dynamic_vlan=2` so
+    an unclassified station is rejected (the `br-iot-park` base network is a
+    dead end). `homelab` / `trusted` / tailnet may initiate into every IoT
+    VLAN; **IoT may not initiate back, and IoT VLANs can't reach each other**
+    (`tasks/firewall.yml`: each is `input REJECT` + `forward REJECT`, with
+    narrow rules for DHCP relay, DNS to Pi-hole, NTP, mDNS). Only `iot_inet` /
+    `iot_echo` get a route to the WAN. Punch further holes per device.
+- **DHCP**: Kea (`deploy/internal/network/dhcp-kea/`) serves every subnet. It
+  is L2-attached to `homelab` via macvlan; the other VLANs reach it through
+  **dnsmasq DHCP relays on the router** (`192.168.<n>.1` → `192.168.1.11`,
   relay-only, DNS listener off), and Kea picks the subnet by `giaddr`. Reverse
-  DNS for each subnet is a separate zone (`1.168.192.in-addr.arpa` /
-  `10.168.192.in-addr.arpa`) wired through BIND, Unbound, ExternalDNS and Kea
-  DDNS. Trusted clients get DNS `192.168.1.10` and resolve via routed access
-  to Pi-hole (which runs `listeningMode=ALL` so it answers off-subnet).
+  DNS for each subnet is a separate zone (`<n>.168.192.in-addr.arpa`) wired
+  through BIND, Unbound, ExternalDNS and Kea DDNS; forward names all land in
+  `home.arpa` regardless of VLAN. Off-homelab clients get DNS `192.168.1.10`
+  and resolve via routed access to Pi-hole (`listeningMode=ALL`, so it answers
+  off-subnet). IoT VLANs also get NTP from the router (`192.168.<n>.1`;
+  `system.ntp.enable_server`).
 - **mDNS**: an Avahi reflector on the router (`router/ansible/tasks/mdns-reflector.yml`)
-  forwards mDNS between `br-lan` and `br-trusted` — link-local multicast does
-  not route on its own. This is what lets Home Assistant (`homelab`) rediscover
-  ESPHome devices on the `trusted` Wi-Fi after a DHCP address change, instead of
-  waiting out the stale record's TTL. It also publishes `gateway.local` (the
-  router's per-VLAN address) on both bridges.
+  forwards mDNS between `br-lan`, `br-trusted` and every `br-iot-*` — link-local
+  multicast does not route on its own. This is what lets Home Assistant
+  (`homelab`) rediscover ESPHome / IoT devices on the Wi-Fi VLANs after a DHCP
+  address change, instead of waiting out the stale record's TTL. It also
+  publishes `gateway.local` (the router's per-VLAN address) on every bridge.
+  The reflector is hub-and-all, not per-pair, so mDNS *records* are visible
+  between IoT VLANs too — accepted; the firewall still blocks all L3 traffic
+  between them.
 - **MetalLB** (L2 mode) hands out LoadBalancer IPs from pools: `external`
   (WAN-facing ingress), `internal` (LAN-only ingress), `pihole`, `kube-api`.
 - **Traefik** is the sole ingress controller. Internal-only apps use
@@ -223,9 +240,10 @@ When comments are necessary:
   `authorized_keys`) through the **same cloudflared tunnel as `node`** — the
   Cloudflare Zero Trust private-network routes cover `192.168.1.0/24` and
   `192.168.10.0/24` (both configured in the dashboard, not this repo), so no
-  separate route is needed. PPPoE and Wi-Fi secrets come from
-  `ROUTER_PPPOE_USERNAME` / `ROUTER_PPPOE_PASSWORD` / `ROUTER_WIFI_KEY` in the
-  `prod` environment.
+  separate route is needed — the IoT VLANs are deliberately *not* routed to CI.
+  PPPoE and Wi-Fi secrets come from `ROUTER_PPPOE_USERNAME` /
+  `ROUTER_PPPOE_PASSWORD` / `ROUTER_WIFI_KEY` / `ROUTER_WIFI_IOT_KEY_{INET,LOCAL,ECHO}`
+  in the `prod` environment.
 - **Same tunnel-through-the-thing-you're-changing risk as k3s.** CI egresses
   through this router's WAN. `router/ansible/site.yml`'s network / dropbear
   handlers detach with `community.openwrt.nohup` and reconnect with

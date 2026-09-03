@@ -1,0 +1,38 @@
+---
+# The IoT SSIDs use per-station VLAN assignment (config wifi-station /
+# wpa_psk_file + dynamic_vlan). The image ships wpad-basic-mbedtls, whose
+# hostapd rejects/ignores that -- swap in the full wpad-mbedtls (mbedtls to
+# match the rest of the image). Both Provides: wpad and conflict, so opkg
+# won't auto-replace: remove, then install.
+#
+# Guarded like tasks/mdns-reflector.yml -- the grep only finds the new package
+# once installed, so opkg runs on the first apply and again after a reflash;
+# steady-state runs stay offline and the CI --check --diff idempotence gate
+# stays clean.
+#
+# hostapd is not in the CI transport path (CI reaches the router via
+# cloudflared over the WAN, not Wi-Fi), so a failed swap leaves SSH / LuCI /
+# Tailscale up -- only Wi-Fi is affected. The Reload wifi config handler is
+# nohup-detached and not waited on.
+
+- name: Check whether full wpad is installed
+  ansible.builtin.raw: opkg list-installed | grep -q '^wpad-mbedtls '
+  register: router_wpad_full
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Swap wpad-basic-mbedtls -> wpad-mbedtls
+  when: router_wpad_full.rc | default(1) != 0
+  block:
+    - name: Remove wpad-basic-mbedtls
+      community.openwrt.opkg:
+        name: wpad-basic-mbedtls
+        state: absent
+
+    - name: Install wpad-mbedtls
+      community.openwrt.opkg:
+        name: wpad-mbedtls
+        state: present
+        update_cache: true
+      notify: Reload wifi config

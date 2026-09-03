@@ -58,3 +58,73 @@
     label: "{{ item.name }} ({{ item.ssid }})"
   no_log: true
   notify: Reload wifi config
+
+# IoT: two 2.4 GHz BSSes, one PPSK SSID each. dynamic_vlan=2 forces every
+# accepted station onto a VLAN (config wifi-station picks it by key, config
+# wifi-vlan bridges that vid). A station that resolves to no VLAN is rejected,
+# never parked. isolate=1 on the isolated BSS blocks station-to-station; the
+# peers BSS leaves it off. wmm is set explicitly -- MediaTek 24.10 clients can
+# fail to join a wifi-vlan network without it.
+
+- name: IoT access points
+  community.openwrt.uci:
+    command: section
+    config: wireless
+    type: wifi-iface
+    name: "{{ item.iface }}"
+    find: { ssid: "{{ item.ssid }}" }
+    set_find: true
+    value:
+      device: radio0
+      mode: ap
+      network: iot_park
+      encryption: psk2
+      key: "{{ router_iot_fallback_key }}"
+      wmm: "1"
+      dynamic_vlan: "2"
+      ieee80211w: "0"
+      isolate: "{{ item.isolate }}"
+    autocommit: true
+  loop:
+    - { iface: iotnet, ssid: "{{ router_iot_ssid_isolated }}", isolate: "1" }
+    - { iface: iotpeer, ssid: "{{ router_iot_ssid_peers }}", isolate: "0" }
+  loop_control:
+    label: "{{ item.iface }} ({{ item.ssid }})"
+  no_log: true
+  notify: Reload wifi config
+
+- name: IoT per-key VLAN assignments
+  community.openwrt.uci:
+    command: section
+    config: wireless
+    type: wifi-station
+    find:
+      iface: "{{ 'iotnet' if item.group == 'isolated' else 'iotpeer' }}"
+      vid: "{{ item.vid | string }}"
+    set_find: true
+    value:
+      key: "{{ router_iot_keys[item.name] }}"
+    autocommit: true
+  loop: "{{ router_iot_vlans }}"
+  loop_control:
+    label: "{{ item.name }} -> vid {{ item.vid }}"
+  no_log: true
+  notify: Reload wifi config
+
+- name: IoT VLAN-to-bridge mappings
+  community.openwrt.uci:
+    command: section
+    config: wireless
+    type: wifi-vlan
+    find:
+      iface: "{{ 'iotnet' if item.group == 'isolated' else 'iotpeer' }}"
+      vid: "{{ item.vid | string }}"
+    set_find: true
+    value:
+      name: "v{{ item.vid }}"
+      network: "{{ item.name }}"
+    autocommit: true
+  loop: "{{ router_iot_vlans }}"
+  loop_control:
+    label: "vid {{ item.vid }} -> {{ item.name }}"
+  notify: Reload wifi config

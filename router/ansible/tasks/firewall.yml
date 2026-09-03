@@ -3,6 +3,13 @@
 # tailscale0 zone so forwarded tailnet traffic isn't dropped by fw4, and a
 # trusted zone for the trusted VLAN. Traffic between lan and trusted is fully
 # open for now; tighten later.
+#
+# IoT zones (iot_inet / iot_local / iot_echo) are the opposite -- default
+# deny. lan, trusted and tailscale0 may initiate in; IoT may not initiate
+# back and IoT VLANs cannot reach each other. Only iot_inet / iot_echo get a
+# route to the wan. `input REJECT` on each, with narrow rules for the router
+# services IoT clients need: DHCP relay, DNS to Pi-hole, NTP, mDNS. iot_park
+# (the wifi-iface base network) drops everything.
 
 - name: wan zone drops input
   community.openwrt.uci:
@@ -46,6 +53,39 @@
     autocommit: true
   notify: Reload firewall
 
+- name: IoT VLAN zones
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: zone
+    find: { name: "{{ item.name }}" }
+    set_find: true
+    value:
+      input: REJECT
+      output: ACCEPT
+      forward: REJECT
+      network: ["{{ item.name }}"]
+    autocommit: true
+  loop: "{{ router_iot_vlans }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload firewall
+
+- name: IoT parking zone -- dead end
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: zone
+    find: { name: iot_park }
+    set_find: true
+    value:
+      input: DROP
+      output: DROP
+      forward: DROP
+      network: [iot_park]
+    autocommit: true
+  notify: Reload firewall
+
 - name: zone forwardings
   community.openwrt.uci:
     command: section
@@ -65,4 +105,113 @@
     - { src: lan, dest: trusted }
   loop_control:
     label: "{{ item.src }} -> {{ item.dest }}"
+  notify: Reload firewall
+
+# homelab / trusted / tailnet may initiate into every IoT VLAN.
+- name: IoT inbound forwardings
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: forwarding
+    find: { src: "{{ item.0 }}", dest: "{{ item.1.name }}" }
+    set_find: true
+    autocommit: true
+  loop: "{{ ['lan', 'trusted', 'tailscale0'] | product(router_iot_vlans) | list }}"
+  loop_control:
+    label: "{{ item.0 }} -> {{ item.1.name }}"
+  notify: Reload firewall
+
+# Only the internet-enabled IoT profiles get a route out.
+- name: IoT egress to wan
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: forwarding
+    find: { src: "{{ item.name }}", dest: wan }
+    set_find: true
+    autocommit: true
+  loop: "{{ router_iot_vlans | selectattr('internet') | list }}"
+  loop_control:
+    label: "{{ item.name }} -> wan"
+  notify: Reload firewall
+
+# IoT zones are input REJECT, so the router services IoT clients rely on need
+# explicit accepts. Each rule is scoped to one IoT zone via `src`.
+- name: IoT -- allow DHCP relay to the router
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: rule
+    find: { name: "Allow-DHCP-{{ item.name }}" }
+    set_find: true
+    value:
+      name: "Allow-DHCP-{{ item.name }}"
+      src: "{{ item.name }}"
+      proto: udp
+      dest_port: "67"
+      target: ACCEPT
+    autocommit: true
+  loop: "{{ router_iot_vlans }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload firewall
+
+- name: IoT -- allow DNS to Pi-hole only
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: rule
+    find: { name: "Allow-DNS-{{ item.name }}" }
+    set_find: true
+    value:
+      name: "Allow-DNS-{{ item.name }}"
+      src: "{{ item.name }}"
+      dest: lan
+      dest_ip: "192.168.1.10"
+      proto: "tcp udp"
+      dest_port: "53"
+      target: ACCEPT
+    autocommit: true
+  loop: "{{ router_iot_vlans }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload firewall
+
+- name: IoT -- allow NTP to the router
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: rule
+    find: { name: "Allow-NTP-{{ item.name }}" }
+    set_find: true
+    value:
+      name: "Allow-NTP-{{ item.name }}"
+      src: "{{ item.name }}"
+      proto: udp
+      dest_port: "123"
+      target: ACCEPT
+    autocommit: true
+  loop: "{{ router_iot_vlans }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload firewall
+
+- name: IoT -- allow mDNS to the router (avahi reflector)
+  community.openwrt.uci:
+    command: section
+    config: firewall
+    type: rule
+    find: { name: "Allow-mDNS-{{ item.name }}" }
+    set_find: true
+    value:
+      name: "Allow-mDNS-{{ item.name }}"
+      src: "{{ item.name }}"
+      proto: udp
+      dest_ip: "224.0.0.251"
+      dest_port: "5353"
+      target: ACCEPT
+    autocommit: true
+  loop: "{{ router_iot_vlans }}"
+  loop_control:
+    label: "{{ item.name }}"
   notify: Reload firewall

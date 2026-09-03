@@ -11,3 +11,14 @@
   loop_control:
     label: "{{ item.key }}"
   notify: Reload system config
+
+# NTP server for the IoT VLANs -- Kea hands each IoT subnet the router as its
+# time source (deploy/internal/network/dhcp-kea/), and tasks/firewall.yml
+# opens udp/123 from those zones. The upstream `server` pool list is left as
+# the image default.
+- name: NTP server enabled
+  community.openwrt.uci:
+    key: system.ntp.enable_server
+    value: "1"
+    autocommit: true
+  notify: Restart sysntpd

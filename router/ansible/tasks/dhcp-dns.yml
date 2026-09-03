@@ -3,8 +3,8 @@
 # ({{ router_kea_dhcp_ip }}) leases; BIND / Unbound / Pi-hole resolve; the
 # router resolves for itself straight against Quad9.
 #
-# dnsmasq runs in one narrow role: a DHCP relay for the trusted VLAN, whose
-# clients are not on Kea's broadcast domain. DNS is off (port 0) and no
+# dnsmasq runs in one narrow role: a DHCP relay for the trusted + IoT VLANs,
+# whose clients are not on Kea's broadcast domain. DNS is off (port 0) and no
 # subnet is served directly.
 #
 # The relay's server-side reply from Kea arrives on br-lan (Kea is L2-adjacent
@@ -51,20 +51,23 @@
     autocommit: true
   notify: Restart dnsmasq
 
-# No `config dhcp 'trusted'` section: odhcpd has maindhcp=0 so it ignores any
-# interface without one, and adding one with ignore=1 makes OpenWrt emit
-# `no-dhcp-interface=br-trusted`, which disables the relay on br-trusted.
+# No `config dhcp` section for the relayed VLANs: odhcpd has maindhcp=0 so it
+# ignores any interface without one, and adding one with ignore=1 makes
+# OpenWrt emit `no-dhcp-interface=<br>`, which disables the relay there.
 
-- name: DHCP relay -- trusted VLAN to Kea
+- name: DHCP relays -- trusted + IoT VLANs to Kea
   community.openwrt.uci:
     command: section
     config: dhcp
     type: relay
     find:
-      local_addr: "{{ router_trusted_ipaddr }}"
+      local_addr: "{{ item }}"
       server_addr: "{{ router_kea_dhcp_ip }}"
     set_find: true
     autocommit: true
+  loop: "{{ [router_trusted_ipaddr] + (router_iot_vlans | map(attribute='ipaddr') | list) }}"
+  loop_control:
+    label: "{{ item }} -> {{ router_kea_dhcp_ip }}"
   notify: Restart dnsmasq
 
 - name: dnsmasq enabled and running (relay only)

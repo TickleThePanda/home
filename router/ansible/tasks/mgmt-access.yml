@@ -5,6 +5,10 @@
 # addresses so the router is reachable from the Wi-Fi side. Both zones
 # accept input today; when that is tightened, 22/80/443 to the router must
 # stay open from trusted.
+#
+# The IoT VLAN gateway addresses are deliberately NOT added here: the IoT
+# firewall zones are input REJECT (tasks/firewall.yml), so 22/80/443 to the
+# router is already refused from IoT -- no need to also unbind the listeners.
 
 # @dropbear[0] is this router's one dropbear section (named `main` once the
 # playbook has run, anonymous on a fresh flash). `Interface` is a list --

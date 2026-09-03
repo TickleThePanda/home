@@ -19,7 +19,9 @@ state.
 
 - LAN `192.168.1.1/24` on `br-lan` (`lan1..lan5`); WAN PPPoE on `eth1`.
 - Wi-Fi: `It reaches out` (5 GHz) and `It reaches out (2.4G)`, WPA2/WPA3
-  (`sae-mixed`), country `GB`.
+  (`sae-mixed`), country `GB`. The image carries full `wpad-mbedtls` so a
+  reflash keeps Wi-Fi working; the IoT VLANs / SSIDs themselves are
+  `../ansible/` only.
 - **No DNS or DHCP on the router.** Kea (`192.168.1.11`) leases;
   BIND/Unbound/Pi-hole resolve. dnsmasq is disabled; the router resolves for
   itself via a static `/etc/resolv.conf` pointing at Quad9.

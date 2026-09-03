@@ -19,14 +19,49 @@ router_trusted_subnet: 192.168.10.0/24
 router_trusted_port: lan4
 router_trusted_macaddr: "96:83:c4:e5:2f:59"  # router_lan_macaddr, locally-administered bit set
 
+# IoT VLANs. Wi-Fi only, reached through two 2.4 GHz PPSK SSIDs -- the key a
+# device joins with (config wifi-station) picks its VLAN (config wifi-vlan).
+# Each VLAN is its own untagged bridge, like br-trusted. homelab + trusted
+# (+ the tailnet) may initiate into every IoT VLAN; IoT may not initiate back
+# and IoT VLANs cannot reach each other. DHCP is relayed to Kea.
+#
+#   group    -- which SSID / wifi-iface (isolated | peers)
+#   internet -- whether a <zone> -> wan forwarding is created
+#   macaddr  -- router_lan_macaddr with the locally-administered bit set
+#               (94 -> 96), last octet = vid in hex
+router_iot_ssid_isolated: "It reaches out (IoT)"
+router_iot_ssid_peers: "It reaches out (IoT peers)"
+
+router_iot_netmask: 255.255.255.0
+router_iot_vlans:
+  - { name: iot_inet,  group: isolated, bridge: br-iot-inet,  vid: 20, ipaddr: 192.168.20.1, subnet: 192.168.20.0/24, macaddr: "96:83:c4:e5:2f:14", internet: true }
+  - { name: iot_local, group: isolated, bridge: br-iot-local, vid: 30, ipaddr: 192.168.30.1, subnet: 192.168.30.0/24, macaddr: "96:83:c4:e5:2f:1e", internet: false }
+  - { name: iot_echo,  group: peers,    bridge: br-iot-echo,  vid: 40, ipaddr: 192.168.40.1, subnet: 192.168.40.0/24, macaddr: "96:83:c4:e5:2f:28", internet: true }
+
+# Base ("parking") network for the IoT wifi-ifaces: no address, no DHCP,
+# firewall drops everything. dynamic_vlan=2 rejects an unclassified station
+# before it lands here, so this is only a holding pen for the pre-auth moment.
+router_iot_park_bridge: br-iot-park
+router_iot_park_macaddr: "96:83:c4:e5:2f:5a"
+
+# UCI still wants `option key` on a psk2 wifi-iface even when per-station keys
+# come from wifi-station. This one is never handed out; dynamic_vlan=2 rejects
+# any station that authenticates with it (no VLAN assignment).
+router_iot_fallback_key: "cinder-antler-verge-hollow-90"
+
 # Kea's macvlan address in the cluster -- the DHCP relay's upstream server.
 router_kea_dhcp_ip: 192.168.1.11
 
-# Bridges the Avahi mDNS reflector spans (homelab <-> trusted). Anything not
-# listed here -- pppoe-wan, tailscale0 -- is never reflected onto.
+# Bridges the Avahi mDNS reflector spans. homelab <-> trusted <-> every IoT
+# VLAN: this is hub-and-all, not per-pair, so mDNS service discovery is also
+# visible *between* IoT VLANs (L3 stays firewalled). Anything not listed
+# here -- pppoe-wan, tailscale0 -- is never reflected onto.
 mdns_reflector_interfaces:
   - br-lan
   - br-trusted
+  - br-iot-inet
+  - br-iot-local
+  - br-iot-echo
 
 # Hardware identities carried over from the stock GL.iNet config so switches,
 # APs and MAC-keyed reservations elsewhere don't have to relearn.
@@ -53,3 +88,6 @@ router_wifi_ssid_5g: It reaches out
 router_tailscale_routes:
   - 192.168.1.0/24
   - 192.168.10.0/24
+  - 192.168.20.0/24
+  - 192.168.30.0/24
+  - 192.168.40.0/24

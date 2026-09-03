@@ -42,6 +42,10 @@
       ansible.builtin.import_tasks: tasks/network.yml
       tags: [network]
 
+    - name: Full wpad (PPSK support)
+      ansible.builtin.import_tasks: tasks/wpad.yml
+      tags: [wpad, wireless]
+
     - name: Wireless
       ansible.builtin.import_tasks: tasks/wireless.yml
       tags: [wireless]
@@ -116,6 +120,12 @@
     - name: Restart avahi-daemon
       community.openwrt.service:
         name: avahi-daemon
+        state: restarted
+
+    # Not in the CI transport path; a plain restart is fine.
+    - name: Restart sysntpd
+      community.openwrt.service:
+        name: sysntpd
         state: restarted
 
     - name: Reload system config

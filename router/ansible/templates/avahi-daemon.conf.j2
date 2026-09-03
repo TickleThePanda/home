@@ -1,10 +1,11 @@
 # Managed by router/ansible (tasks/mdns-reflector.yml).
 #
-# mDNS reflector between the homelab and trusted bridges, plus it publishes the
-# router's own address as {{ router_hostname }}.local (per-interface: the
-# homelab clients get 192.168.1.1, trusted clients get 192.168.10.1).
+# mDNS reflector across the homelab, trusted and IoT VLAN bridges, plus it
+# publishes the router's own address as {{ router_hostname }}.local
+# (per-interface: each VLAN's clients get that VLAN's gateway address).
 # allow-interfaces keeps both reflection and publishing off pppoe-wan and
-# tailscale0.
+# tailscale0. Reflection is hub-and-all: mDNS records are also visible between
+# IoT VLANs, but the firewall blocks all L3 traffic between them.
 
 [server]
 host-name={{ router_hostname }}

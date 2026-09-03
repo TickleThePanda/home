@@ -141,3 +141,57 @@
       netmask: "{{ router_trusted_netmask }}"
     autocommit: true
   notify: Reload network
+
+# IoT VLANs: one untagged bridge each, same shape as br-trusted. Wi-Fi only --
+# no `list ports`; hostapd adds the per-SSID AP-VLAN netdev as an untagged
+# port when a station is classified (tasks/wireless.yml config wifi-vlan).
+
+- name: IoT VLAN bridge devices
+  community.openwrt.uci:
+    command: section
+    config: network
+    type: device
+    find: { name: "{{ item.bridge }}" }
+    set_find: true
+    value:
+      type: bridge
+      macaddr: "{{ item.macaddr }}"
+    autocommit: true
+  loop: "{{ router_iot_vlans + [{'bridge': router_iot_park_bridge, 'macaddr': router_iot_park_macaddr}] }}"
+  loop_control:
+    label: "{{ item.bridge }}"
+  notify: Reload network
+
+- name: IoT VLAN interfaces
+  community.openwrt.uci:
+    command: section
+    config: network
+    type: interface
+    name: "{{ item.name }}"
+    find: { device: "{{ item.bridge }}" }
+    set_find: true
+    value:
+      proto: static
+      ipaddr: "{{ item.ipaddr }}"
+      netmask: "{{ router_iot_netmask }}"
+    autocommit: true
+  loop: "{{ router_iot_vlans }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload network
+
+# Parking network for the IoT wifi-ifaces: no address, no DHCP. A station only
+# sits here for the pre-auth moment; dynamic_vlan=2 rejects it if it resolves
+# to no VLAN.
+- name: IoT parking interface
+  community.openwrt.uci:
+    command: section
+    config: network
+    type: interface
+    name: iot_park
+    find: { device: "{{ router_iot_park_bridge }}" }
+    set_find: true
+    value:
+      proto: none
+    autocommit: true
+  notify: Reload network

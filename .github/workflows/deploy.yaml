@@ -243,6 +243,9 @@ jobs:
           ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
           ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
           ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
+          ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
+          ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
+          ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
         run: ansible-playbook site.yml --diff --private-key ~/.ssh/router_key
 
       # Idempotence is the proof the automation is honest about what it owns.
@@ -252,6 +255,9 @@ jobs:
           ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
           ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
           ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
+          ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
+          ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
+          ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
         run: |
           set -euo pipefail
           ansible-playbook site.yml --check --diff --private-key ~/.ssh/router_key \

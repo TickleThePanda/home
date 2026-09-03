@@ -45,17 +45,28 @@ Ongoing config is a `community.openwrt` Ansible playbook
 image ([`router/bootstrap/`](router/bootstrap/)) is built and flashed by hand —
 the break-glass path. See [`router/README.md`](router/README.md).
 
-Two VLANs, routed by the gateway, currently with fully open traffic between
-them:
+VLANs, routed by the gateway. `homelab` ↔ `trusted` is fully open for now; the
+IoT VLANs are inbound-only (see below).
 
 | VLAN | Subnet | Gateway | Ports / SSIDs |
 |---|---|---|---|
 | homelab | 192.168.1.0/24 | 192.168.1.1 | LAN2 (node), LAN3 (Home Assistant), LAN1 + the 2.5G jack (spare) |
 | trusted | 192.168.10.0/24 | 192.168.10.1 | LAN4 (downstairs switch), Wi-Fi `It reaches out` / `It reaches out (2.4G)` |
+| iot_inet | 192.168.20.0/24 | 192.168.20.1 | Wi-Fi `It reaches out (IoT)`, PPSK — internet only |
+| iot_local | 192.168.30.0/24 | 192.168.30.1 | Wi-Fi `It reaches out (IoT)`, PPSK — no internet |
+| iot_echo | 192.168.40.0/24 | 192.168.40.1 | Wi-Fi `It reaches out (IoT peers)`, PPSK — internet + peer-to-peer |
 
-Kea serves both subnets — homelab directly on its macvlan, trusted via a DHCP
-relay on the router. Trusted clients resolve through routed access to Pi-hole
-at 192.168.1.10.
+The three IoT VLANs share two 2.4 GHz PPSK SSIDs (the key a device joins with
+selects its VLAN). `homelab`, `trusted` and the tailnet may initiate into every
+IoT VLAN; IoT VLANs may not initiate back, and cannot reach each other. Holes
+are punched per device as needed. mDNS is reflected from every VLAN to
+`homelab`/`trusted` (one avahi instance, so IoT-to-IoT discovery records also
+leak — L3 stays firewalled).
+
+Kea serves every subnet — homelab directly on its macvlan, the rest via DHCP
+relays on the router. Off-homelab clients resolve through routed access to
+Pi-hole at 192.168.1.10; the IoT VLANs also use the router (192.168.N.1) as
+their NTP server.
 
 ### Kubernetes
 

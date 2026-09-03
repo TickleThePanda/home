@@ -1,14 +1,20 @@
 ---
-# Avahi as an mDNS reflector between br-lan (homelab) and br-trusted, so Home
-# Assistant on homelab keeps discovering the ESPHome sensors that sit on the
-# trusted Wi-Fi VLAN. mDNS is link-local multicast and does not cross the
-# router on its own; without this, a sensor's IP change is invisible to HA
-# until the stale DNS record expires (Kea DDNS default TTL is
-# lease-lifetime / 3 = 8h). It also publishes the router's own address as
-# <hostname>.local on both bridges.
+# Avahi as an mDNS reflector across br-lan (homelab), br-trusted and every IoT
+# VLAN bridge (mdns_reflector_interfaces), so Home Assistant on homelab keeps
+# discovering the ESPHome / IoT devices on the Wi-Fi VLANs. mDNS is link-local
+# multicast and does not cross the router on its own; without this, a device's
+# IP change is invisible to HA until the stale DNS record expires (Kea DDNS
+# default TTL is lease-lifetime / 3 = 8h). It also publishes the router's own
+# address as <hostname>.local on every listed bridge.
 #
-# lan and trusted zones are both input ACCEPT for now, so no firewall rule is
-# needed. When that is tightened, UDP 5353 to the router must stay open on both.
+# The reflector is hub-and-all, not per-pair, so mDNS service discovery is also
+# visible *between* IoT VLANs. That is accepted: the firewall still blocks all
+# L3 traffic between them, only the advertised records leak.
+#
+# lan and trusted zones are input ACCEPT; the IoT zones are input REJECT with
+# an explicit udp/5353 -> 224.0.0.251 accept (tasks/firewall.yml). When the
+# lan/trusted zones are tightened, UDP 5353 to the router must stay open there
+# too.
 #
 # avahi-nodbus-daemon (the D-Bus-free build) is installed here via opkg, not
 # baked into the image -- the stat guard means opkg only runs on the first

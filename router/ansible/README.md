@@ -12,13 +12,14 @@ tunnel the `node` job uses.
 
 | Area | File |
 |---|---|
-| hostname, timezone | `tasks/system.yml` |
+| hostname, timezone, NTP server (for the IoT VLANs) | `tasks/system.yml` |
 | dropbear + LuCI on the homelab + trusted gateway addresses | `tasks/mgmt-access.yml` |
-| LAN address, PPPoE WAN, MACs, ULA, `br-trusted` + `trusted` VLAN | `tasks/network.yml` |
-| radios + both APs (on `trusted`) | `tasks/wireless.yml` |
-| `dhcp.lan`/`dhcp.trusted` ignored, dnsmasq as a DHCP relay for the trusted VLAN, `/etc/resolv.conf` → Quad9 | `tasks/dhcp-dns.yml` |
-| `wan` drops, `tailscale0` + `trusted` zones + forwardings | `tasks/firewall.yml` |
-| Avahi mDNS reflector (homelab ↔ trusted) | `tasks/mdns-reflector.yml` |
+| LAN address, PPPoE WAN, MACs, ULA, `br-trusted` + `br-iot-*` VLAN bridges | `tasks/network.yml` |
+| full `wpad-mbedtls` swap (PPSK support) | `tasks/wpad.yml` |
+| radios, the two `trusted` APs, and the two 2.4 GHz IoT PPSK SSIDs (`wifi-station` / `wifi-vlan`) | `tasks/wireless.yml` |
+| `dhcp.lan` ignored, dnsmasq as a DHCP relay for the trusted + IoT VLANs, `/etc/resolv.conf` → Quad9 | `tasks/dhcp-dns.yml` |
+| `wan` drops, `tailscale0` + `trusted` + IoT zones + forwardings + IoT punch-through rules | `tasks/firewall.yml` |
+| Avahi mDNS reflector (homelab ↔ trusted ↔ every IoT VLAN) | `tasks/mdns-reflector.yml` |
 | forwarding sysctls, `tailscaled` enabled, advertised subnet routes | `tasks/tailscale.yml` |
 
 Not managed: the **root password** (`../bootstrap/` sets it once from the
@@ -29,7 +30,7 @@ by `tasks/tailscale.yml`.
 
 ## Secrets
 
-Three values come from the environment. CI reads them from the `prod` GitHub
+These values come from the environment. CI reads them from the `prod` GitHub
 Environment; the SSH key is `NODE_SSH_KEY` (its public half is already in the
 router's `authorized_keys`).
 
@@ -38,6 +39,9 @@ router's `authorized_keys`).
 | `ROUTER_PPPOE_USERNAME` | `ROUTER_PPPOE_USERNAME` |
 | `ROUTER_PPPOE_PASSWORD` | `ROUTER_PPPOE_PASSWORD` |
 | `ROUTER_WIFI_KEY` | `ROUTER_WIFI_KEY` |
+| `ROUTER_WIFI_IOT_KEY_INET` | `ROUTER_WIFI_IOT_KEY_INET` |
+| `ROUTER_WIFI_IOT_KEY_LOCAL` | `ROUTER_WIFI_IOT_KEY_LOCAL` |
+| `ROUTER_WIFI_IOT_KEY_ECHO` | `ROUTER_WIFI_IOT_KEY_ECHO` |
 
 ## Running it by hand
 
