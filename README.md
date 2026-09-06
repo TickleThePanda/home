@@ -10,6 +10,8 @@ declarative and applied by CI — there is nothing to install by hand:
   directories, sudoers, the Argon ONE fan controller), applied with Ansible.
 - `deploy/` owns everything inside the cluster, applied with kustomize.
 - `apps/` holds the source for the apps built into images by CI.
+- `router/` owns the gateway (OpenWrt), applied with Ansible.
+- `proxmox/` owns the hypervisor `proxmox-01`, applied with Ansible.
 
 ### `node`
 
@@ -36,6 +38,12 @@ Source for the apps this repo builds and deploys. Each has its own
 
 - `home-root` — a root site linking to the other services.
 - `internal-index` — the equivalent index for internal-only services.
+
+### `proxmox`
+
+Ansible for the hypervisor `proxmox-01` (192.168.1.3), applied by the
+`proxmox` job in `.github/workflows/deploy.yaml`. See
+[`proxmox/README.md`](proxmox/README.md).
 
 ## Network
 
@@ -83,3 +91,5 @@ Internal ingress: 192.168.1.19
 ### Others
 
 Home Assistant: 192.168.1.5
+
+Proxmox (`proxmox-01`): 192.168.1.3

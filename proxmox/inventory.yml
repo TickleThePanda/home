@@ -1,0 +1,10 @@
+all:
+  hosts:
+    proxmox-01:
+      ansible_host: 192.168.1.3
+      # Proxmox tooling (pvesh, pveum) assumes root, and the authorized_keys
+      # file is the cluster-managed /etc/pve/priv/authorized_keys symlink -- a
+      # scoped automation user buys little here. The CI key (the same private
+      # half as NODE_SSH_KEY) is already in it.
+      ansible_user: root
+      ansible_python_interpreter: /usr/bin/python3

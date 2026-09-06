@@ -1,0 +1,4 @@
+---
+# Debian suite the Proxmox host tracks. Bump on a major PVE / Debian upgrade
+# (PVE 9 = trixie); every apt source in tasks/apt-repos.yml keys off it.
+proxmox_apt_suite: trixie

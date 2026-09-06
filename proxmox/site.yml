@@ -1,0 +1,33 @@
+---
+# Host-level state for proxmox-01 (192.168.1.3), the home hypervisor.
+#
+# Applied by the `proxmox` job in .github/workflows/deploy.yaml, over SSH as
+# root through the same cloudflared tunnel the `node` and `router` jobs use.
+#
+# Deliberately NOT managed:
+#   - the subscription key / "no valid subscription" nag
+#   - VMs and containers, and their storage
+#   - the Proxmox cluster config and /etc/pve
+#   - /root/.ssh/authorized_keys (a symlink into the cluster-managed
+#     /etc/pve/priv/; the CI key is already there)
+
+- name: Manage the Proxmox host
+  hosts: proxmox-01
+  gather_facts: true
+  # We log in as root -- nothing to escalate.
+  become: false
+
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: APT repositories
+      ansible.builtin.import_tasks: tasks/apt-repos.yml
+      tags: [apt, repos]
+
+  handlers:
+    # Fires only when a repo definition changed. A misconfigured repo makes
+    # this fail loudly, which is the signal we want.
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true

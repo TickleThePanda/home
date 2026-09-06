@@ -5,15 +5,16 @@ name: Deploy
 #   preflight  the k3s/Traefik pin agrees, and the cluster is reachable
 #   node       node/, applied with Ansible over SSH as the `deploy` user
 #   router     router/ansible/, applied with Ansible over SSH as root
+#   proxmox    proxmox/, applied with Ansible over SSH as root
 #   cluster    deploy/, applied with kustomize
 #
 # Order matters: a k3s upgrade changes which Traefik chart tarball the node
 # serves, so node must run before cluster. A coupled k3s/Traefik bump touches
 # deploy/setup/traefik/, so cluster still runs for it.
 #
-# Each of node, router and cluster is skipped when the push changed nothing
-# under its tree; a skipped job counts as a pass for the jobs after it. A
-# manual workflow_dispatch runs all three.
+# Each of node, router, proxmox and cluster is skipped when the push changed
+# nothing under its tree; a skipped job counts as a pass for the jobs after
+# it. A manual workflow_dispatch runs them all.
 #
 # preflight exists because CI's only path to the node and the router is
 # through the cluster itself (cloudflared runs in-cluster) -- checking
@@ -28,6 +29,7 @@ on:
       - flux-system/**
       - node/**
       - router/ansible/**
+      - proxmox/**
       - .github/workflows/deploy.yaml
   workflow_dispatch: {}
 
@@ -44,6 +46,7 @@ jobs:
     outputs:
       node-changed: ${{ steps.changes.outputs.node }}
       router-changed: ${{ steps.changes.outputs.router }}
+      proxmox-changed: ${{ steps.changes.outputs.proxmox }}
       cluster-changed: ${{ steps.changes.outputs.cluster }}
     steps:
       - name: Checkout code
@@ -64,6 +67,9 @@ jobs:
               - '.github/workflows/deploy.yaml'
             router:
               - 'router/ansible/**'
+              - '.github/workflows/deploy.yaml'
+            proxmox:
+              - 'proxmox/**'
               - '.github/workflows/deploy.yaml'
             cluster:
               - 'deploy/**'
@@ -267,18 +273,88 @@ jobs:
             exit 1
           fi
 
-  cluster:
+  proxmox:
     needs: [preflight, node, router]
-    # Runs when deploy/ or flux-system/ changed (or on a manual dispatch),
-    # and only after node/router either passed or were themselves skipped --
-    # router lands before Flux reconciles through the same tunnel. always()
-    # plus explicit result checks: a genuine node/router failure blocks
-    # cluster, a skip does not.
+    # node and router both mutate infra CI reaches through the same tunnel, so
+    # nothing may run alongside them -- depend on both purely for ordering and
+    # treat a skip as a pass. proxmox's own changes don't touch the tunnel.
     if: >-
       always() &&
       needs.preflight.result == 'success' &&
       (needs.node.result == 'success' || needs.node.result == 'skipped') &&
       (needs.router.result == 'success' || needs.router.result == 'skipped') &&
+      (needs.preflight.outputs.proxmox-changed == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Connect to Cloudflare Warp
+        uses: Boostport/setup-cloudflare-warp@v1
+        with:
+          organization: ticklethepanda
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
+      # The host rides the same cloudflared tunnel as the node (Zero Trust
+      # routes 192.168.1.0/24). Check the kube API first: if that is reachable
+      # but 192.168.1.3:22 is not, the tunnel is fine and a Zero Trust network
+      # policy is gating SSH to this host for the service-token identity.
+      - name: Check the host is reachable
+        run: |
+          set -euo pipefail
+          if ! nc -zv -w 10 192.168.1.2 6443; then
+            echo "::error::Cannot reach the kube API either -- the tunnel is down, not a per-host policy. cloudflared runs inside the cluster; see node/RECOVERY.md."
+            exit 1
+          fi
+          if ! nc -zv -w 10 192.168.1.3 22; then
+            echo "::error::6443 is reachable but 192.168.1.3:22 is not -- add the host to the Zero Trust network policy for the CI service token."
+            exit 1
+          fi
+
+      - name: Install ansible-core
+        run: pipx install ansible-core
+
+      - name: Install the SSH key
+        run: |
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/proxmox_key
+          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/proxmox_key
+
+      - name: Syntax check
+        working-directory: proxmox
+        run: ansible-playbook site.yml --syntax-check
+
+      - name: Apply
+        working-directory: proxmox
+        run: ansible-playbook site.yml --diff --private-key ~/.ssh/proxmox_key
+
+      # Idempotence is the proof the automation is honest about what it owns.
+      - name: Confirm no drift remains
+        working-directory: proxmox
+        run: |
+          set -euo pipefail
+          ansible-playbook site.yml --check --diff --private-key ~/.ssh/proxmox_key \
+            | tee /tmp/proxmox-recheck.log
+          if sed -n '/PLAY RECAP/,$p' /tmp/proxmox-recheck.log | grep -qE 'changed=[1-9]'; then
+            echo "::error::Playbook is not idempotent -- a second --check run still reports changes."
+            exit 1
+          fi
+
+  cluster:
+    needs: [preflight, node, router, proxmox]
+    # Runs when deploy/ or flux-system/ changed (or on a manual dispatch), and
+    # only after node/router/proxmox either passed or were themselves skipped
+    # -- they land before Flux reconciles through the same tunnel. always()
+    # plus explicit result checks: a genuine upstream failure blocks cluster,
+    # a skip does not.
+    if: >-
+      always() &&
+      needs.preflight.result == 'success' &&
+      (needs.node.result == 'success' || needs.node.result == 'skipped') &&
+      (needs.router.result == 'success' || needs.router.result == 'skipped') &&
+      (needs.proxmox.result == 'success' || needs.proxmox.result == 'skipped') &&
       (needs.preflight.outputs.cluster-changed == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: prod

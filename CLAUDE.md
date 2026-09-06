@@ -146,16 +146,17 @@ When comments are necessary:
 ## Deploy pattern
 
 - `.github/workflows/deploy.yaml` is the single pipeline for both layers,
-  running sequential jobs on push to `deploy/**`, `node/**` or
-  `router/ansible/**`: `preflight` (the k3s/Traefik pin guard + tunnel
-  reachability — no secrets, fails fast), then `node` (Ansible, see below),
-  then `router` (Ansible against the gateway, see `router/ansible/`), then
+  running sequential jobs on push to `deploy/**`, `node/**`,
+  `router/ansible/**` or `proxmox/**`: `preflight` (the k3s/Traefik pin guard
+  + tunnel reachability — no secrets, fails fast), then `node` (Ansible, see
+  below), then `router` (Ansible against the gateway, see `router/ansible/`),
+  then `proxmox` (Ansible against the hypervisor, see `proxmox/`), then
   `cluster`. Order matters: a k3s upgrade changes which Traefik chart tarball
   the node serves, so the node must move before the manifests that reference
-  it. `node`, `router` and `cluster` each skip when their own tree is
-  unchanged (`cluster` = `deploy/**` + `flux-system/**`; all three also
-  trigger on the workflow file itself); a skipped job counts as a pass for
-  the jobs that follow, and a manual `workflow_dispatch` runs all three.
+  it. `node`, `router`, `proxmox` and `cluster` each skip when their own tree
+  is unchanged (`cluster` = `deploy/**` + `flux-system/**`; all also trigger
+  on the workflow file itself); a skipped job counts as a pass for the jobs
+  that follow, and a manual `workflow_dispatch` runs them all.
 - The `cluster` job applies everything under `deploy/` via kustomize:
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
@@ -256,6 +257,32 @@ When comments are necessary:
   "changed" off a stale package list).
 - The root password is the one thing `router/ansible/` does not manage —
   `router/bootstrap/` writes it once from the GL.iNet backup hash.
+
+## Proxmox pattern
+
+- `proxmox/` is the Ansible layer for `proxmox-01` (`192.168.1.3`), the home
+  hypervisor — Proxmox VE 9 on Debian 13. Its own tree, like `node/` and
+  `router/ansible/`, not a shared inventory: the three hosts differ enough
+  (connection user, collections, tunnel-disruption handling) that merging
+  them buys little until there is shared logic to extract.
+- The `proxmox` job connects as `root` over SSH (reusing `NODE_SSH_KEY`)
+  through the **same cloudflared tunnel as `node`** — the Zero Trust routes
+  already cover `192.168.1.0/24`. The key's public half is already in the
+  host's `authorized_keys`, which is a symlink into the cluster-managed
+  `/etc/pve/priv/authorized_keys`; there is no bootstrap playbook. If CI's
+  reachability check passes `192.168.1.2:6443` but fails `192.168.1.3:22`,
+  add the host to the Zero Trust network policy for the CI service token
+  (dashboard, not this repo).
+- No bootstrap half, no secrets, no tunnel-disruption risk — the current
+  scope (apt repos) does not touch the path CI reaches the host by. The job
+  still runs after `node`/`router` purely so nothing overlaps them.
+- apt sources are deb822 `.sources` (PVE 9 / Debian 13), managed with
+  `ansible.builtin.deb822_repository` (`python3-debian` is on the host).
+  Enterprise repos are disabled **in place** (`Enabled: no`), not deleted —
+  `pve-manager` recreates the files on upgrade. `proxmox/vars/main.yml` holds
+  `proxmox_apt_suite`; bump it on a major PVE / Debian upgrade.
+- Deliberately not managed: the subscription key / nag, VMs and containers
+  and their storage, the cluster config and `/etc/pve`, `authorized_keys`.
 
 ## Storage
 

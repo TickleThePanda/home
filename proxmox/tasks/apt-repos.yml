@@ -1,0 +1,58 @@
+---
+# Proxmox VE ships with the paid enterprise repositories enabled, which 401 on
+# every `apt update` without a subscription. Switch to the free
+# no-subscription repositories.
+#
+# deb822 .sources format (PVE 9 / Debian 13). `pve-manager` can rewrite these
+# files on upgrade, so the enterprise repos are disabled in place
+# (Enabled: no) rather than deleted -- a redeploy re-asserts the desired
+# state instead of fighting a recreated file.
+#
+# The module names each file /etc/apt/sources.list.d/<name>.sources.
+
+- name: Disable the pve-enterprise repository
+  ansible.builtin.deb822_repository:
+    name: pve-enterprise
+    types: [deb]
+    uris: https://enterprise.proxmox.com/debian/pve
+    suites: ["{{ proxmox_apt_suite }}"]
+    components: [pve-enterprise]
+    signed_by: /usr/share/keyrings/proxmox-archive-keyring.gpg
+    enabled: false
+  notify: Update apt cache
+
+- name: Disable the enterprise Ceph repository
+  ansible.builtin.deb822_repository:
+    name: ceph
+    types: [deb]
+    uris: https://enterprise.proxmox.com/debian/ceph-squid
+    suites: ["{{ proxmox_apt_suite }}"]
+    components: [enterprise]
+    signed_by: /usr/share/keyrings/proxmox-archive-keyring.gpg
+    enabled: false
+  notify: Update apt cache
+
+- name: Enable the pve-no-subscription repository
+  ansible.builtin.deb822_repository:
+    name: pve-no-subscription
+    types: [deb]
+    uris: http://download.proxmox.com/debian/pve
+    suites: ["{{ proxmox_apt_suite }}"]
+    components: [pve-no-subscription]
+    signed_by: /usr/share/keyrings/proxmox-archive-keyring.gpg
+    enabled: true
+  notify: Update apt cache
+
+# Added symmetrically even though Ceph is not in use today: it matches
+# Proxmox's standard no-subscription setup and keeps `ceph` package updates
+# coming from a repo that actually resolves.
+- name: Enable the no-subscription Ceph repository
+  ansible.builtin.deb822_repository:
+    name: ceph-no-subscription
+    types: [deb]
+    uris: http://download.proxmox.com/debian/ceph-squid
+    suites: ["{{ proxmox_apt_suite }}"]
+    components: [no-subscription]
+    signed_by: /usr/share/keyrings/proxmox-archive-keyring.gpg
+    enabled: true
+  notify: Update apt cache
