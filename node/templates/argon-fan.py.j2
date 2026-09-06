@@ -73,14 +73,17 @@ def main():
 
             logging.info("temperature=%.1fC fan=%d%%", temp, speed)
 
-            if speed != current:
+            # Write the speed on every poll, not just on change. The fan holds
+            # its last setting with no way to read it back, so after a restart
+            # the hardware state is unknown -- only a write guarantees it
+            # matches the target.
+            if current == 0 and speed > 0:
                 # Give the fan a brief kick when starting from stopped.
-                if current == 0 and speed > 0:
-                    bus.write_byte(I2C_ADDRESS, 100)
-                    time.sleep(1)
+                bus.write_byte(I2C_ADDRESS, 100)
+                time.sleep(1)
 
-                bus.write_byte(I2C_ADDRESS, speed)
-                current = speed
+            bus.write_byte(I2C_ADDRESS, speed)
+            current = speed
 
             time.sleep(POLL_INTERVAL)
     finally:
