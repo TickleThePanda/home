@@ -13,6 +13,6 @@ spec:
   # Relative to the pushed OCIRepository artifact's own root -- see
   # kustomization-setup.yaml's comment.
   path: ./deploy/setup-config
-  prune: false # flip to true at Migration Milestone 3, once inventory/health are proven
+  prune: true
   wait: true
   timeout: 5m

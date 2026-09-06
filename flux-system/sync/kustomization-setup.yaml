@@ -12,6 +12,6 @@ spec:
   # git repo root -- CI's `flux push artifact --path=.` pushes the whole
   # repo as one artifact, shared with flux-system/sync/self.yaml.
   path: ./deploy/setup
-  prune: false # flip to true at Migration Milestone 3, once inventory/health are proven
+  prune: true
   wait: true
   timeout: 5m
