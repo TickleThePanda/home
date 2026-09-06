@@ -8,6 +8,5 @@ resources:
   - ./coredns
   - ./metallb
   - ./traefik
-  - ./api-proxy
   - ./cloudflared
   - ./multus

@@ -97,7 +97,7 @@ When comments are necessary:
   between IoT VLANs too — accepted; the firewall still blocks all L3 traffic
   between them.
 - **MetalLB** (L2 mode) hands out LoadBalancer IPs from pools: `external`
-  (WAN-facing ingress), `internal` (LAN-only ingress), `pihole`, `kube-api`.
+  (WAN-facing ingress), `internal` (LAN-only ingress), `pihole`.
 - **Traefik** is the sole ingress controller. Internal-only apps use
   `Host(`<app>.internal.ticklethepanda.co.uk`)` on the `int-web-secure`
   entrypoint (TLS via a wildcard cert), routed through the `internal`
@@ -159,7 +159,7 @@ When comments are necessary:
 - The `cluster` job applies everything under `deploy/` via kustomize:
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
-  api-proxy, cloudflared, each a self-contained kustomization),
+  cloudflared, each a self-contained kustomization),
   `deploy/internal/<app>/` (internal-only apps, each self-contained with its
   own `namespace:`, grouped by function into `apps/`, `auth/`, `network/`,
   `services/`, plus a top-level `index/`), `deploy/home/`

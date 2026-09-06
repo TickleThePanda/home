@@ -72,8 +72,6 @@ their NTP server.
 
 `k3s-manager-1` Node IP / SSH: 192.168.1.2
 
-Kube API: 192.168.1.3
-
 PiHole: 192.168.1.10
 
 Kea DHCP: 192.168.1.11
