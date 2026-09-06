@@ -81,7 +81,7 @@ ss -tlnp | grep -E ':22|:80|:443'            # bound to 192.168.1.1, not 0.0.0.0
 tailscale status                              # Running, no manual `tailscale up`
 ```
 
-Confirm a new LAN client gets a `192.168.1.21–200` lease (Kea) and resolves
+Confirm a new LAN client gets a `192.168.1.128–254` lease (Kea) and resolves
 through Pi-hole, and that the router shows its route + exit node already
 approved in the Tailscale admin console.
 

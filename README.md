@@ -76,20 +76,30 @@ relays on the router. Off-homelab clients resolve through routed access to
 Pi-hole at 192.168.1.10; the IoT VLANs also use the router (192.168.N.1) as
 their NTP server.
 
-### Kubernetes
+### homelab addressing
 
-`k3s-manager-1` Node IP / SSH: 192.168.1.2
+`192.168.1.0/24` is one flat subnet, carved into bands by convention. Only two
+things enforce the boundaries: the Kea DHCP pool and the MetalLB pool
+addresses. Nothing is firewalled between bands.
 
-PiHole: 192.168.1.10
+| Range | Use |
+|---|---|
+| `.1` | gateway (router) |
+| `.2`–`.9` | physical hosts |
+| `.10`–`.31` | cluster service addresses (MetalLB VIPs + Kea) |
+| `.32`–`.63` | virtual machines (Proxmox guests) |
+| `.64`–`.127` | other static devices — switches, APs, printers, NAS |
+| `.128`–`.254` | DHCP dynamic pool |
 
-Kea DHCP: 192.168.1.11
+Assigned:
 
-External ingress: 192.168.1.20
-
-Internal ingress: 192.168.1.19
-
-### Others
-
-Home Assistant: 192.168.1.5
-
-Proxmox (`proxmox-01`): 192.168.1.3
+| IP | Host |
+|---|---|
+| 192.168.1.1 | gateway |
+| 192.168.1.2 | `k3s-manager-1` node / SSH |
+| 192.168.1.3 | Proxmox `proxmox-01` |
+| 192.168.1.5 | Home Assistant (Kea reservation) |
+| 192.168.1.10 | Pi-hole (MetalLB) |
+| 192.168.1.11 | Kea DHCP (macvlan) |
+| 192.168.1.19 | Traefik internal ingress (MetalLB) |
+| 192.168.1.20 | Traefik external ingress (MetalLB) |

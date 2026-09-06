@@ -77,6 +77,13 @@ When comments are necessary:
     (`tasks/firewall.yml`: each is `input REJECT` + `forward REJECT`, with
     narrow rules for DHCP relay, DNS to Pi-hole, NTP, mDNS). Only `iot_inet` /
     `iot_echo` get a route to the WAN. Punch further holes per device.
+- **`homelab` address bands** (`192.168.1.0/24`, one flat subnet): `.1`
+  gateway, `.2–.9` physical hosts, `.10–.31` cluster service addresses
+  (MetalLB VIPs + Kea), `.32–.63` Proxmox guests, `.64–.127` other static
+  devices, `.128–.254` DHCP pool. Convention only — the sole enforcers are the
+  Kea pool (`dhcp4.json` subnet 1) and the MetalLB pool addresses
+  (`deploy/setup-config/metallb/`). Put a new static address or MetalLB pool
+  in its band. Full assignment list is in `README.md`.
 - **DHCP**: Kea (`deploy/internal/network/dhcp-kea/`) serves every subnet. It
   is L2-attached to `homelab` via macvlan; the other VLANs reach it through
   **dnsmasq DHCP relays on the router** (`192.168.<n>.1` → `192.168.1.11`,
