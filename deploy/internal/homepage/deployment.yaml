@@ -39,18 +39,26 @@ spec:
               value: "$(MY_POD_IP):3000,internal.ticklethepanda.co.uk"
             - name: TZ
               value: "Europe/London"
+          # The default 1s probe timeout isn't enough for this app's cold
+          # start on the Pi's arm64 CPU -- it crashlooped on the liveness
+          # probe timing out before the container ever got a chance to
+          # settle, despite serving requests in ~20ms once warm.
           readinessProbe:
             httpGet:
               path: /api/healthcheck
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 30
             periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 6
           livenessProbe:
             httpGet:
               path: /api/healthcheck
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 30
             periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 6
           resources:
             requests:
               cpu: 25m
