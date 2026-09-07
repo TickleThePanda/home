@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp
+  namespace: headlamp
+---
+# Headlamp runs with -unsafe-use-service-account-token: every request it
+# makes to the API server uses this ServiceAccount, so its ClusterRole is
+# the effective access level for anyone tinyauth lets through. Kept at the
+# built-in read-only `view` role (no Secrets, no mutations).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: headlamp
+    namespace: headlamp

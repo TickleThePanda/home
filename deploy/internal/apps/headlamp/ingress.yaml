@@ -1,0 +1,19 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  entryPoints:
+    - int-web-secure
+  tls: {}
+  routes:
+    - kind: Rule
+      match: Host(`headlamp.internal.ticklethepanda.co.uk`)
+      middlewares:
+        - name: tinyauth
+          namespace: tinyauth
+      services:
+        - name: headlamp
+          namespace: headlamp
+          port: 80
