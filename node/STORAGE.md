@@ -20,8 +20,8 @@ the volumes, filesystems and mounts.
 |---|---|---|---|
 | `agent` | `/var/lib/rancher/k3s/agent` | 64G | containerd image store |
 | `kubelet` | `/var/lib/kubelet` | 16G | emptyDir, PV bind mounts |
-| `server` | `/var/lib/rancher/k3s/server` | 8G | kine datastore |
-| `backups` | `/var/backups` | 32G | datastore archives from past k3s upgrades |
+| `server` | `/var/lib/rancher/k3s/server` | 8G | vestigial (was the datastore; the control-plane is on `k3s-vm-control-01` now) |
+| `backups` | `/var/backups` | 32G | pre-migration datastore archives (rollback) |
 
 The remaining ~327G is the PersistentVolume pool. The OpenEBS LVM LocalPV
 driver (`deploy/setup/lvm-localpv/`) creates one LV per PVC on the `lvm-data`

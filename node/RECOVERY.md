@@ -1,14 +1,19 @@
 # Recovering k8s-manager-1 without CI
 
+`k8s-manager-1` is the Pi — a k3s **agent** and the storage anchor for every
+`lvm-data` PV. The control-plane is `k3s-vm-control-01`; for a broken API or a
+lost datastore see [`../k3s-cluster/RECOVERY.md`](../k3s-cluster/RECOVERY.md).
+
 ## Why this file exists
 
 CI reaches the LAN through the `cloudflared` Deployment running **inside** the
 cluster (`deploy/setup/cloudflared/tunnel.yaml`). Its logs show
-`originService=warp-routing` carrying traffic to `192.168.1.2:22` and `:6443`
-— that pod is the Cloudflare Zero Trust private-network connector.
+`originService=warp-routing` carrying traffic to `192.168.1.2:22` and
+`192.168.1.32:6443` — that pod is the Cloudflare Zero Trust private-network
+connector, and it runs on the two worker VMs.
 
-So the management path depends on the thing it manages. When k3s is down, or
-`cloudflared` is not scheduled, **GitHub Actions cannot reach the node at all**
+So the management path depends on the thing it manages. When the control-plane
+is down, or both workers are, **GitHub Actions cannot reach the node at all**
 — precisely when you need it. This was a deliberate tradeoff (the alternative
 was a second connector as a node-level systemd service). The cost of that
 choice is this document.
@@ -35,98 +40,65 @@ If SSH itself is unreachable, it is a keyboard-and-monitor trip: the Pi boots
 from a single SSD, `/` on `/dev/sda2`, static IP `192.168.1.2/24` set in
 `/etc/dhcpcd.conf`. Most of that disk is LVM — see `STORAGE.md`.
 
-## Is it k3s, or is it the tunnel?
+## Is it k3s-agent, or is it the tunnel?
+
+The Pi has no API — check it against the server:
 
 ```sh
-sudo systemctl status k3s
-sudo k3s kubectl get nodes
-sudo k3s kubectl get pods -n default -l pod=cloudflared
+sudo systemctl status k3s-agent
+KUBECONFIG=~/.kube/config kubectl get nodes            # or run from control-01
+KUBECONFIG=~/.kube/config kubectl get pods -n default -l pod=cloudflared -o wide
 ```
 
-- **k3s down** → see "k3s will not start".
-- **k3s up, cloudflared not Ready** → the cluster is fine and only remote
-  access is broken. Check the `tunnel-token` Secret still exists; it is
-  created out-of-band and is *not* in this repo.
+- **k3s-agent down** → see "k3s-agent will not start".
+- **agent up, cloudflared not Ready** → the cluster is fine and only remote
+  access is broken. cloudflared runs on the worker VMs; check the
+  `tunnel-token` Secret still exists (created out-of-band, *not* in this repo).
 
-## A managed run left the node mid-upgrade
-
-k3s version and config are owned by `k3s-cluster/` now (the
-`k3s.orchestration` collection), not `node/`. That playbook runs the k3s
-install script and then `systemctl restart k3s` synchronously — there is no
-detached upgrade unit and no status file. If a run died mid-restart:
+## k3s-agent will not start
 
 ```sh
-sudo systemctl status k3s
-sudo journalctl -u k3s -n 200 --no-pager
-```
-
-The datastore is not touched by an install (`token` is left undefined), so
-recovery is usually just `sudo systemctl start k3s`, then re-run
-`k3s-cluster/site.yml` from the LAN. A genuinely broken config.yaml → see
-below.
-
-## k3s will not start
-
-```sh
-sudo journalctl -u k3s -n 200 --no-pager
+sudo journalctl -u k3s-agent -n 200 --no-pager
 ```
 
 Most likely causes, in order:
 
-1. **A bad config.** `/etc/rancher/k3s/config.yaml` is written by
-   `k3s-cluster/` (the collection's `k3s_server` role). Move it aside and
-   start k3s to confirm:
+1. **A bad config.** `/etc/rancher/k3s/config.yaml` on the Pi is written by
+   `k3s-cluster/` from `host_vars/k8s-manager-1.yml` (`agent_config_yaml` —
+   the `lvm-vg` label and storage-anchor taint). Move it aside and start the
+   agent to confirm:
    ```sh
    sudo mv /etc/rancher/k3s/config.yaml /tmp/
-   sudo systemctl start k3s
+   sudo systemctl start k3s-agent
    ```
-   Fix the value in `k3s-cluster/` (`vars/versions.yml` for the version,
-   `group_vars/k3s_cluster.yml` for `server_config_yaml`) rather than on the
-   node. A stale `config.yaml.d/10-k3s.yaml` from the old `node/` layer
-   should have been removed by `node/tasks/k3s-handover.yml`; if it is still
-   there, delete it.
+   Fix the value in `k3s-cluster/`, not on the node. Starting without it drops
+   the `lvm-vg=data` label, so storage pods will not bind — re-run
+   `k3s-cluster/site.yml` to restore it.
 
-2. **A half-finished upgrade.** Restore the datastore (below).
-
-3. **A missing mount.** k3s's state is on LVM volumes and refuses to start
+2. **A missing mount.** The agent's state is on LVM volumes and
+   `k3s-agent.service.d/10-storage-mounts.conf` blocks it from starting
    without them. The journal names the path. See `STORAGE.md`.
    ```sh
-   findmnt /var/lib/rancher/k3s/agent /var/lib/rancher/k3s/server /var/lib/kubelet
-   sudo mount -a && sudo systemctl start k3s
+   findmnt /var/lib/rancher/k3s/agent /var/lib/kubelet
+   sudo mount -a && sudo systemctl start k3s-agent
    ```
 
-4. **Disk full.** `df -h /var/lib/rancher/k3s/agent /var/backups /`. Each is
-   its own volume, so a full one is contained. `/var/backups/k3s/` is unpruned
-   and the usual culprit. Raise the size in `vars/storage.yml`; it applies
-   online.
+3. **Wrong server address / token.** The agent joins
+   `https://192.168.1.32:6443` (`api_endpoint`), token in
+   `/etc/systemd/system/k3s-agent.service.env`. If `k3s-vm-control-01` was
+   rebuilt with a new token, re-run `k3s-cluster/site.yml`.
 
-## Restore the datastore
+4. **Disk full.** `df -h /var/lib/rancher/k3s/agent /var/lib/kubelet /`. Each
+   is its own volume, so a full one is contained. Raise the size in
+   `vars/storage.yml`; it applies online.
 
-The datastore is SQLite/kine, **not** etcd, so `k3s etcd-snapshot` does not
-apply. Archives under `/var/backups/k3s/` are from k3s upgrades done under
-the old `node/` layer — `k3s-cluster/` no longer writes one before a change
-(it leaves the datastore untouched: `token` stays undefined, so an install
-only swaps the binary and rewrites `config.yaml`). Take a manual copy with
-k3s stopped before anything risky.
+## The Pi died
 
-```sh
-ls -la /var/backups/k3s/
-sudo systemctl stop k3s
-sudo /usr/local/bin/k3s-killall.sh          # clears leftover containers/mounts
-sudo tar -xzf /var/backups/k3s/k3s-<version>-<stamp>.tar.gz -C /
-sudo systemctl start k3s
-```
-
-The archive contains `var/lib/rancher/k3s/server/db`,
-`var/lib/rancher/k3s/server/token` and `etc/rancher/k3s`. The token matters:
-restoring the database without it leaves the server unable to decrypt its own
-stored secrets.
-
-To go back to a previous k3s binary as well:
-
-```sh
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.32.6+k3s1 sh -s - server
-```
+Rebuild the layer below k3s (`node/` — see `STORAGE.md` for the SSD), then
+`k3s-cluster/site.yml` rejoins it as an agent named `k8s-manager-1`. The
+`lvm-data` PV data lives in VG `data` on the SSD: it survives a reinstall if
+the disk is intact, and is lost with the disk — there is no replication, so
+restore those apps from their own backups.
 
 ## Run the playbook by hand
 
@@ -148,19 +120,23 @@ the inventory sets `ansible_user`, and an inventory var beats the `-u` flag,
 so `-u panda` is silently ignored. `-K` prompts for panda's sudo password.
 
 For anything k3s-level (version, `config.yaml`, a stuck agent), the playbook
-is `k3s-cluster/` instead — it manages the Pi and the Proxmox VM agents as
-one cluster. It needs the `deploy` key (the VMs have no `panda` user); to
-touch just the Pi, `--limit server -e node_user=panda`.
+is `k3s-cluster/` instead — it manages every node as one cluster. It needs the
+`deploy` key (the VMs have no `panda` user); to touch just the Pi,
+`--limit k8s-manager-1 -e node_user=panda`.
 
 ## Every internal service looks down, but the cluster is fine
 
-Check DNS first. pihole runs inside the cluster, so k3s downtime takes the LAN's
-resolver with it. The router advertises public resolvers too, so clients fail
-over and stay there. Public names keep working while
-`*.internal.ticklethepanda.co.uk` resolves to nothing.
+Check DNS first. pihole runs inside the cluster (on the Pi), so if the Pi or
+its pods are down the LAN loses its resolver. The router advertises public
+resolvers too, so clients fail over and stay there. Public names keep working
+while `*.internal.ticklethepanda.co.uk` resolves to nothing.
+
+The **k3s nodes** do not depend on pihole — `k3s-cluster/` pins the VMs to
+Quad9 and `node/` pins the Pi — so a pihole outage never wedges the cluster
+itself, only client name resolution.
 
 ```sh
-resolvectl status          # Current DNS Server should be 192.168.1.10
+resolvectl status          # client's Current DNS Server should be 192.168.1.10
 sudo systemctl restart systemd-resolved
 ```
 
@@ -180,13 +156,16 @@ config, not in this repo.
 
 Known and unrelated to any of the above — the client cert in the local
 kubeconfig does not auto-rotate. If `kubectl` says *"server has asked for the
-client to provide credentials"*:
+client to provide credentials"*, on `k3s-vm-control-01`:
 
 ```sh
 sudo systemctl restart k3s
 sudo cat /etc/rancher/k3s/k3s.yaml     # then copy to ~/.kube/config
-# and change server: 127.0.0.1 -> 192.168.1.2
+# and change server: 127.0.0.1 -> 192.168.1.32
 ```
+
+The CI `KUBE_CONFIG` prod secret embeds the same cert; regenerate it the same
+way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`).
 
 ## Things deliberately not automated
 
@@ -208,8 +187,6 @@ sudo cat /etc/rancher/k3s/k3s.yaml     # then copy to ~/.kube/config
 - The partition table and the `data` volume group. The playbook manages logical
   volumes *on top of* them but will not create them, for the same reason — see
   `STORAGE.md`.
-- `/var/lib/rancher/k3s/server/manifests/` — k3s rewrites this directory on
-  every start. Never put anything there expecting it to survive.
 - The out-of-band Secrets (`tunnel-token`, `cloudflare-api-token-secret`,
   `lldap-credentials`, `pocket-id-secret`, `tinyauth-secrets`,
   `label-studio-admin`, `github-commit-status`). Nothing in this repo

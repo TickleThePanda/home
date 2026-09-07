@@ -1,9 +1,10 @@
 # Home infrastructure monorepo
 
-Single-node k3s cluster running the owner's home services on a Raspberry Pi,
-plus the apps deployed onto it. See `README.md` for the network map (node
-IPs, ingress IPs, etc.) — this file covers operational context that isn't
-visible from the code alone.
+Four-node k3s cluster running the owner's home services: the control-plane on
+an amd64 Proxmox VM, a Raspberry Pi as the arm64 storage-anchor agent, plus
+two worker VMs — and the apps deployed onto it. See `README.md` for the
+network map (node IPs, ingress IPs, etc.) — this file covers operational
+context that isn't visible from the code alone.
 
 ## Workflow
 
@@ -44,26 +45,30 @@ When comments are necessary:
 
 ## Cluster
 
-- **Server**: `k8s-manager-1`, `192.168.1.2`, Raspberry Pi (arm64) — the sole
-  k3s server (control-plane), SQLite datastore. Also schedules workloads.
-- **Agents**: `k3s-vm-control-01` / `-worker-01` / `-worker-02`
-  (`192.168.1.32`–`.34`), amd64 Debian 13 VMs on `proxmox-01`.
-  `k3s-vm-control-01` is cordoned — reserved for a future promotion to
-  server (which needs a SQLite→etcd datastore migration first).
+- **Server**: `k3s-vm-control-01`, `192.168.1.32`, amd64 Debian 13 VM on
+  `proxmox-01` — the sole k3s server (control-plane), embedded etcd with a
+  single member. Tainted `ticklethepanda.dev/control-plane:NoSchedule` so it
+  runs no portable workloads.
+- **Agents**: `k8s-manager-1` (`192.168.1.2`, the Raspberry Pi, arm64) plus
+  `k3s-vm-worker-01` / `-02` (`192.168.1.33`–`.34`, amd64 VMs). The Pi is the
+  storage anchor — every `lvm-data` volume lives on its SSD, and its
+  `ticklethepanda.dev/prefer-no-schedule=storage-anchor:PreferNoSchedule`
+  taint steers portable pods to the workers.
 - k3s on every node is managed by `k3s-cluster/` (the `k3s.orchestration`
   collection), not `node/`. `node/` owns only the layer below k3s on the Pi.
-- SSH: `ssh 192.168.1.2` as `panda` (Pi); the VMs have only a `deploy` user
-  (the CI key). Key-based, no host aliases — use the IPs.
-- `panda` has scoped, passwordless sudo on the node
-  (`/etc/sudoers.d/panda-k3s-admin`) for k3s service control and reading/
-  editing k3s's own manifest/config directories. Anything broader (general
-  root shell, package installs) needs the owner interactively — kept
-  narrow deliberately, since those directories are close to root-equivalent
-  (k3s's server process treats their contents as trusted input).
+- SSH: `ssh 192.168.1.2` as `panda` (Pi); every node (Pi included) also takes
+  the `deploy` CI key. Key-based, no host aliases — use the IPs. Control-plane
+  work goes through `deploy@192.168.1.32`.
+- `panda` has scoped, passwordless sudo on the Pi
+  (`/etc/sudoers.d/panda-k3s-admin`) for `k3s-agent` service control and
+  reading k3s's own config. Anything broader (general root shell, package
+  installs) needs the owner interactively — kept narrow deliberately, since
+  those directories are close to root-equivalent (k3s treats their contents
+  as trusted input).
 - The local kubeconfig's client cert doesn't auto-rotate. If `kubectl`
   reports "server has asked for the client to provide credentials", restart
-  k3s on the node and re-pull `/etc/rancher/k3s/k3s.yaml` into
-  `~/.kube/config` (fix the `server:` field to the node's IP, it defaults
+  k3s on `k3s-vm-control-01` and re-pull `/etc/rancher/k3s/k3s.yaml` into
+  `~/.kube/config` (fix the `server:` field to `192.168.1.32`, it defaults
   to `127.0.0.1`).
 
 ## Networking
@@ -226,30 +231,40 @@ When comments are necessary:
   moved to `k3s-cluster/`.** Applied by the `node` job in
   `.github/workflows/deploy.yaml`, connecting as `deploy` over SSH (key in
   `NODE_SSH_KEY`). Don't hand-edit on the node.
-- `node/tasks/k3s-handover.yml` removes the old node-managed
-  `config.yaml.d/10-k3s.yaml` once `k3s-cluster/`'s `config.yaml` is in
-  place — so `disable:` never has two owners.
+- The Pi runs `k3s-agent`, not a server. `node/tasks/storage.yml`'s
+  `RequiresMountsFor` guard targets `k3s-agent.service` and only the `agent` /
+  `kubelet` LVs; the `server` LV is vestigial (kept — shrinking an LV fails).
 - **CI's own transport runs through the cluster.** The in-cluster
   `cloudflared` Deployment is the Cloudflare Zero Trust private-network
   connector (logs show `originService=warp-routing` carrying `192.168.1.2:22`
-  and `:6443`). `node/` no longer restarts k3s, so its playbook doesn't
-  disturb its own transport — but `k3s-cluster/` does (see that pattern).
+  and `192.168.1.32:6443`). `node/` no longer restarts k3s, so its playbook
+  doesn't disturb its own transport — but `k3s-cluster/` does (see that
+  pattern). cloudflared has two replicas and is tainted off the server, so it
+  runs on the two worker VMs.
 - **An open 6443 is not a ready API.** k3s binds the port well before it
   serves, and `kubectl` fails immediately against an unavailable API rather
   than respecting `--timeout`. Readiness gates must poll
   `k3s kubectl get --raw /readyz` with retries. Running pods *do* survive a
   k3s server restart (containerd keeps them up), so cloudflared normally
   stays Ready throughout.
-- The corollary: **when k3s is down, CI cannot reach the node at all.**
-  Recovery is LAN-local — see `node/RECOVERY.md`.
+- The corollary: **when the server or both worker VMs are down, CI cannot
+  reach the LAN at all.** Recovery is LAN-local — see `node/RECOVERY.md` and
+  `k3s-cluster/RECOVERY.md`.
 
 ## k3s-cluster pattern
 
-- `k3s-cluster/` owns k3s on every node — the Pi (`server`) and the three
-  Proxmox VMs (`agent`) — as one cluster, via the pinned `k3s.orchestration`
-  collection (`k3s-io/k3s-ansible`). Applied by the `k3s-cluster` job, after
-  `proxmox` (which creates the VMs) and `node` (Pi storage mounts), before
-  `cluster`. Connects as `deploy` over SSH through the same tunnel.
+- `k3s-cluster/` owns k3s on every node — `k3s-vm-control-01` (`server`), and
+  the Pi plus the two worker VMs (`agent`) — as one cluster, via the pinned
+  `k3s.orchestration` collection (`k3s-io/k3s-ansible`). Applied by the
+  `k3s-cluster` job, after `proxmox` (which creates the VMs) and `node` (Pi
+  storage mounts), before `cluster`. Connects as `deploy` over SSH through the
+  same tunnel.
+- **Node DNS is pinned to Quad9, not the in-cluster Pi-hole.** The VMs' first
+  `pre_task` (`tasks/node-dns.yml`) writes a netplan drop-in and asserts it
+  took — a node whose resolver is a cluster workload cannot cold-start the
+  cluster (the kubelet can't resolve a registry to pull the image that brings
+  the resolver back). `proxmox/` sets the same for a fresh clone. Pods still
+  use CoreDNS.
 - **Bumping k3s is an edit to `k3s-cluster/vars/versions.yml`.** It must move
   in the same commit as `deploy/setup/traefik/traefik-helm-chart.yaml`: k3s
   only serves the Traefik chart tarball bundled with the *installed* version.
@@ -266,11 +281,22 @@ When comments are necessary:
   server restart keeps pods up so the tunnel only blips;
   `k3s-cluster/ansible.cfg`'s SSH keepalives cover it. Do first runs by hand
   from the LAN. Every run restarts k3s (the collection always does) — that is
-  by design, not drift.
-- `token` is left undefined: the server role reads the Pi's existing token
-  and the agent play consumes it in the same run. No token secret, and the
-  SQLite datastore is never touched — so there is no pre-change archive (the
-  old `node/` upgrade script wrote one); recover a bad run by reverting.
+  by design, not drift. `ansible.cfg` sets `forks = 1`.
+- `token` is left undefined: the server role reads the existing token off
+  `k3s-vm-control-01` and the agent play consumes it in the same run. No
+  token secret.
+- **The datastore is embedded etcd with a single member.** `cluster-init:
+  true` in `server_config_yaml` keeps it selected. There is no peer to
+  recover from, so `server_config_yaml` schedules `k3s etcd-snapshot` every
+  6h (retention 4) to `/var/lib/rancher/k3s/server/db/snapshots` on the
+  server's root disk. Recover a bad run by reverting; recover a lost
+  datastore from a snapshot — see `k3s-cluster/RECOVERY.md`.
+- **The Pi's node identity is load-bearing.** It rejoins as an agent named
+  `k8s-manager-1` with `ticklethepanda.dev/lvm-vg=data` — the OpenEBS PVs'
+  `nodeAffinity` and the `lvm-data` StorageClass topology both key off that
+  name and label. `host_vars/k8s-manager-1.yml` sets the label and the
+  storage-anchor taint at registration (the label gates PV binding, so it
+  can't wait for `node-labels.yml`).
 - **`site.yml` writes `/etc/rancher/k3s/registries.yaml` on every node** to
   authenticate docker.io pulls against a read-only Docker Hub PAT
   (`DOCKER_PULL_USERNAME` / `DOCKER_PULL_TOKEN` — `prod` env secrets in CI,
@@ -280,7 +306,7 @@ When comments are necessary:
   run does anyway.
 - **No `--check` drift gate** for the `k3s-cluster` job — the collection
   skips its mutating tasks under `--check`. The job asserts four Ready nodes
-  and the control-VM cordon with `kubectl` instead.
+  and the server's `control-plane:NoSchedule` taint with `kubectl` instead.
 - The workflow holds `concurrency: group: cluster` so two runs can never
   touch the cluster at once. A `dorny/paths-filter` step in `preflight`
   drives the per-tree skips (see "Deploy pattern"); each downstream `if:`
@@ -339,7 +365,12 @@ When comments are necessary:
   (`delegate_to: localhost`). The template build is skipped once VMID 9000
   exists; VM config runs only for a VMID that doesn't exist yet
   (`proxmox_kvm` update mode doesn't diff — it always reports changed), so
-  reshaping a VM's CPU/RAM/IP means deleting it and re-running.
+  reshaping a VM's CPU/RAM/IP means deleting it and re-running. For
+  `k3s-vm-control-01` (the server) that also means restoring etcd from a
+  snapshot — see `k3s-cluster/RECOVERY.md`.
+- **The k3s VMs' cloud-init resolver is Quad9** (`proxmox_vm_nameservers`),
+  not the in-cluster Pi-hole — a fresh clone must not depend on a cluster
+  workload to resolve. `k3s-cluster/` re-asserts it on running VMs.
 - Neither path touches how CI reaches the host, so no tunnel-disruption
   handling. The job runs after `node`/`router` purely so nothing overlaps.
 - apt sources are deb822 `.sources` (PVE 9 / Debian 13), managed with
@@ -358,15 +389,18 @@ When comments are necessary:
 
 - Most of the SSD is `sda3`, one LVM volume group named `data`. Four LVs hold
   node state (sized in `node/vars/storage.yml`); the unallocated ~327G **is
-  the PersistentVolume pool**, not spare capacity. Don't pre-allocate it.
+  the PersistentVolume pool**, not spare capacity. Don't pre-allocate it. The
+  `server` LV is vestigial since the control-plane left the Pi — kept, not
+  reclaimed (shrinking fails).
 - **Growing a volume is an edit to `node/vars/storage.yml`.** It extends
   online. Shrinking fails.
 - **Ansible does not own the partition table or the VG**, and must not — CI
   reaches this node through a pod running on it, so a bad repartition has no
   remote recovery.
-- `fstab` uses `nofail` and a k3s drop-in sets `RequiresMountsFor`, so a
-  missing volume leaves the Pi reachable but stops k3s. The alternative is k3s
-  writing a second copy of its state to root and looking healthy.
+- `fstab` uses `nofail` and a `k3s-agent` drop-in sets `RequiresMountsFor` on
+  the `agent` / `kubelet` LVs, so a missing volume leaves the Pi reachable but
+  stops `k3s-agent`. The alternative is the kubelet writing its state to root
+  and looking healthy until the root filesystem fills.
 - **`lvm-data` is the default StorageClass** and the only one — every volume is
   a real LV. `local-path` and the static `local-storage` PVs in `/mnt/disk` are
   gone, and `local-storage` is in `k3s_disable`. A PVC needs no
@@ -389,8 +423,8 @@ When comments are necessary:
 
 - **k3s's own bundled addons can conflict with kustomize-managed
   resources of the same name.** k3s watches
-  `/var/lib/rancher/k3s/server/manifests/` on the node and re-applies
-  whatever's there on every restart, independent of CI. If the repo
+  `/var/lib/rancher/k3s/server/manifests/` on the server (`k3s-vm-control-01`)
+  and re-applies whatever's there on every restart, independent of CI. If the repo
   manages a resource that k3s also bundles by default (this happened with
   Traefik), add that addon to `server_config_yaml` in
   `k3s-cluster/group_vars/k3s_cluster.yml` (`disable: [servicelb, traefik,

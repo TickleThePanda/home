@@ -25,6 +25,6 @@ k3s_cluster:
     # automation user; the VMs' cloud-init user). A hand-run needs that
     # private key locally -- there is no per-host override here because the
     # VMs have no other login. `node_user` is kept as an escape hatch for
-    # running against the Pi alone (`--limit server -e node_user=panda`).
+    # running against the Pi alone (`--limit k8s-manager-1 -e node_user=panda`).
     ansible_user: "{{ node_user | default('deploy') }}"
     ansible_python_interpreter: /usr/bin/python3

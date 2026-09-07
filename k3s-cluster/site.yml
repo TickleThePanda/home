@@ -1,8 +1,9 @@
 ---
-# k3s across every node: the Pi (server) and the three Proxmox VMs (agents),
-# one cluster. Owns the k3s version, /etc/rancher/k3s/config.yaml, and the
-# install/join. The layer below k3s on the Pi -- storage, DNS resolver, swap,
-# sudoers, the fan -- stays in node/.
+# k3s across every node: k3s-vm-control-01 (server) and the Pi plus the two
+# worker VMs (agents), one cluster. Owns the k3s version,
+# /etc/rancher/k3s/config.yaml, the VM node resolver, and the install/join.
+# The layer below k3s on the Pi -- storage, its DNS resolver, swap, sudoers,
+# the fan -- stays in node/.
 #
 # This composes the k3s.orchestration roles rather than importing that
 # collection's playbooks/site.yml, which hardcodes the `raspberrypi` role.
@@ -12,8 +13,8 @@
 # iptables-legacy for pre-1.6.2) are already satisfied on a running cluster.
 #
 # The k3s_server / k3s_agent roles restart k3s with a plain synchronous
-# `service: state=restarted`, unlike node/'s detached restart. A k3s *server*
-# restart keeps pods (cloudflared included) up, so the tunnel only blips;
+# `service: state=restarted`, unlike node/'s detached restart. A k3s restart
+# keeps pods (cloudflared included) up, so the tunnel only blips;
 # ansible.cfg's keepalives cover it. Do the first run by hand from the LAN.
 
 - name: Cluster prerequisites

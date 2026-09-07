@@ -22,7 +22,7 @@ touching `proxmox/**`. Two access paths in the one play:
 |---|---|
 | apt repos — enterprise off, no-subscription on (PVE + Ceph) | `tasks/apt-repos.yml` |
 | Debian 13 `genericcloud` template (VMID 9000) | `tasks/vm-template.yml` |
-| the three k3s agent VMs (`k3s-vm-control-01` / `-worker-01` / `-worker-02`) | `tasks/vm-provision.yml` |
+| the three k3s VMs -- `k3s-vm-control-01` (server) / `-worker-01` / `-worker-02` (agents) | `tasks/vm-provision.yml` |
 
 VM sizing, IPs and VMIDs are in `vars/main.yml` (`k3s_vms`). k3s *on* the VMs
 is `k3s-cluster/`'s job, not this one.
