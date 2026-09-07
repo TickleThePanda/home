@@ -21,6 +21,12 @@ spec:
       containers:
         - name: audiobookshelf
           image: ghcr.io/advplyr/audiobookshelf:latest
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              memory: 512Mi
           ports:
             - containerPort: 80
           env:
@@ -39,6 +45,12 @@ spec:
           image: ticklethepanda/libation-sync:latest
           imagePullPolicy: Always
           args: ["/usr/local/bin/sync-runner"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
           ports:
             - containerPort: 8091
           env:
@@ -53,6 +65,12 @@ spec:
         - name: librofm-sync
           image: ticklethepanda/librofm-sync:latest
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
           ports:
             - containerPort: 8090
           env:

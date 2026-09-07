@@ -26,6 +26,12 @@ spec:
           args:
             - "-c"
             - "/kea/config/dhcp4.json"
+          resources:
+            requests:
+              cpu: 15m
+              memory: 48Mi
+            limits:
+              memory: 128Mi
           securityContext:
             # No `drop: [ALL]` here -- the image's entrypoint script runs as
             # root and expects the usual Docker default capability set (it
@@ -51,6 +57,12 @@ spec:
           args:
             - "-c"
             - "/kea/config/kea-dhcp-ddns.json"
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 48Mi
           volumeMounts:
             - name: kea-config
               mountPath: /kea/config/kea-dhcp-ddns.json

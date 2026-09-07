@@ -23,6 +23,12 @@ spec:
         - name: pihole
           image: pihole/pihole:2026.07.2
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
           env:
             - name: TZ
               value: "Europe/London"

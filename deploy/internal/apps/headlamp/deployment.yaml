@@ -40,10 +40,10 @@ spec:
             initialDelaySeconds: 10
           resources:
             requests:
-              cpu: 25m
-              memory: 96Mi
+              cpu: 15m
+              memory: 48Mi
             limits:
-              memory: 256Mi
+              memory: 192Mi
           securityContext:
             runAsNonRoot: true
             runAsUser: 100

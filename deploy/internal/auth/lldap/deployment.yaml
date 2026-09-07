@@ -19,6 +19,12 @@ spec:
       containers:
         - image: lldap/lldap:latest-alpine-rootless
           name: lldap
+          resources:
+            requests:
+              cpu: 5m
+              memory: 24Mi
+            limits:
+              memory: 64Mi
           ports:
             - containerPort: 3890
             - containerPort: 17170

@@ -26,6 +26,12 @@ spec:
       containers:
         - name: label-studio
           image: heartexlabs/label-studio:latest
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
           ports:
             - containerPort: 8080
           env:
