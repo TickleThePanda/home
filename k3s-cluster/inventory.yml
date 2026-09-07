@@ -1,16 +1,21 @@
-# The k3s cluster: the Pi is the sole server, the three Proxmox VMs are
-# agents. Group names (k3s_cluster > server / agent) are mandatory -- the
-# k3s.orchestration roles key off them.
+# The k3s cluster: the Pi and k3s-vm-control-01 are servers (embedded etcd),
+# the other two Proxmox VMs are agents. Group names (k3s_cluster >
+# server / agent) are mandatory -- the k3s.orchestration roles key off them,
+# and the first host under `server` is the cluster-init node.
+#
+# This is the transitional two-server state: the control-plane is moving from
+# the Pi to k3s-vm-control-01. The Pi stays listed first (cluster-init node)
+# until it is demoted to `agent` and api_endpoint flips to 192.168.1.32.
 k3s_cluster:
   children:
     server:
       hosts:
         k8s-manager-1:
           ansible_host: 192.168.1.2
-    agent:
-      hosts:
         k3s-vm-control-01:
           ansible_host: 192.168.1.32
+    agent:
+      hosts:
         k3s-vm-worker-01:
           ansible_host: 192.168.1.33
         k3s-vm-worker-02:

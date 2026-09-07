@@ -2,8 +2,11 @@
 # Variables for the k3s.orchestration roles. k3s_version comes from
 # vars/versions.yml, loaded at play level in site.yml.
 
-# The API all agents join and the tls-san the server cert carries. The Pi's
-# address is static (node/ leaves /etc/dhcpcd.conf to hand-editing).
+# The API endpoint agents join and joining servers point at. Still the Pi
+# while the control-plane relocation is mid-flight; flips to 192.168.1.32
+# once k3s-vm-control-01 is the sole server. The server cert SANs are set
+# explicitly in server_config_yaml below (both addresses, for the overlap).
+# Both addresses are static (node/ and proxmox/ leave them to hand-editing).
 api_endpoint: 192.168.1.2
 
 # The prereq role's ufw/firewalld handling. The Pi runs neither; the VMs get
@@ -31,18 +34,24 @@ kubeconfig: "{{ playbook_dir }}/.kubeconfig"
 docker_pull_username: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_USERNAME') | default('', true) }}"
 docker_pull_token: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_TOKEN') | default('', true) }}"
 
-# Written to /etc/rancher/k3s/config.yaml on the server. These addons are
+# Written to /etc/rancher/k3s/config.yaml on every server. These addons are
 # vendored into deploy/setup/ instead (see CLAUDE.md); MetalLB replaces
 # servicelb and every volume is on the lvm-data StorageClass.
 #
-# node-taint is read only at first node registration, so on the live
-# already-registered Pi it is inert -- tasks/node-labels.yml applies the taint
-# through the API. It is kept here so a reflashed Pi registers already tainted
-# and portable pods don't stampede onto it before that task runs.
+# tls-san carries both control-plane addresses through the relocation overlap
+# so a kubeconfig or agent pointed at either the Pi or k3s-vm-control-01
+# validates. A YAML list here fully replaces the single api_endpoint SAN the
+# role would otherwise add (the merge is a shallow combine).
+#
+# No node-taint: this file is written to both servers, and the Pi's
+# storage-anchor taint is host-specific -- it is applied through the API by
+# tasks/node-labels.yml, and set at registration via host_vars once the Pi is
+# an agent.
 server_config_yaml: |
   disable:
     - servicelb
     - traefik
     - local-storage
-  node-taint:
-    - ticklethepanda.dev/prefer-no-schedule=storage-anchor:PreferNoSchedule
+  tls-san:
+    - 192.168.1.2
+    - 192.168.1.32
