@@ -179,7 +179,7 @@ When comments are necessary:
   cloudflared, each a self-contained kustomization),
   `deploy/internal/<app>/` (internal-only apps, each self-contained with its
   own `namespace:`, grouped by function into `apps/`, `auth/`, `network/`,
-  `services/`, plus a top-level `index/`), `deploy/home/`
+  `services/`, plus a top-level `homepage/`), `deploy/home/`
   (externally-reachable apps — `namespace: home` is set once on
   `deploy/home/kustomization.yaml` itself, not per app, so scope applies to
   `deploy/home`, not `deploy/home/<app>`).
@@ -201,7 +201,7 @@ When comments are necessary:
 ## Apps
 
 - `apps/<app>/` holds the source for the images this repo builds
-  (`home-root`, `internal-index`). Each has its own
+  (`home-root`). Each has its own
   `.github/workflows/build--<app>.yml`, triggered on `apps/<app>/**`, which
   builds from that directory as the Docker context, pushes
   `ticklethepanda/<app>:latest`, and restarts the Deployment. The manifests

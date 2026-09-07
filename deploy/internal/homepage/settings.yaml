@@ -1,0 +1,30 @@
+title: Internal
+headerStyle: clean
+statusStyle: dot
+hideVersion: true
+
+# Group order and shape. Names must match the gethomepage.dev/group
+# annotations on the discovered IngressRoutes and the group keys in
+# services.yaml, or a stray group appears.
+layout:
+  Infrastructure:
+    style: row
+    columns: 3
+  Network:
+    style: row
+    columns: 3
+  IAM:
+    style: row
+    columns: 2
+  Home automation:
+    style: row
+    columns: 2
+  Web:
+    style: row
+    columns: 2
+  Tools:
+    style: row
+    columns: 3
+  Media:
+    style: row
+    columns: 2

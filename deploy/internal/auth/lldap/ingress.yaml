@@ -2,6 +2,13 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: ingress
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://lldap.internal.ticklethepanda.co.uk
+    gethomepage.dev/name: LLDAP
+    gethomepage.dev/group: IAM
+    gethomepage.dev/icon: lldap
+    gethomepage.dev/description: User directory
 spec:
   entryPoints:
     - int-web-secure

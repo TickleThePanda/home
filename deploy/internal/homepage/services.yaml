@@ -1,0 +1,31 @@
+# Only services that are not discovered from the cluster. Everything with an
+# in-cluster Traefik IngressRoute is added via gethomepage.dev/* annotations
+# on that route instead.
+
+- Infrastructure:
+    - Proxmox:
+        href: https://proxmox.internal.ticklethepanda.co.uk:8006/
+        description: proxmox-01 hypervisor
+        icon: proxmox
+    - Router:
+        href: http://192.168.1.1/
+        description: OpenWrt gateway
+        icon: openwrt
+
+- Network:
+    - Traefik:
+        href: https://traefik.internal.ticklethepanda.co.uk/dashboard/
+        description: Ingress dashboard
+        icon: traefik
+
+- Home automation:
+    - Home Assistant:
+        href: https://ha.internal.ticklethepanda.co.uk
+        description: Home automation
+        icon: home-assistant
+
+- Web:
+    - Home:
+        href: http://home.ticklethepanda.co.uk
+        description: Public root site
+        icon: mdi-web

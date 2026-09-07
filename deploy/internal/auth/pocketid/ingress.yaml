@@ -3,6 +3,13 @@ kind: IngressRoute
 metadata:
   name: pocket-id
   namespace: pocket-id
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://auth.internal.ticklethepanda.co.uk
+    gethomepage.dev/name: Pocket ID
+    gethomepage.dev/group: IAM
+    gethomepage.dev/icon: pocket-id
+    gethomepage.dev/description: OIDC provider
 spec:
   entryPoints:
     - int-web-secure

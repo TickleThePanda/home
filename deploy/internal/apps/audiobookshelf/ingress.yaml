@@ -3,6 +3,13 @@ kind: IngressRoute
 metadata:
   name: audiobookshelf
   namespace: audiobookshelf
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://audiobooks.internal.ticklethepanda.co.uk
+    gethomepage.dev/name: Audiobookshelf
+    gethomepage.dev/group: Media
+    gethomepage.dev/icon: audiobookshelf
+    gethomepage.dev/description: Audiobook server
 spec:
   entryPoints:
     - int-web-secure

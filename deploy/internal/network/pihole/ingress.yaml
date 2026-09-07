@@ -3,6 +3,13 @@ kind: IngressRoute
 metadata:
   name: pihole-ingress
   namespace: pihole
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://pi-hole.internal.ticklethepanda.co.uk/admin
+    gethomepage.dev/name: Pi-hole
+    gethomepage.dev/group: Network
+    gethomepage.dev/icon: pi-hole
+    gethomepage.dev/description: DNS filtering
 spec:
   entryPoints:
     - int-web-secure

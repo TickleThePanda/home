@@ -47,7 +47,6 @@ Source for the apps this repo builds and deploys. Each has its own
 `apps/<app>/` and restarts its Deployment.
 
 - `home-root` — a root site linking to the other services.
-- `internal-index` — the equivalent index for internal-only services.
 
 ### `proxmox`
 

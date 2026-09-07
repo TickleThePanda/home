@@ -9,7 +9,7 @@ resources:
 - ./auth/lldap
 - ./auth/pocketid
 - ./auth/tinyauth
-- ./index
+- ./homepage
 - ./network/bind
 - ./network/coredns
 - ./network/externaldns

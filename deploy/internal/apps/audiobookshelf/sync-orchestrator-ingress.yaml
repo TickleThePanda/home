@@ -3,6 +3,13 @@ kind: IngressRoute
 metadata:
   name: sync-orchestrator
   namespace: audiobookshelf
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://audiobooks-sync.internal.ticklethepanda.co.uk
+    gethomepage.dev/name: Audiobooks Sync
+    gethomepage.dev/group: Media
+    gethomepage.dev/icon: mdi-sync
+    gethomepage.dev/description: Libation / Libro.fm sync
 spec:
   entryPoints:
     - int-web-secure
