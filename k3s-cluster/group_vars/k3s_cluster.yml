@@ -23,6 +23,14 @@ kubeconfig: "{{ playbook_dir }}/.kubeconfig"
 # in the same run. Setting it would rewrite the server token on a live
 # cluster.
 
+# docker.io pull authentication, written to /etc/rancher/k3s/registries.yaml
+# by site.yml. Lifts the cluster's Docker Hub pulls off the shared anonymous
+# per-IP rate limit onto the account's own. Values come from the
+# DOCKER_PULL_* prod secrets in CI, or a hand-exported .env locally; empty
+# when absent, which leaves any existing registries.yaml as-is.
+docker_pull_username: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_USERNAME') | default('', true) }}"
+docker_pull_token: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_TOKEN') | default('', true) }}"
+
 # Written to /etc/rancher/k3s/config.yaml on the server. These addons are
 # vendored into deploy/setup/ instead (see CLAUDE.md); MetalLB replaces
 # servicelb and every volume is on the lvm-data StorageClass.

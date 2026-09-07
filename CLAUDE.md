@@ -267,6 +267,13 @@ When comments are necessary:
   and the agent play consumes it in the same run. No token secret, and the
   SQLite datastore is never touched — so there is no pre-change archive (the
   old `node/` upgrade script wrote one); recover a bad run by reverting.
+- **`site.yml` writes `/etc/rancher/k3s/registries.yaml` on every node** to
+  authenticate docker.io pulls against a read-only Docker Hub PAT
+  (`DOCKER_PULL_USERNAME` / `DOCKER_PULL_TOKEN` — `prod` env secrets in CI,
+  a gitignored root `.env` for a hand run), lifting the cluster's pulls off
+  the shared anonymous per-IP rate limit. Absent creds → the file is skipped
+  (any existing one left as-is). k3s only re-reads it on restart, which every
+  run does anyway.
 - **No `--check` drift gate** for the `k3s-cluster` job — the collection
   skips its mutating tasks under `--check`. The job asserts four Ready nodes
   and the control-VM cordon with `kubectl` instead.
