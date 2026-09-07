@@ -37,6 +37,14 @@ jobs:
           docker buildx build --push \
           --tag ticklethepanda/home-root:latest \
           --platform linux/amd64,linux/arm/v7,linux/arm64 ./apps/home-root/
+      - name: Verify multi-arch manifest
+        run: |
+          got=$(docker buildx imagetools inspect --raw ticklethepanda/home-root:latest \
+            | jq -r '.manifests[].platform | [.os, .architecture, .variant] | map(select(.)) | join("/")')
+          echo "$got"
+          for want in linux/amd64 linux/arm64 linux/arm/v7; do
+            grep -qxF "$want" <<<"$got" || { echo "::error::home-root image missing $want"; exit 1; }
+          done
       - name: Setup k8s context
         uses: azure/k8s-set-context@v4
         with:

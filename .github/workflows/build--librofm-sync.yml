@@ -38,6 +38,14 @@ jobs:
           --tag ticklethepanda/librofm-sync:latest \
           --platform linux/amd64,linux/arm64 \
           -f apps/sync-runner/Dockerfile.librofm ./apps/sync-runner/
+      - name: Verify multi-arch manifest
+        run: |
+          got=$(docker buildx imagetools inspect --raw ticklethepanda/librofm-sync:latest \
+            | jq -r '.manifests[].platform | [.os, .architecture, .variant] | map(select(.)) | join("/")')
+          echo "$got"
+          for want in linux/amd64 linux/arm64; do
+            grep -qxF "$want" <<<"$got" || { echo "::error::librofm-sync image missing $want"; exit 1; }
+          done
       - name: Setup k8s context
         uses: azure/k8s-set-context@v4
         with:

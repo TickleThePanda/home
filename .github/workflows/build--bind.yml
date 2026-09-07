@@ -37,6 +37,14 @@ jobs:
           docker buildx build --push \
           --tag ticklethepanda/bind:latest \
           --platform linux/amd64,linux/arm64 ./apps/bind/
+      - name: Verify multi-arch manifest
+        run: |
+          got=$(docker buildx imagetools inspect --raw ticklethepanda/bind:latest \
+            | jq -r '.manifests[].platform | [.os, .architecture, .variant] | map(select(.)) | join("/")')
+          echo "$got"
+          for want in linux/amd64 linux/arm64; do
+            grep -qxF "$want" <<<"$got" || { echo "::error::bind image missing $want"; exit 1; }
+          done
       - name: Setup k8s context
         uses: azure/k8s-set-context@v4
         with:

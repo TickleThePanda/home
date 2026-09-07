@@ -17,8 +17,14 @@ spec:
     spec:
       containers:
         - name: unbound
-          image: mvance/unbound-rpi:1.22.0
+          image: klutchell/unbound:1.26.0
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 96Mi
           ports:
             - containerPort: 5335
               name: dns-udp
@@ -28,8 +34,8 @@ spec:
               protocol: TCP
           volumeMounts:
             - name: unbound-config
-              mountPath: /opt/unbound/etc/unbound/unbound.conf
-              subPath: unbound.conf
+              mountPath: /etc/unbound/custom.conf.d/home-dns.conf
+              subPath: home-dns.conf
               readOnly: true
       volumes:
         - name: unbound-config

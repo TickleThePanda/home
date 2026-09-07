@@ -207,6 +207,12 @@ When comments are necessary:
   `ticklethepanda/<app>:latest`, and restarts the Deployment. The manifests
   for these apps live under `deploy/` like any other app — nothing in
   `deploy/` references the source paths.
+- **Every image must be multi-arch (`linux/amd64` + `linux/arm64`)** — the Pi
+  is arm64, the worker VMs are amd64, and a stateless pod can land on either.
+  Each `build--<app>.yml` builds both platforms and fails if the pushed
+  manifest is missing one. The same applies to third-party images referenced
+  from `deploy/`. Workloads that must stay on the Pi are held there by their
+  `lvm-data` PVC (storage topology), not by an arch `nodeSelector`.
 
 ## Node pattern
 

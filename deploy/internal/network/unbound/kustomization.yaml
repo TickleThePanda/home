@@ -11,4 +11,4 @@ resources:
 configMapGenerator:
   - name: unbound-config
     files:
-      - unbound.conf
+      - home-dns.conf
