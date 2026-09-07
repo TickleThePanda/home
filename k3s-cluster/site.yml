@@ -31,6 +31,35 @@
         dest: /usr/local/bin/k3s-install.sh
         mode: "0755"
         force: false
+
+    # Authenticate docker.io pulls so the cluster draws on an account's
+    # Docker Hub rate limit instead of the shared anonymous per-IP one.
+    # Skipped when the credentials are absent (a hand run without them
+    # exported), which leaves any existing registries.yaml in place. k3s
+    # re-reads this file only on restart -- the k3s_server / k3s_agent roles
+    # below restart every run, so a change here lands in the same run.
+    - name: Authenticate docker.io pulls (raises the Docker Hub rate limit)
+      when: docker_pull_token | length > 0
+      block:
+        - name: Ensure the k3s config directory exists
+          ansible.builtin.file:
+            path: /etc/rancher/k3s
+            state: directory
+            mode: "0755"
+        - name: Write the registry credentials
+          ansible.builtin.copy:
+            dest: /etc/rancher/k3s/registries.yaml
+            mode: "0600"
+            content: |
+              mirrors:
+                docker.io:
+                  endpoint:
+                    - "https://index.docker.io/v2"
+              configs:
+                "https://index.docker.io/v2":
+                  auth:
+                    username: "{{ docker_pull_username }}"
+                    password: "{{ docker_pull_token }}"
   roles:
     - role: k3s.orchestration.prereq
 

@@ -442,6 +442,9 @@ jobs:
 
       - name: Apply
         working-directory: k3s-cluster
+        env:
+          DOCKER_PULL_USERNAME: ${{ secrets.DOCKER_PULL_USERNAME }}
+          DOCKER_PULL_TOKEN: ${{ secrets.DOCKER_PULL_TOKEN }}
         run: ansible-playbook site.yml --diff --private-key ~/.ssh/node_key
 
       # The k3s.orchestration roles skip their install/restart tasks under

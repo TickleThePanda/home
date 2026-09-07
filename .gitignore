@@ -20,3 +20,6 @@ router/bootstrap/out/
 # kubeconfig setup is documented in CLAUDE.md.
 k3s-cluster/.kubeconfig
 
+# Local scratch for the DOCKER_PULL_* values before they go to GitHub Actions
+# secrets (`gh secret set --env prod`). Never committed -- the repo is public.
+/.env

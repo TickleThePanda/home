@@ -21,6 +21,7 @@ same cloudflared tunnel as `node` / `router` / `proxmox`.
 | server config -- disabled addons | `group_vars/k3s_cluster.yml` (`server_config_yaml`) |
 | agent join (VMs -> Pi API) | `k3s.orchestration.k3s_agent`, `api_endpoint` |
 | lvm-vg node label + `k3s-vm-control-01` cordon | `tasks/node-labels.yml` |
+| docker.io pull auth (all nodes) | `site.yml` -> `/etc/rancher/k3s/registries.yaml` |
 
 Not managed: the VMs themselves (that is `proxmox/`), the SQLite datastore,
 the cluster token (left as the Pi's existing one), anything in `deploy/`.
@@ -34,6 +35,7 @@ cd k3s-cluster
 ansible-galaxy collection install -r requirements.yml
 pip install netaddr
 ansible-playbook site.yml --syntax-check
+set -a; . ../.env; set +a   # DOCKER_PULL_* -- else registries.yaml is skipped
 ansible-playbook site.yml --diff -e node_user=deploy
 ```
 
@@ -63,6 +65,13 @@ ansible-playbook site.yml --diff -e node_user=deploy
   false`) before the roles: they run the script unconditionally but only
   fetch it on a version change, and a node already at the target version
   (the Pi, on first adoption) would otherwise not have it.
+- **docker.io pull auth.** `site.yml` writes `/etc/rancher/k3s/registries.yaml`
+  on every node from `DOCKER_PULL_USERNAME` / `DOCKER_PULL_TOKEN` (a read-only
+  Docker Hub PAT; `prod` env secrets in CI, `../.env` for a hand run) so the
+  cluster's Docker Hub pulls draw on the account's rate limit rather than the
+  shared anonymous per-IP one. Absent creds -> the file is skipped, any
+  existing one left in place. Rotate with `gh secret set DOCKER_PULL_TOKEN
+  --env prod` then a `workflow_dispatch`.
 - k3s upgrades: bump `k3s_version` (and the coupled
   `traefik_chart_version` -- `node/scripts/check-traefik-pin.sh` enforces the
   pair). One minor version at a time.
