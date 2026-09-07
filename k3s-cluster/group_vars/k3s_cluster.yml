@@ -47,6 +47,11 @@ docker_pull_token: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_TOKEN') | defa
 # registration from host_vars/k8s-manager-1.yml and re-asserted through the
 # API by tasks/node-labels.yml. The control-plane taint on this server is
 # applied there too.
+#
+# etcd is a single member, so a snapshot is the only recovery path -- schedule
+# one every 6h, keep a day's worth. They land on the root filesystem
+# (/var/lib/rancher/k3s/server/db/snapshots); the etcd db is tens of MB.
+# node/RECOVERY.md's companion covers restoring from one.
 server_config_yaml: |
   cluster-init: true
   disable:
@@ -56,3 +61,5 @@ server_config_yaml: |
   tls-san:
     - 192.168.1.2
     - 192.168.1.32
+  etcd-snapshot-schedule-cron: "0 */6 * * *"
+  etcd-snapshot-retention: 4
