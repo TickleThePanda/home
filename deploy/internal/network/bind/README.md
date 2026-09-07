@@ -4,28 +4,24 @@ Authoritative-only BIND9 for `home.arpa` and the per-VLAN reverse zones
 (`1.` / `10.` / `20.` / `30.` / `40.` `.168.192.in-addr.arpa`). No recursion —
 Unbound stub-zones each of them here.
 
-Records are written by dynamic update, not by hand:
+**Every record is written by dynamic update** — the zone files carry only
+NS/SOA. Three writers, each with its own TSIG key:
 
 - **Kea DHCP-DDNS** (`deploy/internal/network/dhcp-kea/`) — every lease's
   hostname, qualified into `home.arpa`, plus its PTR.
-- **ExternalDNS** (`deploy/internal/network/externaldns/`) — MetalLB
+- **external-dns** (`deploy/internal/network/externaldns/`) — MetalLB
   `LoadBalancer` Services / Ingresses annotated with
   `external-dns.kubernetes.io/hostname` (v0.22 dropped the `.alpha`).
+- **external-dns-static** (`deploy/internal/network/dns-static/`) — a
+  hand-maintained list of non-DHCP hosts (`gateway`, the k3s VMs) as
+  `DNSEndpoint` resources.
 
-Seeded records (hosts that aren't DHCP clients, so DDNS never sees them):
-`gateway` → `192.168.1.1`, and the three k3s VMs `k3s-vm-control-01` /
-`-worker-01` / `-worker-02` → `192.168.1.32`–`.34` (static cloud-init IPs).
-Plus each reverse zone's NS/SOA. `entrypoint.sh` seeds each zone file into
-the PVC **only if it isn't already there**, so:
-
-- **Adding a zone** (new `zones/*.zone` + `named.conf` block + kustomization
-  entry) is an ordinary deploy — the configMap hash change rolls the pod, the
-  entrypoint copies just the new file, existing zones and their live dynamic
-  records are untouched.
-- **Changing an existing seed** (e.g. adding the k3s-VM records to an
-  already-seeded `home.arpa`) needs a re-seed of that copy:
-  `kubectl -n bind delete pvc bind-data` + redeploy, or a manual `nsupdate`
-  (`named` owns the file after first seed, rewriting it + a `.jnl` journal).
+`entrypoint.sh` seeds each zone file into the PVC **only if it isn't already
+there** — `named` owns the copy afterwards. So **adding a zone** (new
+`zones/*.zone` + `named.conf` block + kustomization entry) is an ordinary
+deploy: the configMap hash rolls the pod, the entrypoint copies just the new
+file, existing zones and their live records are untouched. There is nothing
+to "re-seed" for a record change — that goes through one of the writers above.
 
 ## TSIG keys (out-of-band, like `tunnel-token`)
 

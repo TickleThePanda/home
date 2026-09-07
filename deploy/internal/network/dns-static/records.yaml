@@ -1,0 +1,66 @@
+# Static forward + reverse records for hosts that aren't DHCP clients, so Kea
+# DHCP-DDNS never registers them. One DNSEndpoint per host; external-dns-static
+# reconciles these into BIND by dynamic update. Add a host = add a block.
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: gateway
+  namespace: external-dns
+spec:
+  endpoints:
+    - dnsName: gateway.home.arpa
+      recordType: A
+      recordTTL: 300
+      targets: ["192.168.1.1"]
+    - dnsName: 1.1.168.192.in-addr.arpa
+      recordType: PTR
+      recordTTL: 300
+      targets: ["gateway.home.arpa"]
+---
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: k3s-vm-control-01
+  namespace: external-dns
+spec:
+  endpoints:
+    - dnsName: k3s-vm-control-01.home.arpa
+      recordType: A
+      recordTTL: 300
+      targets: ["192.168.1.32"]
+    - dnsName: 32.1.168.192.in-addr.arpa
+      recordType: PTR
+      recordTTL: 300
+      targets: ["k3s-vm-control-01.home.arpa"]
+---
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: k3s-vm-worker-01
+  namespace: external-dns
+spec:
+  endpoints:
+    - dnsName: k3s-vm-worker-01.home.arpa
+      recordType: A
+      recordTTL: 300
+      targets: ["192.168.1.33"]
+    - dnsName: 33.1.168.192.in-addr.arpa
+      recordType: PTR
+      recordTTL: 300
+      targets: ["k3s-vm-worker-01.home.arpa"]
+---
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: k3s-vm-worker-02
+  namespace: external-dns
+spec:
+  endpoints:
+    - dnsName: k3s-vm-worker-02.home.arpa
+      recordType: A
+      recordTTL: 300
+      targets: ["192.168.1.34"]
+    - dnsName: 34.1.168.192.in-addr.arpa
+      recordType: PTR
+      recordTTL: 300
+      targets: ["k3s-vm-worker-02.home.arpa"]

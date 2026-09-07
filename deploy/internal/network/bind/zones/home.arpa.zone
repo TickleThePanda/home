@@ -2,7 +2,7 @@ $ORIGIN home.arpa.
 $TTL 300
 
 @   IN SOA ns.home.arpa. admin.ticklethepanda.co.uk. (
-        2026090710 ; serial (named bumps this on every update)
+        2026090711 ; serial (named bumps this on every update)
         3600       ; refresh
         600        ; retry
         86400      ; expire
@@ -11,10 +11,7 @@ $TTL 300
 @   IN NS ns.home.arpa.
 ns  IN A  10.43.53.55
 
-; Static, non-DHCP hosts Kea can't register -- seeded here. Everything else in
-; this zone is written by Kea DHCP-DDNS / ExternalDNS.
-gateway           IN A  192.168.1.1
-; k3s VMs on Proxmox: static cloud-init IPs, so no DHCP lease to trigger DDNS.
-k3s-vm-control-01 IN A  192.168.1.32
-k3s-vm-worker-01  IN A  192.168.1.33
-k3s-vm-worker-02  IN A  192.168.1.34
+; Every record in this zone is written by dynamic update: Kea DHCP-DDNS for
+; leases, the discovery external-dns for Services/Ingresses, external-dns-static
+; (deploy/internal/network/dns-static/) for non-DHCP hosts like the gateway and
+; the k3s VMs. Nothing is seeded here beyond NS/SOA.
