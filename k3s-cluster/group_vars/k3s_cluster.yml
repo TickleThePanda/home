@@ -34,8 +34,15 @@ docker_pull_token: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_TOKEN') | defa
 # Written to /etc/rancher/k3s/config.yaml on the server. These addons are
 # vendored into deploy/setup/ instead (see CLAUDE.md); MetalLB replaces
 # servicelb and every volume is on the lvm-data StorageClass.
+#
+# node-taint is read only at first node registration, so on the live
+# already-registered Pi it is inert -- tasks/node-labels.yml applies the taint
+# through the API. It is kept here so a reflashed Pi registers already tainted
+# and portable pods don't stampede onto it before that task runs.
 server_config_yaml: |
   disable:
     - servicelb
     - traefik
     - local-storage
+  node-taint:
+    - ticklethepanda.dev/prefer-no-schedule=storage-anchor:PreferNoSchedule

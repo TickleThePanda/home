@@ -42,3 +42,36 @@
       - k3s-vm-control-01
   register: control_cordon
   changed_when: "'already cordoned' not in control_cordon.stdout"
+
+# The Pi is the sole control-plane and also anchors every lvm-data volume.
+# PreferNoSchedule keeps the scheduler from stacking portable pods on top of
+# that load without hard-blocking them if the worker VMs are full. Storage-
+# pinned pods have a node-affinity to the Pi that outweighs the penalty.
+# `kubectl taint --overwrite` always prints "modified", so gate on a
+# pre-read instead of parsing its output.
+- name: Read the Pi's current taints
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - get
+      - node
+      - k8s-manager-1
+      - -o
+      - jsonpath={.spec.taints[?(@.key=="ticklethepanda.dev/prefer-no-schedule")]}
+  register: pi_taint
+  changed_when: false
+
+- name: Prefer no scheduling onto the Pi
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - taint
+      - node
+      - k8s-manager-1
+      - ticklethepanda.dev/prefer-no-schedule=storage-anchor:PreferNoSchedule
+      - --overwrite
+  when: >-
+    '"value":"storage-anchor"' not in pi_taint.stdout
+    or '"effect":"PreferNoSchedule"' not in pi_taint.stdout
