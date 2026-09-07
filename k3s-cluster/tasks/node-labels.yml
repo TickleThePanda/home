@@ -1,0 +1,44 @@
+---
+# Cluster-visible state that k3s only reads at first node registration, so it
+# has to go through the API for an already-registered node.
+
+- name: Wait for the k3s API to be ready
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw /readyz
+  register: k3s_readyz
+  until: k3s_readyz.rc == 0
+  retries: 12
+  delay: 5
+  changed_when: false
+  check_mode: false
+
+# The `data` volume group only exists on the Pi. This label is its
+# cluster-visible projection: the lvm-data StorageClass allowedTopologies and
+# the LVM CSI node plugin key off it, so a node-name change never touches the
+# StorageClass. Value mirrors node_vg in node/vars/storage.yml.
+- name: Label the Pi as the host of the lvm-data volume group
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - label
+      - node
+      - k8s-manager-1
+      - ticklethepanda.dev/lvm-vg=data
+      - --overwrite
+  register: lvm_vg_label
+  changed_when: >-
+    'labeled' in lvm_vg_label.stdout
+    and 'not labeled' not in lvm_vg_label.stdout
+
+# k3s-vm-control-01 keeps the `control` name for a future promotion to
+# server. Until then it must run no workloads -- the other two VMs and the Pi
+# carry everything.
+- name: Cordon k3s-vm-control-01
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - cordon
+      - k3s-vm-control-01
+  register: control_cordon
+  changed_when: "'already cordoned' not in control_cordon.stdout"

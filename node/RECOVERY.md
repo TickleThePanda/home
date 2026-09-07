@@ -50,17 +50,20 @@ sudo k3s kubectl get pods -n default -l pod=cloudflared
 
 ## A managed run left the node mid-upgrade
 
-The upgrade runs detached as a transient unit, so it survives losing the SSH
-connection. Check what it did:
+k3s version and config are owned by `k3s-cluster/` now (the
+`k3s.orchestration` collection), not `node/`. That playbook runs the k3s
+install script and then `systemctl restart k3s` synchronously — there is no
+detached upgrade unit and no status file. If a run died mid-restart:
 
 ```sh
-sudo cat /var/log/k3s-managed-upgrade.status
-sudo systemctl status k3s-managed-upgrade
+sudo systemctl status k3s
+sudo journalctl -u k3s -n 200 --no-pager
 ```
 
-The status file logs each step and ends in `DONE <version>` or `FAILED`. The
-script's error trap always tries to `systemctl start k3s` before exiting, so a
-failed upgrade should still leave the cluster running on *some* version.
+The datastore is not touched by an install (`token` is left undefined), so
+recovery is usually just `sudo systemctl start k3s`, then re-run
+`k3s-cluster/site.yml` from the LAN. A genuinely broken config.yaml → see
+below.
 
 ## k3s will not start
 
@@ -70,14 +73,18 @@ sudo journalctl -u k3s -n 200 --no-pager
 
 Most likely causes, in order:
 
-1. **A bad config drop-in.** `/etc/rancher/k3s/config.yaml.d/10-k3s.yaml` is
-   written by `node/tasks/k3s-config.yml`. Move it aside and start k3s to
-   confirm:
+1. **A bad config.** `/etc/rancher/k3s/config.yaml` is written by
+   `k3s-cluster/` (the collection's `k3s_server` role). Move it aside and
+   start k3s to confirm:
    ```sh
-   sudo mv /etc/rancher/k3s/config.yaml.d/10-k3s.yaml /tmp/
+   sudo mv /etc/rancher/k3s/config.yaml /tmp/
    sudo systemctl start k3s
    ```
-   Fix the value in `node/vars/versions.yml` rather than on the node.
+   Fix the value in `k3s-cluster/` (`vars/versions.yml` for the version,
+   `group_vars/k3s_cluster.yml` for `server_config_yaml`) rather than on the
+   node. A stale `config.yaml.d/10-k3s.yaml` from the old `node/` layer
+   should have been removed by `node/tasks/k3s-handover.yml`; if it is still
+   there, delete it.
 
 2. **A half-finished upgrade.** Restore the datastore (below).
 
@@ -96,8 +103,11 @@ Most likely causes, in order:
 ## Restore the datastore
 
 The datastore is SQLite/kine, **not** etcd, so `k3s etcd-snapshot` does not
-apply. `node/templates/k3s-managed-upgrade.sh.j2` archives it before every
-version change.
+apply. Archives under `/var/backups/k3s/` are from k3s upgrades done under
+the old `node/` layer — `k3s-cluster/` no longer writes one before a change
+(it leaves the datastore untouched: `token` stays undefined, so an install
+only swaps the binary and rewrites `config.yaml`). Take a manual copy with
+k3s stopped before anything risky.
 
 ```sh
 ls -la /var/backups/k3s/
@@ -136,6 +146,11 @@ tasks need `lvol`, `filesystem` and `mount`. CI installs them the same way.
 secret `NODE_SSH_KEY`, not on the laptop. Use `-e node_user=`, **not** `-u` —
 the inventory sets `ansible_user`, and an inventory var beats the `-u` flag,
 so `-u panda` is silently ignored. `-K` prompts for panda's sudo password.
+
+For anything k3s-level (version, `config.yaml`, a stuck agent), the playbook
+is `k3s-cluster/` instead — it manages the Pi and the Proxmox VM agents as
+one cluster. It needs the `deploy` key (the VMs have no `panda` user); to
+touch just the Pi, `--limit server -e node_user=panda`.
 
 ## Every internal service looks down, but the cluster is fine
 

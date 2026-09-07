@@ -12,15 +12,18 @@ Records are written by dynamic update, not by hand:
   `LoadBalancer` Services / Ingresses annotated with
   `external-dns.kubernetes.io/hostname` (v0.22 dropped the `.alpha`).
 
-The only seeded record is `gateway` → `192.168.1.1` (plus each reverse zone's
-NS/SOA) — the router can't be a DHCP client. `entrypoint.sh` seeds each zone
-file into the PVC **only if it isn't already there**, so:
+Seeded records (hosts that aren't DHCP clients, so DDNS never sees them):
+`gateway` → `192.168.1.1`, and the three k3s VMs `k3s-vm-control-01` /
+`-worker-01` / `-worker-02` → `192.168.1.32`–`.34` (static cloud-init IPs).
+Plus each reverse zone's NS/SOA. `entrypoint.sh` seeds each zone file into
+the PVC **only if it isn't already there**, so:
 
 - **Adding a zone** (new `zones/*.zone` + `named.conf` block + kustomization
   entry) is an ordinary deploy — the configMap hash change rolls the pod, the
   entrypoint copies just the new file, existing zones and their live dynamic
   records are untouched.
-- **Changing an existing seed** needs a re-seed of that copy:
+- **Changing an existing seed** (e.g. adding the k3s-VM records to an
+  already-seeded `home.arpa`) needs a re-seed of that copy:
   `kubectl -n bind delete pvc bind-data` + redeploy, or a manual `nsupdate`
   (`named` owns the file after first seed, rewriting it + a `.jnl` journal).
 

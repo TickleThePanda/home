@@ -1,17 +1,22 @@
 ---
-# Host-level state for proxmox-01 (192.168.1.3), the home hypervisor.
+# Host-level state for proxmox-01 (192.168.1.3), the home hypervisor, plus the
+# Debian 13 template and the k3s agent VMs on it.
 #
-# Applied by the `proxmox` job in .github/workflows/deploy.yaml, over SSH as
-# root through the same cloudflared tunnel the `node` and `router` jobs use.
+# Applied by the `proxmox` job in .github/workflows/deploy.yaml. Two access
+# paths:
+#   - apt repos + the template build run over SSH as root on the host
+#     (the API cannot import a downloaded qcow2 as a VM disk).
+#   - VM lifecycle runs from the control node against the Proxmox API
+#     (community.proxmox), delegated to localhost.
 #
 # Deliberately NOT managed:
 #   - the subscription key / "no valid subscription" nag
-#   - VMs and containers, and their storage
 #   - the Proxmox cluster config and /etc/pve
 #   - /root/.ssh/authorized_keys (a symlink into the cluster-managed
 #     /etc/pve/priv/; the CI key is already there)
+#   - VM deletion -- never automated. k3s on the VMs is k3s-cluster/'s job.
 
-- name: Manage the Proxmox host
+- name: Manage the Proxmox host and its k3s VMs
   hosts: proxmox-01
   gather_facts: true
   # We log in as root -- nothing to escalate.
@@ -24,6 +29,14 @@
     - name: APT repositories
       ansible.builtin.import_tasks: tasks/apt-repos.yml
       tags: [apt, repos]
+
+    - name: Debian 13 cloud template
+      ansible.builtin.import_tasks: tasks/vm-template.yml
+      tags: [vm, template]
+
+    - name: K3s agent VMs
+      ansible.builtin.import_tasks: tasks/vm-provision.yml
+      tags: [vm, provision]
 
   handlers:
     # Fires only when a repo definition changed. A misconfigured repo makes

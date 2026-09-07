@@ -1,0 +1,24 @@
+---
+# k3s config moved to k3s-cluster/ (the k3s.orchestration collection), which
+# writes /etc/rancher/k3s/config.yaml. node/ used to write a
+# config.yaml.d/10-k3s.yaml drop-in for the `disable:` list. k3s merges both
+# files, so leaving the old drop-in in place gives `disable:` two owners.
+#
+# Remove it -- but only once the collection's config.yaml is actually in
+# place and carries the disable list, so a k3s restart in the gap between the
+# `node` and `k3s-cluster` CI jobs can never come up with servicelb / traefik
+# / local-storage re-enabled.
+
+- name: Check for the k3s-cluster-managed config.yaml
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/config.yaml
+  register: k3s_config_yaml
+  failed_when: false
+
+- name: Remove the superseded node-managed config drop-in
+  ansible.builtin.file:
+    path: /etc/rancher/k3s/config.yaml.d/10-k3s.yaml
+    state: absent
+  when:
+    - k3s_config_yaml.content is defined
+    - "'disable' in (k3s_config_yaml.content | b64decode)"

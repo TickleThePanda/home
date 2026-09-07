@@ -1,23 +1,25 @@
 ## Home
 
-A monorepo for my home services, running on a Raspberry PI Kubernetes
-cluster.
+A monorepo for my home services. The Kubernetes cluster spans a Raspberry Pi
+(the k3s server) and three Debian VMs on a Proxmox host (agents).
 
-The cluster is installed using [k3s](https://k3s.io/). Both layers are
+The cluster is installed using [k3s](https://k3s.io/). Every layer is
 declarative and applied by CI — there is nothing to install by hand:
 
-- `node/` owns the node itself (k3s version, k3s config, PV-backing
-  directories, sudoers, the Argon ONE fan controller), applied with Ansible.
+- `node/` owns the Pi *below* k3s (LVM/PV-backing volumes, sudoers, the DNS
+  resolver, swap, the Argon ONE fan), applied with Ansible.
+- `k3s-cluster/` owns k3s on every node (version, config, agent join), via
+  the `k3s.orchestration` collection, applied with Ansible.
 - `deploy/` owns everything inside the cluster, applied with kustomize.
 - `apps/` holds the source for the apps built into images by CI.
 - `router/` owns the gateway (OpenWrt), applied with Ansible.
-- `proxmox/` owns the hypervisor `proxmox-01`, applied with Ansible.
+- `proxmox/` owns the hypervisor `proxmox-01` and the k3s VMs on it, applied
+  with Ansible.
 
 ### `node`
 
-Node-level configuration for `k8s-manager-1`, applied by the `node` job in
-`.github/workflows/deploy.yaml`. The k3s version lives in
-`node/vars/versions.yml`; bumping it there is what upgrades the node.
+Pi-level configuration for `k8s-manager-1` *below* k3s, applied by the `node`
+job in `.github/workflows/deploy.yaml`.
 
 See [`node/RECOVERY.md`](node/RECOVERY.md) before touching a broken cluster —
 CI reaches the node *through* a pod running inside that cluster, so when k3s
@@ -25,6 +27,14 @@ is down the recovery path is LAN-local, not CI.
 [`node/STORAGE.md`](node/STORAGE.md) covers the SSD: its partitions, the LVM
 volume group behind both the node's own state and every PersistentVolume, and
 how to rebuild it.
+
+### `k3s-cluster`
+
+k3s itself, on the Pi (server) and the three Proxmox VM agents, as one
+cluster — applied by the `k3s-cluster` job. The k3s version lives in
+[`k3s-cluster/vars/versions.yml`](k3s-cluster/vars/versions.yml); bumping it
+there upgrades every node. See
+[`k3s-cluster/README.md`](k3s-cluster/README.md).
 
 ### `deploy`
 
@@ -41,7 +51,8 @@ Source for the apps this repo builds and deploys. Each has its own
 
 ### `proxmox`
 
-Ansible for the hypervisor `proxmox-01` (192.168.1.3), applied by the
+Ansible for the hypervisor `proxmox-01` (192.168.1.3) — its apt repos, plus
+the Debian 13 template and the three k3s agent VMs on it. Applied by the
 `proxmox` job in `.github/workflows/deploy.yaml`. See
 [`proxmox/README.md`](proxmox/README.md).
 
@@ -96,10 +107,13 @@ Assigned:
 | IP | Host |
 |---|---|
 | 192.168.1.1 | gateway |
-| 192.168.1.2 | `k3s-manager-1` node / SSH |
+| 192.168.1.2 | `k8s-manager-1` — Pi, k3s server / SSH |
 | 192.168.1.3 | Proxmox `proxmox-01` |
 | 192.168.1.5 | Home Assistant (Kea reservation) |
 | 192.168.1.10 | Pi-hole (MetalLB) |
 | 192.168.1.11 | Kea DHCP (macvlan) |
 | 192.168.1.19 | Traefik internal ingress (MetalLB) |
 | 192.168.1.20 | Traefik external ingress (MetalLB) |
+| 192.168.1.32 | `k3s-vm-control-01` — k3s agent (cordoned), Proxmox guest |
+| 192.168.1.33 | `k3s-vm-worker-01` — k3s agent, Proxmox guest |
+| 192.168.1.34 | `k3s-vm-worker-02` — k3s agent, Proxmox guest |

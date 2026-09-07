@@ -1,0 +1,25 @@
+# The k3s cluster: the Pi is the sole server, the three Proxmox VMs are
+# agents. Group names (k3s_cluster > server / agent) are mandatory -- the
+# k3s.orchestration roles key off them.
+k3s_cluster:
+  children:
+    server:
+      hosts:
+        k8s-manager-1:
+          ansible_host: 192.168.1.2
+    agent:
+      hosts:
+        k3s-vm-control-01:
+          ansible_host: 192.168.1.32
+        k3s-vm-worker-01:
+          ansible_host: 192.168.1.33
+        k3s-vm-worker-02:
+          ansible_host: 192.168.1.34
+  vars:
+    # Every node authenticates the same CI key as user `deploy` (the Pi's
+    # automation user; the VMs' cloud-init user). A hand-run needs that
+    # private key locally -- there is no per-host override here because the
+    # VMs have no other login. `node_user` is kept as an escape hatch for
+    # running against the Pi alone (`--limit server -e node_user=panda`).
+    ansible_user: "{{ node_user | default('deploy') }}"
+    ansible_python_interpreter: /usr/bin/python3

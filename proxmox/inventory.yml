@@ -8,3 +8,10 @@ all:
       # half as NODE_SSH_KEY) is already in it.
       ansible_user: root
       ansible_python_interpreter: /usr/bin/python3
+
+    # The community.proxmox VM tasks run delegate_to: localhost and import
+    # proxmoxer -- which lives in the same venv as ansible, not the host's
+    # /usr/bin/python3 that ansible.cfg pins for proxmox-01.
+    localhost:
+      ansible_connection: local
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"

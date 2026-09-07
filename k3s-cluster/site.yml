@@ -1,0 +1,61 @@
+---
+# k3s across every node: the Pi (server) and the three Proxmox VMs (agents),
+# one cluster. Owns the k3s version, /etc/rancher/k3s/config.yaml, and the
+# install/join. The layer below k3s on the Pi -- storage, DNS resolver, swap,
+# sudoers, the fan -- stays in node/.
+#
+# This composes the k3s.orchestration roles rather than importing that
+# collection's playbooks/site.yml, which hardcodes the `raspberrypi` role.
+# That role edits the Pi's /boot cmdline and notifies a full reboot -- a
+# reboot kills the in-cluster cloudflared pod that is CI's own transport
+# (see node/RECOVERY.md). Its only real effects (cgroup cmdline args,
+# iptables-legacy for pre-1.6.2) are already satisfied on a running cluster.
+#
+# The k3s_server / k3s_agent roles restart k3s with a plain synchronous
+# `service: state=restarted`, unlike node/'s detached restart. A k3s *server*
+# restart keeps pods (cloudflared included) up, so the tunnel only blips;
+# ansible.cfg's keepalives cover it. Do the first run by hand from the LAN.
+
+- name: Cluster prerequisites
+  hosts: k3s_cluster
+  gather_facts: true
+  become: true
+  pre_tasks:
+    # The k3s_server / k3s_agent roles run /usr/local/bin/k3s-install.sh
+    # unconditionally, but only fetch it when a version change is needed. On a
+    # node already at the target version (the Pi) the script is otherwise
+    # absent. force: false keeps this a one-time fetch.
+    - name: Ensure the k3s install script is present
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /usr/local/bin/k3s-install.sh
+        mode: "0755"
+        force: false
+  roles:
+    - role: k3s.orchestration.prereq
+
+- name: K3s server (the Pi)
+  hosts: server
+  gather_facts: false
+  become: true
+  vars_files:
+    - vars/versions.yml
+  roles:
+    - role: k3s.orchestration.k3s_server
+
+- name: K3s agents (the Proxmox VMs)
+  hosts: agent
+  gather_facts: false
+  become: true
+  vars_files:
+    - vars/versions.yml
+  roles:
+    - role: k3s.orchestration.k3s_agent
+
+- name: Cluster-visible node state
+  hosts: server
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Node labels and the control-VM cordon
+      ansible.builtin.import_tasks: tasks/node-labels.yml

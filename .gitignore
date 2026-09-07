@@ -14,3 +14,9 @@ router/bootstrap/secrets.env
 router/bootstrap/authorized_keys.extra
 router/bootstrap/build/
 router/bootstrap/out/
+
+# k3s.orchestration fetches the cluster kubeconfig here during a run
+# (kubeconfig var in k3s-cluster/group_vars). Not needed after -- the real
+# kubeconfig setup is documented in CLAUDE.md.
+k3s-cluster/.kubeconfig
+

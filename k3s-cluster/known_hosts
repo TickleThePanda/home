@@ -1,0 +1,15 @@
+# SSH host keys for every k3s node, pinned so CI verifies the host rather
+# than trusting whatever answers on the far side of the cloudflared tunnel.
+#
+# The Pi's key mirrors node/known_hosts. The three VM keys are added after the
+# VMs are first provisioned:
+#
+#   for ip in 32 33 34; do ssh-keyscan -t ed25519 192.168.1.$ip; done
+#
+# Verify each fingerprint from the Proxmox serial console before committing.
+# A rebuilt VM regenerates its key -- re-scan and re-commit when that happens.
+
+192.168.1.2 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM7KILiZcu3GXgGYL8aqdV9OjglcRx7M0MydoRWMeoUf
+192.168.1.32 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN/looGvGDzv/6bEFDbuQ2Mr7rmYOq5eqFW12qVRyBEy
+192.168.1.33 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMINA8jCsonS6c3+xjXtQDdEqUHpRq1njzLEeMTcE6lt
+192.168.1.34 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMIryXSpHNkmIpdhiCzRaXKiXwFa3MTNrdwxt7Q/1C82

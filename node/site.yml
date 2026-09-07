@@ -1,31 +1,30 @@
 ---
-# Node-level state for k8s-manager-1.
+# Node-level state for k8s-manager-1 -- the layer *below* k3s.
 #
-# Everything inside the cluster is owned by kustomize (deploy/, applied by
-# .github/workflows/deploy.yaml). This playbook owns the layer below it: the
-# k3s version, k3s's own config files, the directories backing local-volume
-# PVs, the sudoers entries, and the node's DNS resolver.
+# k3s itself (version, /etc/rancher/k3s/config.yaml, install) is owned by
+# k3s-cluster/, which manages the Pi and the Proxmox VM agents as one cluster
+# via the k3s.orchestration collection. Everything inside the cluster is owned
+# by kustomize (deploy/). This playbook owns what is left: the LVM volumes and
+# mounts behind the PVs, the sudoers entries, the node's DNS resolver, swap,
+# and the Argon ONE fan.
 #
 # Deliberately NOT managed:
 #   /var/lib/rancher/k3s/server/manifests/  -- k3s rewrites it on every start
+#   /etc/rancher/k3s/config.yaml            -- owned by k3s-cluster/
 #
 # Networking changes need more care than most: a bad one strands SSH/the API
 # on a headless box. See tasks/network.yml's header for the guardrails that
 # keep its DNS-only scope safe, and apply the same scrutiny before widening
 # it to anything else.
 
-- name: Manage k3s node state
+- name: Manage k8s-manager-1 node state
   hosts: k8s-manager-1
   gather_facts: true
   become: true
 
   vars_files:
-    - vars/versions.yml
     - vars/storage.yml
     - vars/argon-fan.yml
-
-  vars:
-    k3s_upgrade_status_file: /var/log/k3s-managed-upgrade.status
 
   tasks:
     - name: Sudoers
@@ -36,17 +35,9 @@
       ansible.builtin.import_tasks: tasks/storage.yml
       tags: [storage]
 
-    - name: Configure k3s
-      ansible.builtin.import_tasks: tasks/k3s-config.yml
+    - name: Hand k3s config over to k3s-cluster/
+      ansible.builtin.import_tasks: tasks/k3s-handover.yml
       tags: [config]
-
-    - name: Manage the k3s version
-      ansible.builtin.import_tasks: tasks/k3s-version.yml
-      tags: [version]
-
-    - name: Label the node with its storage capabilities
-      ansible.builtin.import_tasks: tasks/k3s-node-labels.yml
-      tags: [storage, labels]
 
     - name: Argon ONE fan controller
       ansible.builtin.import_tasks: tasks/argon-fan.yml
@@ -69,86 +60,22 @@
         cmd: nmcli device reapply eth0
       changed_when: true
 
-    # Unit-file changes only. Deliberately not chained to the k3s restart
-    # below: RequiresMountsFor takes effect on the next start, and bouncing
-    # the API to apply a drop-in that changes nothing about a running server
-    # is a worse trade than waiting for the next reboot.
+    # Unit-file changes only (tasks/storage.yml's k3s.service.d drop-in).
+    # RequiresMountsFor takes effect on the next start, so this only
+    # daemon-reloads -- it does not bounce k3s. k3s restarts are k3s-cluster/'s
+    # concern now.
     - name: Reload the systemd manager configuration
       listen: reload systemd
       ansible.builtin.systemd_service:
         daemon_reload: true
 
-    # Unlike the k3s handlers below, this never touches SSH or the
-    # cloudflared tunnel, so a plain restart is fine. Skipped under --check
-    # on a first-ever run, same reasoning as tasks/argon-fan.yml's enable
-    # task: the unit file was only simulated, so there's nothing real yet
-    # for systemctl to restart.
+    # Never touches SSH or the cloudflared tunnel, so a plain restart is fine.
+    # Skipped under --check on a first-ever run, same reasoning as
+    # tasks/argon-fan.yml's enable task: the unit file was only simulated, so
+    # there's nothing real yet for systemctl to restart.
     - name: Restart argon-fan
       listen: restart argon-fan
       ansible.builtin.systemd_service:
         name: argon-fan
         state: restarted
       when: not ansible_check_mode
-
-    # Detached via a transient timer unit so a dropped session cannot abort the
-    # restart half-way. Note running pods survive a k3s *server* restart --
-    # containerd keeps them up, cloudflared included -- so in practice the
-    # tunnel only blips. It is the API that goes away, and for longer than the
-    # open port suggests. The full upgrade is a different matter: it stops k3s
-    # outright, which is why that runs as its own detached unit.
-    - name: Restart k3s detached from this session
-      listen: restart k3s
-      ansible.builtin.command:
-        argv:
-          - systemd-run
-          - --on-active=3
-          - --unit=k3s-managed-restart
-          - --collect
-          - systemctl
-          - restart
-          - k3s
-      changed_when: true
-
-    - name: Wait for the node to come back
-      listen: restart k3s
-      ansible.builtin.wait_for_connection:
-        delay: 20
-        sleep: 5
-        timeout: 600
-
-    # Cheap first gate only. k3s binds 6443 well before it serves: for a while
-    # after the port opens it still answers "the server is currently unable to
-    # handle the request". Treating an open port as readiness is what made the
-    # first CI run fail.
-    - name: Wait for the kube API port to open
-      listen: restart k3s
-      ansible.builtin.wait_for:
-        host: 127.0.0.1
-        port: 6443
-        timeout: 300
-
-    # The real gate. kubectl's own --timeout covers waiting for a condition,
-    # not for the API to exist -- when the API is unavailable it exits
-    # non-zero straight away rather than retrying, so the retry lives here.
-    - name: Wait for the kube API to serve requests
-      listen: restart k3s
-      ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw /readyz
-      register: k3s_readyz
-      until: k3s_readyz.rc == 0
-      retries: 60
-      delay: 5
-      changed_when: false
-
-    # A k3s server restart does not kill running pods -- containerd keeps them
-    # up -- so this is normally already satisfied. Kept as insurance for the
-    # case where it isn't, with retries so a transient API blip can't fail it.
-    - name: Wait for cloudflared to be Ready again
-      listen: restart k3s
-      ansible.builtin.command: >-
-        /usr/local/bin/k3s kubectl wait --namespace default
-        --for=condition=Ready pod --selector pod=cloudflared --timeout=120s
-      register: cloudflared_ready
-      until: cloudflared_ready.rc == 0
-      retries: 5
-      delay: 10
-      changed_when: false

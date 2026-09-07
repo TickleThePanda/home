@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Assert that the Traefik chart pinned in deploy/ matches the k3s version
-# pinned in node/.
+# pinned in k3s-cluster/.
 #
 # k3s serves chart tarballs from its own /var/lib/rancher/k3s/server/static/
 # charts/, which only ever contains the charts bundled with the INSTALLED k3s
@@ -14,7 +14,7 @@
 set -Eeuo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-versions="$repo_root/node/vars/versions.yml"
+versions="$repo_root/k3s-cluster/vars/versions.yml"
 chart="$repo_root/deploy/setup/traefik/traefik-helm-chart.yaml"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -35,7 +35,7 @@ mapfile -t found < <(grep -oP 'static/charts/traefik(-crd)?-\K[^.]+\.[^.]+\.[^-]
 
 for f in "${found[@]}"; do
     [[ $f == "$want" ]] \
-        || fail "chart pin mismatch: $chart has '$f', node/vars/versions.yml says '$want'"
+        || fail "chart pin mismatch: $chart has '$f', k3s-cluster/vars/versions.yml says '$want'"
 done
 
 echo "OK: k3s $k3s_version <-> traefik chart $want (both references agree)"

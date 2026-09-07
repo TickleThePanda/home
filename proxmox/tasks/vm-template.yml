@@ -1,0 +1,84 @@
+---
+# Build the Debian 13 "genericcloud" template (VMID proxmox_template_vmid).
+#
+# SSH + qm, not the API: Proxmox has no API call to import a downloaded qcow2
+# as a VM disk. Idempotent -- the whole build is skipped once the template
+# exists. Rebuilding it means deleting VMID 9000 by hand first.
+
+- name: Ensure the image directory exists
+  ansible.builtin.file:
+    path: "{{ proxmox_template_image_path | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Download the Debian 13 genericcloud image
+  ansible.builtin.get_url:
+    url: "{{ proxmox_template_image_url }}"
+    dest: "{{ proxmox_template_image_path }}"
+    mode: "0644"
+
+- name: Install the qemu-guest-agent cloud-init snippet
+  ansible.builtin.template:
+    src: debian-qga.yaml.j2
+    dest: "{{ proxmox_snippet_dir }}/debian-qga.yaml"
+    mode: "0644"
+
+- name: Check whether the template already exists
+  ansible.builtin.command: "qm status {{ proxmox_template_vmid }}"
+  register: proxmox_template_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Build the template
+  when: proxmox_template_status.rc != 0
+  block:
+    - name: Create the template VM
+      ansible.builtin.command:
+        argv:
+          - qm
+          - create
+          - "{{ proxmox_template_vmid }}"
+          - --name
+          - "{{ proxmox_template_name }}"
+          - --bios
+          - seabios
+          - --scsihw
+          - virtio-scsi-single
+          - --net0
+          - "virtio,bridge={{ proxmox_vm_bridge }}"
+          - --serial0
+          - socket
+          - --vga
+          - serial0
+          - --agent
+          - enabled=1
+      changed_when: true
+
+    - name: Import the cloud image as scsi0
+      ansible.builtin.command:
+        argv:
+          - qm
+          - set
+          - "{{ proxmox_template_vmid }}"
+          - --scsi0
+          - "{{ proxmox_vm_storage }}:0,import-from={{ proxmox_template_image_path }}"
+      changed_when: true
+
+    - name: Attach the cloud-init drive and boot order
+      ansible.builtin.command:
+        argv:
+          - qm
+          - set
+          - "{{ proxmox_template_vmid }}"
+          - --ide2
+          - "{{ proxmox_vm_storage }}:cloudinit"
+          - --boot
+          - order=scsi0
+          - --cicustom
+          - "vendor={{ proxmox_snippet_storage }}:snippets/debian-qga.yaml"
+      changed_when: true
+
+    - name: Convert the VM to a template
+      ansible.builtin.command: "qm template {{ proxmox_template_vmid }}"
+      changed_when: true

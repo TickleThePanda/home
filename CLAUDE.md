@@ -40,10 +40,16 @@ When comments are necessary:
 
 ## Cluster
 
-- Node: `k8s-manager-1`, `192.168.1.2`, Raspberry Pi (arm64), single node
-  acting as both control-plane and worker. k3s.
-- SSH: `ssh 192.168.1.2` as user `panda` (key-based, no host alias
-  configured locally — use the IP).
+- **Server**: `k8s-manager-1`, `192.168.1.2`, Raspberry Pi (arm64) — the sole
+  k3s server (control-plane), SQLite datastore. Also schedules workloads.
+- **Agents**: `k3s-vm-control-01` / `-worker-01` / `-worker-02`
+  (`192.168.1.32`–`.34`), amd64 Debian 13 VMs on `proxmox-01`.
+  `k3s-vm-control-01` is cordoned — reserved for a future promotion to
+  server (which needs a SQLite→etcd datastore migration first).
+- k3s on every node is managed by `k3s-cluster/` (the `k3s.orchestration`
+  collection), not `node/`. `node/` owns only the layer below k3s on the Pi.
+- SSH: `ssh 192.168.1.2` as `panda` (Pi); the VMs have only a `deploy` user
+  (the CI key). Key-based, no host aliases — use the IPs.
 - `panda` has scoped, passwordless sudo on the node
   (`/etc/sudoers.d/panda-k3s-admin`) for k3s service control and reading/
   editing k3s's own manifest/config directories. Anything broader (general
@@ -152,18 +158,21 @@ When comments are necessary:
 
 ## Deploy pattern
 
-- `.github/workflows/deploy.yaml` is the single pipeline for both layers,
-  running sequential jobs on push to `deploy/**`, `node/**`,
-  `router/ansible/**` or `proxmox/**`: `preflight` (the k3s/Traefik pin guard
-  + tunnel reachability — no secrets, fails fast), then `node` (Ansible, see
-  below), then `router` (Ansible against the gateway, see `router/ansible/`),
-  then `proxmox` (Ansible against the hypervisor, see `proxmox/`), then
-  `cluster`. Order matters: a k3s upgrade changes which Traefik chart tarball
-  the node serves, so the node must move before the manifests that reference
-  it. `node`, `router`, `proxmox` and `cluster` each skip when their own tree
-  is unchanged (`cluster` = `deploy/**` + `flux-system/**`; all also trigger
-  on the workflow file itself); a skipped job counts as a pass for the jobs
-  that follow, and a manual `workflow_dispatch` runs them all.
+- `.github/workflows/deploy.yaml` is the single pipeline, running sequential
+  jobs on push to `deploy/**`, `node/**`, `router/ansible/**`, `proxmox/**`
+  or `k3s-cluster/**`: `preflight` (the k3s/Traefik pin guard + tunnel
+  reachability — no secrets, fails fast), then `node` (Ansible, Pi below
+  k3s), then `router` (gateway, see `router/ansible/`), then `proxmox`
+  (hypervisor apt repos + the k3s VMs, see `proxmox/`), then `k3s-cluster`
+  (k3s on every node, see `k3s-cluster/`), then `cluster`. Order matters:
+  `proxmox` creates the VMs `k3s-cluster` joins; `node` lands the Pi's
+  storage mounts before k3s; a k3s upgrade changes which Traefik chart
+  tarball the node serves, so `k3s-cluster` moves before the manifests that
+  reference it. `node`, `router`, `proxmox`, `k3s-cluster` and `cluster` each
+  skip when their own tree is unchanged (`cluster` = `deploy/**` +
+  `flux-system/**`; all also trigger on the workflow file itself); a skipped
+  job counts as a pass for the jobs that follow, and a manual
+  `workflow_dispatch` runs them all.
 - The `cluster` job applies everything under `deploy/` via kustomize:
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
@@ -201,35 +210,60 @@ When comments are necessary:
 
 ## Node pattern
 
-- Everything under `node/` is the layer *below* `deploy/`: the k3s version,
-  k3s's own config files, the directories backing local-volume PVs, and the
-  sudoers entries. Applied with Ansible by the `node` job in
-  `.github/workflows/deploy.yaml`, which connects as the `deploy` user over
-  SSH (key in the `NODE_SSH_KEY` secret). Don't hand-edit these on the node —
-  the playbook purges `config.yaml.d` files it doesn't manage.
-- **Bumping k3s is an edit to `node/vars/versions.yml`**, nothing more. But
-  it must move in the same commit as
-  `deploy/setup/traefik/traefik-helm-chart.yaml`: k3s only serves the Traefik
-  chart tarball bundled with the *installed* version, so the two pins are
-  coupled. `node/scripts/check-traefik-pin.sh` enforces this in CI and
-  `--online` verifies the pair against the k3s release manifest.
-- Kubernetes doesn't support skipping minor versions — upgrade one at a time.
+- `node/` is the layer *below* k3s on the Pi: the LVM volumes and mounts
+  backing the PVs, the sudoers entries, the DNS resolver, swap, the Argon
+  fan. **k3s itself — version, `/etc/rancher/k3s/config.yaml`, install —
+  moved to `k3s-cluster/`.** Applied by the `node` job in
+  `.github/workflows/deploy.yaml`, connecting as `deploy` over SSH (key in
+  `NODE_SSH_KEY`). Don't hand-edit on the node.
+- `node/tasks/k3s-handover.yml` removes the old node-managed
+  `config.yaml.d/10-k3s.yaml` once `k3s-cluster/`'s `config.yaml` is in
+  place — so `disable:` never has two owners.
 - **CI's own transport runs through the cluster.** The in-cluster
   `cloudflared` Deployment is the Cloudflare Zero Trust private-network
-  connector (its logs show `originService=warp-routing` carrying
-  `192.168.1.2:22` and `:6443`). Restarting k3s therefore disturbs the very
-  connection the playbook runs over, which is why the restart handler
-  detaches via `systemd-run` and the upgrade runs as its own detached unit
-  writing to a status file. Don't "simplify" either into a plain
-  `systemctl restart`.
+  connector (logs show `originService=warp-routing` carrying `192.168.1.2:22`
+  and `:6443`). `node/` no longer restarts k3s, so its playbook doesn't
+  disturb its own transport — but `k3s-cluster/` does (see that pattern).
 - **An open 6443 is not a ready API.** k3s binds the port well before it
   serves, and `kubectl` fails immediately against an unavailable API rather
   than respecting `--timeout`. Readiness gates must poll
-  `k3s kubectl get --raw /readyz` with retries — the first CI run failed
-  exactly here. Running pods *do* survive a k3s server restart (containerd
-  keeps them up), so cloudflared itself normally stays Ready throughout.
+  `k3s kubectl get --raw /readyz` with retries. Running pods *do* survive a
+  k3s server restart (containerd keeps them up), so cloudflared normally
+  stays Ready throughout.
 - The corollary: **when k3s is down, CI cannot reach the node at all.**
   Recovery is LAN-local — see `node/RECOVERY.md`.
+
+## k3s-cluster pattern
+
+- `k3s-cluster/` owns k3s on every node — the Pi (`server`) and the three
+  Proxmox VMs (`agent`) — as one cluster, via the pinned `k3s.orchestration`
+  collection (`k3s-io/k3s-ansible`). Applied by the `k3s-cluster` job, after
+  `proxmox` (which creates the VMs) and `node` (Pi storage mounts), before
+  `cluster`. Connects as `deploy` over SSH through the same tunnel.
+- **Bumping k3s is an edit to `k3s-cluster/vars/versions.yml`.** It must move
+  in the same commit as `deploy/setup/traefik/traefik-helm-chart.yaml`: k3s
+  only serves the Traefik chart tarball bundled with the *installed* version.
+  `node/scripts/check-traefik-pin.sh` (still invoked from `preflight`,
+  repointed at the new path) enforces the pair; `--online` checks it against
+  the k3s release manifest. One minor version at a time.
+- `site.yml` **composes** the collection's `prereq` / `k3s_server` /
+  `k3s_agent` roles rather than running `k3s.orchestration.site`, whose
+  hardcoded `raspberrypi` role would edit the Pi's `/boot` cmdline and
+  trigger a full **reboot** (kills the cloudflared pod — worse than a k3s
+  restart, where pods survive).
+- **The collection restarts k3s with a plain synchronous
+  `service: state=restarted`**, not `node/`'s old detached `systemd-run`. A
+  server restart keeps pods up so the tunnel only blips;
+  `k3s-cluster/ansible.cfg`'s SSH keepalives cover it. Do first runs by hand
+  from the LAN. Every run restarts k3s (the collection always does) — that is
+  by design, not drift.
+- `token` is left undefined: the server role reads the Pi's existing token
+  and the agent play consumes it in the same run. No token secret, and the
+  SQLite datastore is never touched — so there is no pre-change archive (the
+  old `node/` upgrade script wrote one); recover a bad run by reverting.
+- **No `--check` drift gate** for the `k3s-cluster` job — the collection
+  skips its mutating tasks under `--check`. The job asserts four Ready nodes
+  and the control-VM cordon with `kubectl` instead.
 - The workflow holds `concurrency: group: cluster` so two runs can never
   touch the cluster at once. A `dorny/paths-filter` step in `preflight`
   drives the per-tree skips (see "Deploy pattern"); each downstream `if:`
@@ -275,21 +309,31 @@ When comments are necessary:
 - The `proxmox` job connects as `root` over SSH (reusing `NODE_SSH_KEY`)
   through the **same cloudflared tunnel as `node`** — the Zero Trust routes
   already cover `192.168.1.0/24`. The key's public half is already in the
-  host's `authorized_keys`, which is a symlink into the cluster-managed
-  `/etc/pve/priv/authorized_keys`; there is no bootstrap playbook. If CI's
-  reachability check passes `192.168.1.2:6443` but fails `192.168.1.3:22`,
-  add the host to the Zero Trust network policy for the CI service token
-  (dashboard, not this repo).
-- No bootstrap half, no secrets, no tunnel-disruption risk — the current
-  scope (apt repos) does not touch the path CI reaches the host by. The job
-  still runs after `node`/`router` purely so nothing overlaps them.
+  host's `authorized_keys` (a symlink into `/etc/pve/priv/`); no bootstrap
+  playbook. The VM-lifecycle half instead hits the **Proxmox API** (port
+  8006) from the runner with a `root@pam` token (`PROXMOX_API_TOKEN_ID` is
+  the token *name*, `PROXMOX_API_TOKEN_SECRET` its value; both in `prod`) — so
+  the reachability check needs
+  `192.168.1.3:22` *and* `:8006`; add each to the Zero Trust policy for the
+  CI service token (dashboard, not this repo).
+- Two access paths in one play: apt repos + the Debian 13 template build run
+  over SSH as root (`qm` — the API can't import a downloaded qcow2 as a
+  disk); the three k3s VMs are cloned/configured via `community.proxmox`
+  (`delegate_to: localhost`). The template build is skipped once VMID 9000
+  exists; VM config runs only for a VMID that doesn't exist yet
+  (`proxmox_kvm` update mode doesn't diff — it always reports changed), so
+  reshaping a VM's CPU/RAM/IP means deleting it and re-running.
+- Neither path touches how CI reaches the host, so no tunnel-disruption
+  handling. The job runs after `node`/`router` purely so nothing overlaps.
 - apt sources are deb822 `.sources` (PVE 9 / Debian 13), managed with
-  `ansible.builtin.deb822_repository` (`python3-debian` is on the host).
-  Enterprise repos are disabled **in place** (`Enabled: no`), not deleted —
-  `pve-manager` recreates the files on upgrade. `proxmox/vars/main.yml` holds
-  `proxmox_apt_suite`; bump it on a major PVE / Debian upgrade.
-- Deliberately not managed: the subscription key / nag, VMs and containers
-  and their storage, the cluster config and `/etc/pve`, `authorized_keys`.
+  `ansible.builtin.deb822_repository`. Enterprise repos are disabled **in
+  place** (`Enabled: no`), not deleted — `pve-manager` recreates them on
+  upgrade. `proxmox/vars/main.yml` holds `proxmox_apt_suite`; bump it on a
+  major PVE / Debian upgrade.
+- Deliberately not managed: the subscription key / nag, LXC containers,
+  non-k3s VMs and all VM/CT storage, the cluster config and `/etc/pve`,
+  `authorized_keys`, and **VM deletion** (never automated). k3s *on* the VMs
+  is `k3s-cluster/`'s job.
 
 ## Storage
 
@@ -331,9 +375,10 @@ When comments are necessary:
   `/var/lib/rancher/k3s/server/manifests/` on the node and re-applies
   whatever's there on every restart, independent of CI. If the repo
   manages a resource that k3s also bundles by default (this happened with
-  Traefik), disable that addon in `/etc/rancher/k3s/config.yaml.d/`
-  (`disable: [traefik]`, alongside `servicelb`) and vendor the full
-  resource into the repo so there's a single owner. `deploy/setup/traefik/`
+  Traefik), add that addon to `server_config_yaml` in
+  `k3s-cluster/group_vars/k3s_cluster.yml` (`disable: [servicelb, traefik,
+  local-storage]`, written to `/etc/rancher/k3s/config.yaml`) and vendor the
+  full resource into the repo so there's a single owner. `deploy/setup/traefik/`
   is the current example of this pattern.
 - **Disabling a k3s addon triggers a real Helm uninstall**, which can
   cascade — e.g. removing Traefik's addon deleted its CRDs, which

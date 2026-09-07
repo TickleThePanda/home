@@ -36,7 +36,7 @@ node_lvs:
 
   - name: backups
     path: /var/backups
-    size: 32g # templates/k3s-managed-upgrade.sh.j2 writes here and never prunes
+    size: 32g # datastore archives from past k3s upgrades; never pruned
 
 # /mnt/disk is gone from this file on purpose.
 #
