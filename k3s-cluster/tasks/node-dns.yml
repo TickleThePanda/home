@@ -1,0 +1,43 @@
+---
+# Node-level DNS must never depend on a workload running inside this cluster.
+# The homelab VLAN's normal resolver is Pi-hole (192.168.1.10), which is a
+# cluster Deployment -- so a cold start where it is down deadlocks: the
+# kubelet cannot resolve a registry to pull the image that would bring Pi-hole
+# back. Point the node resolver straight at Quad9, the same upstream the Pi
+# already uses (node/ owns the Pi's /etc/resolv.conf, so this is the VMs
+# only). Pods are unaffected -- they resolve through CoreDNS -> Unbound.
+#
+# The VMs render netplan through systemd-networkd. A higher-numbered drop-in
+# replaces eth0's nameserver list from 50-cloud-init.yaml (netplan 1.x
+# overrides sequence values rather than merging them); the assertion below
+# fails the run if that ever regresses.
+
+- name: Pin the node resolver to Quad9
+  ansible.builtin.copy:
+    dest: /etc/netplan/90-k3s-node-dns.yaml
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      # Managed by k3s-cluster/tasks/node-dns.yml. Do not edit on the node.
+      network:
+        version: 2
+        ethernets:
+          eth0:
+            nameservers:
+              addresses: [9.9.9.9, 149.112.112.112]
+              search: [home.arpa]
+  register: node_dns_netplan
+
+- name: Apply the netplan change
+  ansible.builtin.command: netplan apply
+  when: node_dns_netplan is changed
+  changed_when: true
+
+- name: Confirm eth0 now resolves via Quad9 only
+  ansible.builtin.command: resolvectl dns eth0
+  register: node_dns_check
+  changed_when: false
+  failed_when: >-
+    '9.9.9.9' not in node_dns_check.stdout
+    or '192.168.1.10' in node_dns_check.stdout

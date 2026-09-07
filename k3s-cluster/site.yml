@@ -21,6 +21,13 @@
   gather_facts: true
   become: true
   pre_tasks:
+    # Fix node DNS before anything that needs to resolve a name. The VMs ship
+    # from cloud-init pointing at the in-cluster Pi-hole; that cannot be a
+    # dependency of starting the cluster.
+    - name: Pin the VM node resolvers to Quad9
+      ansible.builtin.import_tasks: tasks/node-dns.yml
+      when: inventory_hostname != 'k8s-manager-1'
+
     # The k3s_server / k3s_agent roles run /usr/local/bin/k3s-install.sh
     # unconditionally, but only fetch it when a version change is needed. On a
     # node already at the target version (the Pi) the script is otherwise

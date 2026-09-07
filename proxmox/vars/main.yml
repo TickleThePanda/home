@@ -38,9 +38,16 @@ proxmox_template_name: debian-13-cloud
 proxmox_template_image_url: https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
 proxmox_template_image_path: /var/lib/vz/template/iso/debian-13-genericcloud-amd64.qcow2
 
-# The k3s agent VMs. Addresses are in the documented .32-.63 Proxmox-guest
-# band. All join as agents now; k3s-vm-control-01 is cordoned (by
-# k3s-cluster/) and reserved for a future promotion to server.
+# cloud-init resolver for the k3s VMs. Quad9, not the in-cluster Pi-hole
+# (192.168.1.10): a node whose DNS is a cluster workload cannot cold-start the
+# cluster -- the kubelet can't resolve a registry to pull the image that
+# brings that resolver back. k3s-cluster/ re-asserts this on the running VMs
+# (a `qm set` here only lands on a fresh clone). Same upstream the Pi uses.
+proxmox_vm_nameservers: 9.9.9.9 149.112.112.112
+
+# The k3s VMs. Addresses are in the documented .32-.63 Proxmox-guest band.
+# k3s-vm-control-01 is the k3s server (control-plane, tainted); the other two
+# are agents.
 proxmox_vm_disk_gb: 24
 k3s_vms:
   - { name: k3s-vm-control-01, vmid: 132, ip: 192.168.1.32, cores: 2, memory: 3072 }
