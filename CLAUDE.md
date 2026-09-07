@@ -5,6 +5,10 @@ plus the apps deployed onto it. See `README.md` for the network map (node
 IPs, ingress IPs, etc.) — this file covers operational context that isn't
 visible from the code alone.
 
+## Workflow
+
+Prefer commits on main branch as workflow (for example, do not branch).
+
 ## Documentation
 
 Write documentation that is simple, concise, and practical.
