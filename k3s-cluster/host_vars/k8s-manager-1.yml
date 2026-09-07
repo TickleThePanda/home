@@ -1,0 +1,18 @@
+---
+# The Pi joins as an agent but must carry its storage identity from the first
+# registration, not wait for tasks/node-labels.yml to patch it in afterwards:
+#
+# - lvm-vg=data is load-bearing. The lvm-data StorageClass allowedTopologies
+#   and the OpenEBS node plugin gate PV binding on it; without the label at
+#   join time a rescheduled storage pod cannot bind its volume.
+# - the storage-anchor taint keeps portable pods from stampeding onto the Pi
+#   in the window before node-labels.yml runs.
+#
+# k3s only reads node-label / node-taint at first registration, so this is
+# inert on every subsequent run -- node-labels.yml keeps them true through the
+# API. Written verbatim to /etc/rancher/k3s/config.yaml by the k3s_agent role.
+agent_config_yaml: |
+  node-label:
+    - "ticklethepanda.dev/lvm-vg=data"
+  node-taint:
+    - "ticklethepanda.dev/prefer-no-schedule=storage-anchor:PreferNoSchedule"

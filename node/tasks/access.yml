@@ -34,13 +34,12 @@
       #
       # Convenience and audit boundary only -- panda is in the `sudo` group and
       # already matches (ALL:ALL) ALL with a password. This just removes the
-      # prompt for the k3s operations documented in CLAUDE.md.
+      # prompt for the k3s operations documented in CLAUDE.md. The Pi runs
+      # k3s-agent now, not a server: no server manifests directory.
       panda ALL=(root) NOPASSWD: \
-          /usr/bin/systemctl restart k3s, \
-          /usr/bin/systemctl status k3s, \
-          /usr/bin/systemctl show k3s *, \
-          /bin/cat /var/lib/rancher/k3s/server/manifests/*, \
-          /bin/ls /var/lib/rancher/k3s/server/manifests/*, \
-          /bin/rm /var/lib/rancher/k3s/server/manifests/*.yaml, \
+          /usr/bin/systemctl restart k3s-agent, \
+          /usr/bin/systemctl status k3s-agent, \
+          /usr/bin/systemctl show k3s-agent *, \
+          /bin/cat /etc/rancher/k3s/config.yaml, \
           /bin/cat /etc/rancher/k3s/config.yaml.d/*.yaml, \
           /usr/bin/tee /etc/rancher/k3s/config.yaml.d/*.yaml

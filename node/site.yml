@@ -9,8 +9,7 @@
 # and the Argon ONE fan.
 #
 # Deliberately NOT managed:
-#   /var/lib/rancher/k3s/server/manifests/  -- k3s rewrites it on every start
-#   /etc/rancher/k3s/config.yaml            -- owned by k3s-cluster/
+#   /etc/rancher/k3s/config.yaml            -- owned by k3s-cluster/ (agent config)
 #
 # Networking changes need more care than most: a bad one strands SSH/the API
 # on a headless box. See tasks/network.yml's header for the guardrails that
@@ -35,10 +34,6 @@
       ansible.builtin.import_tasks: tasks/storage.yml
       tags: [storage]
 
-    - name: Hand k3s config over to k3s-cluster/
-      ansible.builtin.import_tasks: tasks/k3s-handover.yml
-      tags: [config]
-
     - name: Argon ONE fan controller
       ansible.builtin.import_tasks: tasks/argon-fan.yml
       tags: [argon-fan]
@@ -60,10 +55,10 @@
         cmd: nmcli device reapply eth0
       changed_when: true
 
-    # Unit-file changes only (tasks/storage.yml's k3s.service.d drop-in).
+    # Unit-file changes only (tasks/storage.yml's k3s-agent.service.d drop-in).
     # RequiresMountsFor takes effect on the next start, so this only
-    # daemon-reloads -- it does not bounce k3s. k3s restarts are k3s-cluster/'s
-    # concern now.
+    # daemon-reloads -- it does not bounce k3s-agent. k3s restarts are
+    # k3s-cluster/'s concern now.
     - name: Reload the systemd manager configuration
       listen: reload systemd
       ansible.builtin.systemd_service:

@@ -72,21 +72,33 @@
   loop_control:
     label: "{{ item.path }} <- {{ node_vg }}/{{ item.name }}"
 
-- name: Ensure the k3s drop-in directory exists
+# The Pi runs k3s-agent now, not a k3s server. Drop the stale server drop-in.
+- name: Remove the superseded k3s server storage drop-in
   ansible.builtin.file:
-    path: /etc/systemd/system/k3s.service.d
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/k3s.service.d/10-storage-mounts.conf
+    - /etc/systemd/system/k3s.service.d
+  notify: reload systemd
+
+- name: Ensure the k3s-agent drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s-agent.service.d
     state: directory
     owner: root
     group: root
     mode: "0755"
 
-# Without this, a missing mount is silent and expensive: k3s starts, finds an
-# empty directory on the root filesystem, and writes a second copy of its
-# state there. The node comes up looking healthy with the wrong datastore.
-# Refusing to start is the better failure.
-- name: Require the storage mounts before k3s starts
+# Without this, a missing mount is silent and expensive: the agent starts,
+# finds an empty directory on the root filesystem, and writes its containerd
+# image store / kubelet state there -- the node comes up looking healthy on a
+# volume that fills the root filesystem. Refusing to start is the better
+# failure. Only the volumes k3s_required marks: the agent never touches the
+# old server datastore path.
+- name: Require the storage mounts before k3s-agent starts
   ansible.builtin.copy:
-    dest: /etc/systemd/system/k3s.service.d/10-storage-mounts.conf
+    dest: /etc/systemd/system/k3s-agent.service.d/10-storage-mounts.conf
     owner: root
     group: root
     mode: "0644"
@@ -98,13 +110,13 @@
       # /var/lib/rancher/k3s would only ever require `/` -- that directory is
       # on the root filesystem, and the guard would silently do nothing.
       [Unit]
-      {% for lv in node_lvs %}
+      {% for lv in node_lvs | selectattr('k3s_required', 'defined') | selectattr('k3s_required') %}
       RequiresMountsFor={{ lv.path }}
       {% endfor %}
   notify: reload systemd
 
 # Batched discard rather than mounting -o discard: inline discard puts the
-# erase in the write path, and this disk holds the datastore.
+# erase in the write path, and this disk holds every lvm-data PV.
 - name: Enable periodic TRIM
   ansible.builtin.systemd_service:
     name: fstrim.timer

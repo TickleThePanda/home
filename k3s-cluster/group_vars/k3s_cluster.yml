@@ -2,12 +2,11 @@
 # Variables for the k3s.orchestration roles. k3s_version comes from
 # vars/versions.yml, loaded at play level in site.yml.
 
-# The API endpoint agents join and joining servers point at. Still the Pi
-# while the control-plane relocation is mid-flight; flips to 192.168.1.32
-# once k3s-vm-control-01 is the sole server. The server cert SANs are set
-# explicitly in server_config_yaml below (both addresses, for the overlap).
-# Both addresses are static (node/ and proxmox/ leave them to hand-editing).
-api_endpoint: 192.168.1.2
+# The API endpoint agents join. k3s-vm-control-01, the sole server. Its
+# address is static (proxmox/ sets it via cloud-init, no DHCP reservation).
+# The server cert SANs are set explicitly in server_config_yaml below and
+# still carry the Pi's old address so a stale kubeconfig keeps validating.
+api_endpoint: 192.168.1.32
 
 # The prereq role's ufw/firewalld handling. The Pi runs neither; the VMs get
 # their firewalling from the router. Nothing to open locally.
@@ -21,9 +20,9 @@ user_kubectl: false
 # ~/.kube/config (that merge only fires when kubeconfig == "~/.kube/config.new").
 kubeconfig: "{{ playbook_dir }}/.kubeconfig"
 
-# token is deliberately left undefined: the server role then reads the Pi's
-# existing /var/lib/rancher/k3s/server/token and the agent play consumes it
-# in the same run. Setting it would rewrite the server token on a live
+# token is deliberately left undefined: the server role reads the existing
+# /var/lib/rancher/k3s/server/token off k3s-vm-control-01 and the agent play
+# consumes it in the same run. Setting it would rewrite the token on a live
 # cluster.
 
 # docker.io pull authentication, written to /etc/rancher/k3s/registries.yaml
@@ -34,20 +33,22 @@ kubeconfig: "{{ playbook_dir }}/.kubeconfig"
 docker_pull_username: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_USERNAME') | default('', true) }}"
 docker_pull_token: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_TOKEN') | default('', true) }}"
 
-# Written to /etc/rancher/k3s/config.yaml on every server. These addons are
+# Written to /etc/rancher/k3s/config.yaml on the server. These addons are
 # vendored into deploy/setup/ instead (see CLAUDE.md); MetalLB replaces
 # servicelb and every volume is on the lvm-data StorageClass.
 #
-# tls-san carries both control-plane addresses through the relocation overlap
-# so a kubeconfig or agent pointed at either the Pi or k3s-vm-control-01
-# validates. A YAML list here fully replaces the single api_endpoint SAN the
-# role would otherwise add (the merge is a shallow combine).
+# cluster-init keeps the embedded-etcd datastore (a single member) selected;
+# it must stay set for the life of the server. tls-san still lists the Pi's
+# old address alongside the current one so a kubeconfig or client that has
+# not been repointed yet keeps validating. A YAML list here fully replaces
+# the single api_endpoint SAN the role would otherwise add (shallow combine).
 #
-# No node-taint: this file is written to both servers, and the Pi's
-# storage-anchor taint is host-specific -- it is applied through the API by
-# tasks/node-labels.yml, and set at registration via host_vars once the Pi is
-# an agent.
+# The Pi's storage-anchor taint and lvm-vg label are host-specific: set at
+# registration from host_vars/k8s-manager-1.yml and re-asserted through the
+# API by tasks/node-labels.yml. The control-plane taint on this server is
+# applied there too.
 server_config_yaml: |
+  cluster-init: true
   disable:
     - servicelb
     - traefik

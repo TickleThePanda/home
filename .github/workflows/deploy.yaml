@@ -147,7 +147,7 @@ jobs:
       - name: Check the node is reachable
         run: |
           set -euo pipefail
-          if ! nc -zv -w 10 192.168.1.2 6443; then
+          if ! nc -zv -w 10 192.168.1.32 6443; then
             echo "::error::Cannot reach the kube API either -- the tunnel is down, not a port-22 policy. cloudflared runs inside the cluster; see node/RECOVERY.md."
             exit 1
           fi
@@ -312,7 +312,7 @@ jobs:
       - name: Check the host is reachable
         run: |
           set -euo pipefail
-          if ! nc -zv -w 10 192.168.1.2 6443; then
+          if ! nc -zv -w 10 192.168.1.32 6443; then
             echo "::error::Cannot reach the kube API either -- the tunnel is down, not a per-host policy. cloudflared runs inside the cluster; see node/RECOVERY.md."
             exit 1
           fi
@@ -403,7 +403,7 @@ jobs:
       - name: Check every node is reachable
         run: |
           set -euo pipefail
-          if ! nc -zv -w 10 192.168.1.2 6443; then
+          if ! nc -zv -w 10 192.168.1.32 6443; then
             echo "::error::Cannot reach the kube API -- the tunnel is down. cloudflared runs in-cluster; see node/RECOVERY.md."
             exit 1
           fi
@@ -449,8 +449,8 @@ jobs:
 
       # The k3s.orchestration roles skip their install/restart tasks under
       # --check, so a drift gate like the other jobs' would be meaningless.
-      # Assert the real end state instead: four nodes Ready, the control VM
-      # cordoned.
+      # Assert the real end state instead: four nodes Ready, and the sole
+      # server carrying the control-plane-only NoSchedule taint.
       - name: Confirm the cluster is whole
         run: |
           set -euo pipefail
@@ -463,8 +463,9 @@ jobs:
           if [ "$ready" != "4" ] || [ "$total" != "4" ]; then
             echo "::error::expected 4 Ready nodes, got ${ready}/${total}"; exit 1
           fi
-          if [ "$(echo "$nodes" | jq -r '.items[] | select(.metadata.name=="k3s-vm-control-01") | .spec.unschedulable')" != "true" ]; then
-            echo "::error::k3s-vm-control-01 is not cordoned"; exit 1
+          if ! echo "$nodes" | jq -e '.items[] | select(.metadata.name=="k3s-vm-control-01")
+            | .spec.taints // [] | any(.key=="ticklethepanda.dev/control-plane" and .effect=="NoSchedule")' >/dev/null; then
+            echo "::error::k3s-vm-control-01 is missing the control-plane-only taint"; exit 1
           fi
 
   cluster:

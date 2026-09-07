@@ -1,6 +1,9 @@
 ---
 # Cluster-visible state that k3s only reads at first node registration, so it
-# has to go through the API for an already-registered node.
+# has to go through the API for an already-registered node. Runs on the sole
+# server (k3s-vm-control-01) via its local `k3s kubectl`; labelling and
+# tainting another node by name is a plain API call, so targeting the Pi from
+# here works fine.
 
 - name: Wait for the k3s API to be ready
   ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw /readyz
@@ -30,18 +33,46 @@
     'labeled' in lvm_vg_label.stdout
     and 'not labeled' not in lvm_vg_label.stdout
 
-# k3s-vm-control-01 keeps the `control` name for a future promotion to
-# server. Until then it must run no workloads -- the other two VMs and the Pi
-# carry everything.
-- name: Cordon k3s-vm-control-01
+# k3s-vm-control-01 is the sole control-plane node. It must run no portable
+# workloads -- the two worker VMs and the Pi carry everything. A NoSchedule
+# taint with a custom key (nothing tolerates it by accident) does that
+# durably; clear the operational cordon left from when it joined as a second
+# server. k3s core DaemonSets (flannel, kube-proxy) and multus tolerate all
+# NoSchedule taints and still run.
+- name: Uncordon k3s-vm-control-01
   ansible.builtin.command:
     argv:
       - /usr/local/bin/k3s
       - kubectl
-      - cordon
+      - uncordon
       - k3s-vm-control-01
-  register: control_cordon
-  changed_when: "'already cordoned' not in control_cordon.stdout"
+  register: control_uncordon
+  changed_when: "'already uncordoned' not in control_uncordon.stdout"
+
+- name: Read k3s-vm-control-01's current taints
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - get
+      - node
+      - k3s-vm-control-01
+      - -o
+      - jsonpath={.spec.taints[?(@.key=="ticklethepanda.dev/control-plane")]}
+  register: control_taint
+  changed_when: false
+
+- name: Taint k3s-vm-control-01 control-plane-only
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - taint
+      - node
+      - k3s-vm-control-01
+      - ticklethepanda.dev/control-plane=:NoSchedule
+      - --overwrite
+  when: '"NoSchedule" not in control_taint.stdout'
 
 # The Pi is the sole control-plane and also anchors every lvm-data volume.
 # PreferNoSchedule keeps the scheduler from stacking portable pods on top of
