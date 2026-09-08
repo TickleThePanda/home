@@ -9,6 +9,13 @@
 #   - VM lifecycle runs from the control node against the Proxmox API
 #     (community.proxmox), delegated to localhost.
 #
+# It also templates /etc/network/interfaces (previously hand-crafted) so the
+# e1000e I219-V offload workaround is version-controlled, and installs two
+# watchdogs -- see tasks/host-network.yml / nic-watchdog.yml / host-watchdog.yml.
+# Networking changes need care: CI reaches this box through a pod on it, so a
+# bad one is not remotely recoverable. The interfaces template only lands; a
+# human applies it with `ifreload -a` from the LAN.
+#
 # Deliberately NOT managed:
 #   - the subscription key / "no valid subscription" nag
 #   - the Proxmox cluster config and /etc/pve
@@ -30,6 +37,18 @@
       ansible.builtin.import_tasks: tasks/apt-repos.yml
       tags: [apt, repos]
 
+    - name: Host networking
+      ansible.builtin.import_tasks: tasks/host-network.yml
+      tags: [host, network]
+
+    - name: NIC watchdog
+      ansible.builtin.import_tasks: tasks/nic-watchdog.yml
+      tags: [host, nic]
+
+    - name: Host watchdog
+      ansible.builtin.import_tasks: tasks/host-watchdog.yml
+      tags: [host, watchdog]
+
     - name: Debian 13 cloud template
       ansible.builtin.import_tasks: tasks/vm-template.yml
       tags: [vm, template]
@@ -44,3 +63,25 @@
     - name: Update apt cache
       ansible.builtin.apt:
         update_cache: true
+
+    # Unit-file changes only (nic-watchdog.service / .timer). Reload only --
+    # the timer's enable/start is a separate task, and a running nic-watchdog
+    # invocation is a no-op unless the NIC is actually down.
+    - name: Reload the systemd manager configuration
+      listen: reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
+    # Swap the live watchdog module. Only closes/reopens /dev/watchdog -- no
+    # network impact, VM/HA state untouched. A no-op restart if iTCO_wdt is
+    # already the active module. Skipped under --check on a first run: the
+    # config files were only simulated.
+    - name: Switch the active watchdog module
+      listen: switch watchdog module
+      when: not ansible_check_mode
+      ansible.builtin.shell: |
+        systemctl stop watchdog-mux
+        modprobe -r softdog || true
+        modprobe iTCO_wdt
+        systemctl start watchdog-mux
+      changed_when: true

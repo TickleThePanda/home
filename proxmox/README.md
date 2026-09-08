@@ -21,11 +21,22 @@ touching `proxmox/**`. Two access paths in the one play:
 | Area | File |
 |---|---|
 | apt repos — enterprise off, no-subscription on (PVE + Ceph) | `tasks/apt-repos.yml` |
+| `/etc/network/interfaces` + the e1000e I219-V offload/EEE workaround | `tasks/host-network.yml`, `templates/interfaces.j2` |
+| `nic-watchdog` — recovers `eno1` from an e1000e TX hang, reboots as a last resort | `tasks/nic-watchdog.yml` |
+| watchdog-mux on the chipset watchdog (`iTCO_wdt`) instead of `softdog` | `tasks/host-watchdog.yml` |
 | Debian 13 `genericcloud` template (VMID 9000) | `tasks/vm-template.yml` |
 | the three k3s VMs -- `k3s-vm-control-01` (server) / `-worker-01` / `-worker-02` (agents) | `tasks/vm-provision.yml` |
 
 VM sizing, IPs and VMIDs are in `vars/main.yml` (`k3s_vms`). k3s *on* the VMs
 is `k3s-cluster/`'s job, not this one.
+
+`tasks/host-network.yml` only *lands* `/etc/network/interfaces` and pushes the
+NIC offload settings to the live device (safe). It never runs `ifreload` — a
+bad reload strands the headless host with no remote recovery. Change
+addressing or the bridge in `vars/main.yml`, then apply by hand with
+`ifreload -a` from a LAN or console session. After the first `host-watchdog`
+apply, check `wdctl` from the LAN — Identity must not read `Software
+Watchdog`.
 
 Not managed: the subscription key / nag, LXC containers, non-k3s VMs and all
 VM/CT storage, the cluster config and `/etc/pve`, `authorized_keys`, and

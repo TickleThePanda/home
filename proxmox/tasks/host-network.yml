@@ -1,0 +1,62 @@
+---
+# /etc/network/interfaces was hand-crafted at install. It is templated here so
+# the one change we need -- the Intel I219-V (e1000e) offload workaround -- is
+# version-controlled rather than a stray edit on the box.
+#
+# The template only *lands*; it does not reconfigure the running interface.
+# An `ifreload -a` on this headless hypervisor can strand the host, every VM,
+# and CI's own tunnel (a cloudflared pod runs on this box) with no remote
+# recovery. Addressing / bridge changes are applied by a human with
+# `ifreload -a` from a LAN or console session -- see the template header.
+#
+# The offload settings, by contrast, are safe to push to the live device and
+# we do so below, so last night's failure mode is closed immediately instead
+# of at the next reboot. `ethtool -K` is a per-netdev setting that survives
+# link state changes, so the live push plus the template's `post-up` hooks
+# together cover "now" and "every boot after".
+
+- name: Template /etc/network/interfaces
+  ansible.builtin.template:
+    src: interfaces.j2
+    dest: /etc/network/interfaces
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+
+- name: Read the NIC's current offload state
+  ansible.builtin.command:
+    cmd: ethtool -k {{ proxmox_host_iface }}
+  register: proxmox_nic_offloads
+  changed_when: false
+  check_mode: false
+
+# Toggling TSO makes e1000e re-init the adapter -- a ~1-2s link drop that
+# blips CI's tunnel. Harmless once done; the first apply is best hand-run
+# from the LAN, every run after is a no-op (offloads already off).
+- name: Disable segmentation / receive offloads on the NIC
+  ansible.builtin.command:
+    cmd: ethtool -K {{ proxmox_host_iface }} tso off gso off gro off
+  when: >-
+    'tcp-segmentation-offload: on' in proxmox_nic_offloads.stdout
+    or 'generic-segmentation-offload: on' in proxmox_nic_offloads.stdout
+    or 'generic-receive-offload: on' in proxmox_nic_offloads.stdout
+  changed_when: true
+
+- name: Read whether Energy-Efficient Ethernet is still active
+  ansible.builtin.command:
+    cmd: ethtool --show-eee {{ proxmox_host_iface }}
+  register: proxmox_nic_eee
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+# If the driver refuses (rc != 0) we leave EEE as-is rather than looping on a
+# perpetual "changed" -- the offload disable above is the load-bearing fix.
+- name: Disable Energy-Efficient Ethernet on the NIC
+  ansible.builtin.command:
+    cmd: ethtool --set-eee {{ proxmox_host_iface }} eee off
+  register: proxmox_nic_eee_set
+  when: "'EEE status: enabled' in proxmox_nic_eee.stdout"
+  changed_when: proxmox_nic_eee_set.rc == 0
+  failed_when: false

@@ -1,0 +1,79 @@
+#!/bin/bash
+# Managed by proxmox/tasks/nic-watchdog.yml -- do not edit on the host.
+#
+# The Intel I219-V (e1000e) TX-ring can hang ("Detected Hardware Unit Hang")
+# with no recovery from the driver, taking eno1 -- and every VM on vmbr0 --
+# off the network while the rest of the host stays healthy. PVE's watchdog-mux
+# does not catch that. This runs on a timer, recovers the NIC in place, and
+# only reboots as a last resort (rate-limited, so an upstream outage can't
+# cause a reboot loop).
+
+set -u
+
+IFACE={{ proxmox_host_iface }}
+GATEWAY={{ proxmox_gateway }}
+STATE_DIR=/var/lib/nic-watchdog
+STAMP="$STATE_DIR/reboots"
+MAX_REBOOTS=2       # per window
+WINDOW=86400       # window length, seconds
+
+log() { logger -t nic-watchdog -- "$*"; }
+
+gateway_up() {
+	local i
+	for i in 1 2 3 4 5; do
+		ping -c1 -W2 "$GATEWAY" >/dev/null 2>&1 && return 0
+		sleep 2
+	done
+	return 1
+}
+
+nic_faulted() {
+	# Link physically down, or a recent burst of driver hang messages.
+	local carrier hangs since
+	carrier=$(cat "/sys/class/net/$IFACE/carrier" 2>/dev/null || echo 1)
+	[ "$carrier" = "0" ] && return 0
+	since=$(date -d '3 min ago' '+%Y-%m-%d %H:%M:%S')
+	hangs=$(journalctl -k --since "$since" --no-pager 2>/dev/null \
+		| grep -c "Detected Hardware Unit Hang")
+	[ "${hangs:-0}" -ge 3 ] && return 0
+	return 1
+}
+
+reboot_allowed() {
+	mkdir -p "$STATE_DIR"
+	local now cutoff count
+	now=$(date +%s)
+	cutoff=$((now - WINDOW))
+	count=0
+	if [ -f "$STAMP" ]; then
+		awk -v c="$cutoff" '$1 >= c' "$STAMP" > "$STAMP.tmp" && mv "$STAMP.tmp" "$STAMP"
+		count=$(wc -l < "$STAMP")
+	fi
+	[ "$count" -lt "$MAX_REBOOTS" ]
+}
+
+gateway_up && exit 0
+
+if ! nic_faulted; then
+	log "gateway $GATEWAY unreachable but $IFACE link is up and no driver hangs -- upstream problem, not touching the NIC"
+	exit 0
+fi
+
+log "$IFACE looks hung -- resetting the adapter"
+ethtool -r "$IFACE" 2>/dev/null || true
+ip link set "$IFACE" down; sleep 2; ip link set "$IFACE" up
+sleep 20
+
+if gateway_up; then
+	log "$IFACE recovered after reset"
+	exit 0
+fi
+
+if nic_faulted && reboot_allowed; then
+	date +%s >> "$STAMP"
+	log "$IFACE still hung after reset -- rebooting"
+	systemctl reboot
+else
+	log "$IFACE still down but reboot rate limit hit (or fault cleared) -- leaving it for the next cycle"
+fi

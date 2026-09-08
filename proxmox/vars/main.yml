@@ -3,6 +3,17 @@
 # (PVE 9 = trixie); every apt source in tasks/apt-repos.yml keys off it.
 proxmox_apt_suite: trixie
 
+# --- host networking -----------------------------------------------------
+#
+# tasks/host-network.yml templates /etc/network/interfaces from these. All
+# confirmed on the host with `ip -br addr` / `cat /etc/network/interfaces`.
+# The management address and bridge are load-bearing -- CI reaches this box
+# through a pod on it, so a wrong value here is not remotely recoverable.
+proxmox_host_iface: eno1
+proxmox_mgmt_bridge: vmbr0
+proxmox_mgmt_address: 192.168.1.3/24
+proxmox_gateway: 192.168.1.1
+
 # --- VM template + k3s agent VMs ------------------------------------------
 
 # Storage / bridge names. These are the PVE 9 install defaults -- confirm on

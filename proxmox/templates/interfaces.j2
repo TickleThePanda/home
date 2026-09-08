@@ -1,0 +1,30 @@
+# Managed by proxmox/tasks/host-network.yml -- DO NOT EDIT ON THE HOST.
+#
+# CI reaches this hypervisor through a cloudflared pod running on it. A bad
+# change here strands the host, its VMs, and CI itself, with no remote
+# recovery -- only a physical visit. Change addressing or the bridge only
+# with a console or LAN session in hand, and apply it by hand (`ifreload -a`)
+# from that session -- never leave it to an unattended CI run.
+
+auto lo
+iface lo inet loopback
+
+iface {{ proxmox_host_iface }} inet manual
+	# Intel I219-V (e1000e) TX-ring "Detected Hardware Unit Hang" workaround:
+	# disable segmentation/receive offloads and EEE on the NIC. Left on, the
+	# adapter's TX engine wedges and the driver never recovers it, taking the
+	# whole homelab segment down. `|| true` so a hook failure never marks the
+	# interface down.
+	post-up /usr/sbin/ethtool -K {{ proxmox_host_iface }} tso off gso off gro off || true
+	post-up /usr/sbin/ethtool --set-eee {{ proxmox_host_iface }} eee off || true
+
+auto {{ proxmox_mgmt_bridge }}
+iface {{ proxmox_mgmt_bridge }} inet static
+	address {{ proxmox_mgmt_address }}
+	gateway {{ proxmox_gateway }}
+	bridge-ports {{ proxmox_host_iface }}
+	bridge-stp off
+	bridge-fd 0
+
+
+source /etc/network/interfaces.d/*
