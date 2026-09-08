@@ -9,6 +9,7 @@ metadata:
     gethomepage.dev/group: IAM
     gethomepage.dev/icon: lldap
     gethomepage.dev/description: User directory
+    gethomepage.dev/pod-selector: app=lldap
 spec:
   entryPoints:
     - int-web-secure

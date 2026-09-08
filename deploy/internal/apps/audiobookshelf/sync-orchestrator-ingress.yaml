@@ -10,6 +10,7 @@ metadata:
     gethomepage.dev/group: Media
     gethomepage.dev/icon: mdi-sync
     gethomepage.dev/description: Libation / Libro.fm sync
+    gethomepage.dev/pod-selector: app=sync-orchestrator
 spec:
   entryPoints:
     - int-web-secure

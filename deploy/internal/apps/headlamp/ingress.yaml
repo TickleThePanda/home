@@ -10,6 +10,7 @@ metadata:
     gethomepage.dev/group: Tools
     gethomepage.dev/icon: headlamp
     gethomepage.dev/description: Kubernetes dashboard
+    gethomepage.dev/pod-selector: app=headlamp
 spec:
   entryPoints:
     - int-web-secure

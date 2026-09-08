@@ -10,6 +10,7 @@ metadata:
     gethomepage.dev/group: IAM
     gethomepage.dev/icon: pocket-id
     gethomepage.dev/description: OIDC provider
+    gethomepage.dev/pod-selector: app=pocket-id
 spec:
   entryPoints:
     - int-web-secure
