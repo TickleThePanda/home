@@ -6,6 +6,10 @@ deploy_key
 deploy_key.pub
 __pycache__
 
+# Ansible's jsonfile fact cache (node/, proxmox/, k3s-cluster/ ansible.cfg).
+# Regenerated each run; in CI it is an actions/cache entry, not committed.
+.ansible_fact_cache/
+
 # Router bootstrap (router/bootstrap/). The GL.iNet backup and secrets.env hold
 # live credentials (PPPoE, Wi-Fi PSK, WireGuard/host keys, /etc/shadow); build/
 # holds the rendered overlay with secrets substituted in.

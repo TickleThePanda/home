@@ -26,6 +26,11 @@
 - name: Manage the Proxmox host and its k3s VMs
   hosts: proxmox-01
   gather_facts: true
+  # No task here reads a host fact. min keeps a `package`-style implicit
+  # mini-gather from firing; the hardware scan is skipped.
+  gather_subset:
+    - "!all"
+    - min
   # We log in as root -- nothing to escalate.
   become: false
 

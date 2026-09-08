@@ -1,0 +1,53 @@
+name: Ansible setup
+description: >-
+  Install a pinned ansible-core plus a tree's collections, with pip / Galaxy /
+  fact caches restored. Replaces the per-job pipx install + ansible-galaxy +
+  pipx inject steps.
+
+inputs:
+  working-directory:
+    description: Tree holding the requirements.yml to install (e.g. node, router/ansible).
+    required: true
+  extra-pip:
+    description: Extra pip packages the collections need on the controller (space-separated).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: pip
+        cache-dependency-path: .github/actions/ansible-setup/requirements.txt
+
+    - name: Restore the collection cache
+      id: collections-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.ansible/collections
+        key: ansible-collections-${{ runner.os }}-${{ hashFiles(format('{0}/requirements.yml', inputs.working-directory)) }}
+
+    - name: Restore the fact cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.working-directory }}/.ansible_fact_cache
+        key: ansible-facts-${{ inputs.working-directory }}-${{ github.run_id }}
+        restore-keys: ansible-facts-${{ inputs.working-directory }}-
+
+    - name: Install ansible-core and controller deps
+      shell: bash
+      env:
+        # Unquoted below so the shell word-splits it into separate specifiers;
+        # a `>=` inside an expanded variable is not treated as a redirection.
+        EXTRA_PIP: ${{ inputs.extra-pip }}
+      run: pip install -r .github/actions/ansible-setup/requirements.txt $EXTRA_PIP
+
+    # On a cache hit the collections (git checkout included) are already on
+    # disk; ansible-galaxy would otherwise re-clone the k3s.orchestration tag.
+    - name: Install Ansible collections
+      if: steps.collections-cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ansible-galaxy collection install -r requirements.yml

@@ -156,14 +156,10 @@ jobs:
             exit 1
           fi
 
-      - name: Install ansible-core
-        run: pipx install ansible-core
-
-      # ansible-core ships no collections, and the storage tasks need lvol,
-      # filesystem and mount. Pinned in node/requirements.yml.
-      - name: Install Ansible collections
-        working-directory: node
-        run: ansible-galaxy collection install -r requirements.yml
+      - name: Set up Ansible
+        uses: ./.github/actions/ansible-setup
+        with:
+          working-directory: node
 
       - name: Install the SSH key
         run: |
@@ -231,14 +227,10 @@ jobs:
             exit 1
           fi
 
-      - name: Install ansible-core
-        run: pipx install ansible-core
-
-      # ansible-core ships no collections; the router tasks need
-      # community.openwrt. Pinned in router/ansible/requirements.yml.
-      - name: Install Ansible collections
-        working-directory: router/ansible
-        run: ansible-galaxy collection install -r requirements.yml
+      - name: Set up Ansible
+        uses: ./.github/actions/ansible-setup
+        with:
+          working-directory: router/ansible
 
       - name: Install the SSH key
         run: |
@@ -323,17 +315,14 @@ jobs:
             fi
           done
 
-      - name: Install ansible-core
-        run: pipx install ansible-core
-
       # community.proxmox drives the VM lifecycle through the Proxmox API and
       # needs proxmoxer on the control node. The apt-repos tasks use only
       # ansible.builtin.
-      - name: Install Ansible collections and proxmoxer
-        working-directory: proxmox
-        run: |
-          ansible-galaxy collection install -r requirements.yml
-          pipx inject ansible-core 'proxmoxer>=2.3.0' requests
+      - name: Set up Ansible
+        uses: ./.github/actions/ansible-setup
+        with:
+          working-directory: proxmox
+          extra-pip: proxmoxer>=2.3.0 requests
 
       - name: Install the SSH key
         run: |
@@ -414,15 +403,12 @@ jobs:
             fi
           done
 
-      - name: Install ansible-core
-        run: pipx install ansible-core
-
       # ansible.utils needs netaddr on the control node.
-      - name: Install Ansible collections
-        working-directory: k3s-cluster
-        run: |
-          ansible-galaxy collection install -r requirements.yml
-          pipx inject ansible-core netaddr
+      - name: Set up Ansible
+        uses: ./.github/actions/ansible-setup
+        with:
+          working-directory: k3s-cluster
+          extra-pip: netaddr
 
       - name: Setup k8s context
         uses: azure/k8s-set-context@v1

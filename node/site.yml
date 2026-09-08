@@ -19,6 +19,11 @@
 - name: Manage k8s-manager-1 node state
   hosts: k8s-manager-1
   gather_facts: true
+  # Nothing here reads a fact beyond pkg_mgr (for ansible.builtin.package), which
+  # min carries. Skip the hardware / network / virtual scan.
+  gather_subset:
+    - "!all"
+    - min
   become: true
 
   vars_files:

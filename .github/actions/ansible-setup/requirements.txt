@@ -1,0 +1,6 @@
+# Controller-side Python deps for every Ansible job in deploy.yaml.
+#
+# ansible-core is pinned like the collections in each tree's requirements.yml:
+# a version bump changes what a deploy does to live infra, so it moves in its
+# own reviewed commit. One minor at a time.
+ansible-core==2.21.3

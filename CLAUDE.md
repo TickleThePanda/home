@@ -182,6 +182,14 @@ When comments are necessary:
   `flux-system/**`; all also trigger on the workflow file itself); a skipped
   job counts as a pass for the jobs that follow, and a manual
   `workflow_dispatch` runs them all.
+- Every Ansible job shares `.github/actions/ansible-setup`: a pinned
+  `ansible-core` (`.github/actions/ansible-setup/requirements.txt`, bumped in
+  its own commit like the collections) plus that tree's Galaxy collections,
+  with pip / collection / fact caches restored. `node`, `proxmox` and
+  `k3s-cluster` set `gathering = smart` + a `jsonfile` fact cache
+  (`.ansible_fact_cache/`, gitignored): play 1 gathers a trimmed
+  `gather_subset`, later plays and the `--check` re-run reuse it, and within
+  `fact_caching_timeout` a follow-up run skips the gather entirely.
 - The `cluster` job applies everything under `deploy/` via kustomize:
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
@@ -281,7 +289,10 @@ When comments are necessary:
   server restart keeps pods up so the tunnel only blips;
   `k3s-cluster/ansible.cfg`'s SSH keepalives cover it. Do first runs by hand
   from the LAN. Every run restarts k3s (the collection always does) — that is
-  by design, not drift. `ansible.cfg` sets `forks = 1`.
+  by design, not drift. `ansible.cfg` sets `forks = 4` so the agent play hits
+  the three agents at once; serialising only matters with a second server
+  (rolling a restart past a lone etcd member loses quorum) — drop back to
+  `forks = 1` if one is ever added.
 - `token` is left undefined: the server role reads the existing token off
   `k3s-vm-control-01` and the agent play consumes it in the same run. No
   token secret.

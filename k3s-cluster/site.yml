@@ -20,6 +20,14 @@
 - name: Cluster prerequisites
   hosts: k3s_cluster
   gather_facts: true
+  # The prereq / k3s_server / k3s_agent roles read only distribution, kernel,
+  # hostname, service_mgr (min) and default_ipv4 / all_ipv6_addresses (network);
+  # ansible_facts.packages / .services come from their own *_facts tasks. Skip
+  # the hardware scan.
+  gather_subset:
+    - "!all"
+    - min
+    - network
   become: true
   pre_tasks:
     # Fix node DNS before anything that needs to resolve a name. The VMs ship
@@ -91,7 +99,7 @@
 
 - name: Cluster-visible node state
   hosts: server
-  gather_facts: true
+  gather_facts: false
   become: true
   tasks:
     - name: Node labels and the control-VM cordon
