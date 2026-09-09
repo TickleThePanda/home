@@ -18,4 +18,3 @@ resources:
 - ./network/pihole
 - ./network/unbound
 - ./services/mosquitto
-- ./services/postgres

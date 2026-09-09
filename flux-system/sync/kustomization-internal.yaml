@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 10m
   dependsOn:
-    - name: setup-config # postgres/cluster.yaml's Cluster needs cloudnative-pg's CRDs (from setup); pihole-lb needs MetalLB's IPAddressPool (from setup-config)
+    - name: setup-config # pihole-lb needs MetalLB's IPAddressPool (from setup-config)
   sourceRef:
     kind: OCIRepository
     name: deploy

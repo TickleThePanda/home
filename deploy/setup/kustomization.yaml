@@ -4,7 +4,6 @@ kind: Kustomization
 resources:
   - ./lvm-localpv
   - ./cert-manager
-  - ./cloudnative-pg
   - ./coredns
   - ./metallb
   - ./traefik
