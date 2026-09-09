@@ -19,29 +19,25 @@
 
 - name: dnsmasq neither serves nor NAKs
   community.openwrt.uci:
-    key: "dhcp.@dnsmasq[0].{{ item.key }}"
-    value: "{{ item.value }}"
+    command: set
+    key: "dhcp.@dnsmasq[0]"
+    value:
+      port: "0"
+      authoritative: "0"
     autocommit: true
-  loop:
-    - { key: port, value: "0" }
-    - { key: authoritative, value: "0" }
-  loop_control:
-    label: "{{ item.key }}"
   notify: Restart dnsmasq
 
 - name: dhcp.lan -- dnsmasq listens (for relay replies) but never serves it
   community.openwrt.uci:
-    key: "dhcp.lan.{{ item.key }}"
-    value: "{{ item.value }}"
+    command: set
+    key: dhcp.lan
+    value:
+      dhcpv4: disabled
+      force: "1"
+      dhcpv6: disabled
+      ra: disabled
+      ndp: disabled
     autocommit: true
-  loop:
-    - { key: dhcpv4, value: disabled }
-    - { key: force, value: "1" }
-    - { key: dhcpv6, value: disabled }
-    - { key: ra, value: disabled }
-    - { key: ndp, value: disabled }
-  loop_control:
-    label: "{{ item.key }}"
   notify: Restart dnsmasq
 
 - name: dhcp.lan -- drop the `ignore` flag (would exclude br-lan from dnsmasq)

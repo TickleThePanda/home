@@ -14,18 +14,18 @@
 
 - name: Radio country, channel and channel width
   community.openwrt.uci:
-    key: "wireless.{{ item.radio }}.{{ item.key }}"
-    value: "{{ item.value }}"
+    command: set
+    key: "wireless.{{ item.radio }}"
+    value:
+      country: "{{ router_wifi_country }}"
+      channel: auto
+      htmode: "{{ item.htmode }}"
     autocommit: true
   loop:
-    - { radio: radio0, key: country, value: "{{ router_wifi_country }}" }
-    - { radio: radio0, key: channel, value: auto }
-    - { radio: radio0, key: htmode, value: HE40 }
-    - { radio: radio1, key: country, value: "{{ router_wifi_country }}" }
-    - { radio: radio1, key: channel, value: auto }
-    - { radio: radio1, key: htmode, value: HE160 }
+    - { radio: radio0, htmode: HE40 }
+    - { radio: radio1, htmode: HE160 }
   loop_control:
-    label: "{{ item.radio }}.{{ item.key }}"
+    label: "{{ item.radio }}"
   notify: Reload wifi config
 
 - name: Radios enabled

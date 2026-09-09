@@ -1,0 +1,65 @@
+#!/bin/sh
+# Delete the anonymous firewall sections that tasks/firewall.yml now owns as
+# named sections. Both an existing router (earlier playbook runs) and a
+# freshly-bootstrapped one (router/bootstrap/ adds an anonymous tailscale0
+# zone + forwardings) start with anonymous copies; without this they would
+# sit as duplicates beside the named sections.
+#
+# Matches on name / src>dest and only ever deletes sections whose real id is
+# `cfg*` (anonymous), so the named sections and the stock lan/wan zones + their
+# rules are left alone. Converged router: prints NOCHANGE and stages nothing.
+set -u
+
+zones='{{ (["trusted", "tailscale0", "iot_park"] + (router_iot_vlans | map(attribute="name") | list)) | join(" ") }}'
+rules='{% for v in router_iot_vlans %}Allow-DHCP-{{ v.name }} Allow-DNS-{{ v.name }} Allow-NTP-{{ v.name }} Allow-mDNS-{{ v.name }} {% endfor %}'
+fwds='{% for s in ["lan", "trusted", "tailscale0"] %}{% for v in router_iot_vlans %}{{ s }}>{{ v.name }} {% endfor %}{% endfor %}{% for v in router_iot_vlans if v.internet %}{{ v.name }}>wan {% endfor %}tailscale0>lan tailscale0>wan lan>tailscale0 tailscale0>trusted trusted>tailscale0 trusted>wan trusted>lan lan>trusted'
+
+deleted=0
+
+# firewall.@<type>[<n>] -> real section id (cfgXXXX when anonymous, the name
+# when named). `uci show <ref>` resolves the ref on its first output line.
+realid() {
+	uci -q show "$1" | sed -n "1s/^firewall\.\([^.=]*\)=.*\$/\1/p"
+}
+
+purge() {
+	_type="$1"
+	_wanted=" $2 "
+	_again=1
+	while [ "$_again" = 1 ]; do
+		_again=0
+		_i=0
+		while uci -q get "firewall.@${_type}[${_i}]" >/dev/null 2>&1; do
+			_ref="firewall.@${_type}[${_i}]"
+			case "$(realid "$_ref")" in
+				cfg*) _id="$(realid "$_ref")" ;;
+				*) _i=$((_i + 1)); continue ;;
+			esac
+			case "$_type" in
+				forwarding) _key="$(uci -q get "${_ref}.src")>$(uci -q get "${_ref}.dest")" ;;
+				*) _key="$(uci -q get "${_ref}.name")" ;;
+			esac
+			case "$_wanted" in
+				*" ${_key} "*)
+					if uci delete "firewall.${_id}" 2>/dev/null; then
+						deleted=$((deleted + 1))
+						_again=1
+						break
+					fi
+					;;
+			esac
+			_i=$((_i + 1))
+		done
+	done
+}
+
+purge zone "$zones"
+purge rule "$rules"
+purge forwarding "$fwds"
+
+if [ "$deleted" -gt 0 ]; then
+	uci commit firewall
+	echo "MIGRATED deleted=${deleted}"
+else
+	echo "NOCHANGE"
+fi

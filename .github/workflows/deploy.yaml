@@ -243,6 +243,7 @@ jobs:
         run: ansible-playbook site.yml --syntax-check
 
       - name: Apply
+        id: apply
         working-directory: router/ansible
         env:
           ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
@@ -251,10 +252,22 @@ jobs:
           ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
           ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
           ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
-        run: ansible-playbook site.yml --diff --private-key ~/.ssh/router_key
+        run: |
+          set -euo pipefail
+          ansible-playbook site.yml --diff --private-key ~/.ssh/router_key \
+            | tee /tmp/router-apply.log
+          if sed -n '/PLAY RECAP/,$p' /tmp/router-apply.log | grep -qE 'changed=[1-9]'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       # Idempotence is the proof the automation is honest about what it owns.
+      # An Apply that changed nothing is idempotent by definition -- only re-run
+      # the full check pass when Apply actually did something (or on a manual
+      # dispatch, which always exercises the whole pipeline).
       - name: Confirm no drift remains
+        if: steps.apply.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         working-directory: router/ansible
         env:
           ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}

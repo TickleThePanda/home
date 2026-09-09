@@ -1,43 +1,37 @@
 ---
 - name: LAN address
   community.openwrt.uci:
-    key: "network.lan.{{ item.key }}"
-    value: "{{ item.value }}"
+    command: set
+    key: network.lan
+    value:
+      ipaddr: "{{ router_lan_ipaddr }}"
+      netmask: "{{ router_lan_netmask }}"
+      ip6assign: "{{ router_lan_ip6assign }}"
     autocommit: true
-  loop:
-    - { key: ipaddr, value: "{{ router_lan_ipaddr }}" }
-    - { key: netmask, value: "{{ router_lan_netmask }}" }
-    - { key: ip6assign, value: "{{ router_lan_ip6assign }}" }
-  loop_control:
-    label: "{{ item.key }}"
   notify: Reload network
 
 - name: WAN is PPPoE, IPv4 only, ignoring ISP DNS
   community.openwrt.uci:
-    key: "network.wan.{{ item.key }}"
-    value: "{{ item.value }}"
+    command: set
+    key: network.wan
+    value:
+      proto: pppoe
+      device: "{{ router_wan_device }}"
+      ipv6: "0"
+      metric: "{{ router_wan_metric }}"
+      # The router resolves via Quad9 (tasks/dhcp-dns.yml), never the ISP.
+      peerdns: "0"
     autocommit: true
-  loop:
-    - { key: proto, value: pppoe }
-    - { key: device, value: "{{ router_wan_device }}" }
-    - { key: ipv6, value: "0" }
-    - { key: metric, value: "{{ router_wan_metric }}" }
-    # The router resolves via Quad9 (tasks/dhcp-dns.yml), never the ISP.
-    - { key: peerdns, value: "0" }
-  loop_control:
-    label: "{{ item.key }}"
   notify: Reload network
 
 - name: PPPoE credentials
   community.openwrt.uci:
-    key: "network.wan.{{ item.key }}"
-    value: "{{ item.value }}"
+    command: set
+    key: network.wan
+    value:
+      username: "{{ router_pppoe_username }}"
+      password: "{{ router_pppoe_password }}"
     autocommit: true
-  loop:
-    - { key: username, value: "{{ router_pppoe_username }}" }
-    - { key: password, value: "{{ router_pppoe_password }}" }
-  loop_control:
-    label: "{{ item.key }}"
   no_log: true
   notify: Reload network
 

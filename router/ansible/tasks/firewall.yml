@@ -10,6 +10,12 @@
 # route to the wan. `input REJECT` on each, with narrow rules for the router
 # services IoT clients need: DHCP relay, DNS to Pi-hole, NTP, mDNS. iot_park
 # (the wifi-iface base network) drops everything.
+#
+# Everything except the stock `wan` zone is rendered by templates/firewall.uci.j2
+# and applied in one `uci batch` -- far fewer SSH round trips than a task per
+# section. The managed sections are named; templates/firewall-anon-cleanup.sh.j2
+# first removes the anonymous copies an existing or freshly-bootstrapped router
+# starts with.
 
 - name: wan zone drops input
   community.openwrt.uci:
@@ -22,196 +28,16 @@
     autocommit: true
   notify: Reload firewall
 
-- name: trusted zone
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: zone
-    find: { name: trusted }
-    set_find: true
-    value:
-      input: ACCEPT
-      output: ACCEPT
-      forward: REJECT
-      network: [trusted]
-    autocommit: true
+- name: Reconcile anonymous firewall sections into the named set
+  ansible.builtin.raw: "{{ lookup('template', 'firewall-anon-cleanup.sh.j2') }}"
+  register: router_fw_cleanup
+  changed_when: "'MIGRATED' in router_fw_cleanup.stdout"
   notify: Reload firewall
 
-- name: tailscale0 zone
+- name: Managed firewall zones, forwardings and IoT punch-through rules
   community.openwrt.uci:
-    command: section
+    command: batch
     config: firewall
-    type: zone
-    find: { name: tailscale0 }
-    set_find: true
-    value:
-      input: ACCEPT
-      output: ACCEPT
-      forward: REJECT
-      mtu_fix: "1"
-      device: [tailscale0]
+    value: "{{ lookup('template', 'firewall.uci.j2').splitlines() | select | join('\n') }}"
     autocommit: true
-  notify: Reload firewall
-
-- name: IoT VLAN zones
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: zone
-    find: { name: "{{ item.name }}" }
-    set_find: true
-    value:
-      input: REJECT
-      output: ACCEPT
-      forward: REJECT
-      network: ["{{ item.name }}"]
-    autocommit: true
-  loop: "{{ router_iot_vlans }}"
-  loop_control:
-    label: "{{ item.name }}"
-  notify: Reload firewall
-
-- name: IoT parking zone -- dead end
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: zone
-    find: { name: iot_park }
-    set_find: true
-    value:
-      input: DROP
-      output: DROP
-      forward: DROP
-      network: [iot_park]
-    autocommit: true
-  notify: Reload firewall
-
-- name: zone forwardings
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: forwarding
-    find: { src: "{{ item.src }}", dest: "{{ item.dest }}" }
-    set_find: true
-    autocommit: true
-  loop:
-    - { src: tailscale0, dest: lan }
-    - { src: tailscale0, dest: wan }
-    - { src: lan, dest: tailscale0 }
-    - { src: tailscale0, dest: trusted }
-    - { src: trusted, dest: tailscale0 }
-    - { src: trusted, dest: wan }
-    - { src: trusted, dest: lan }
-    - { src: lan, dest: trusted }
-  loop_control:
-    label: "{{ item.src }} -> {{ item.dest }}"
-  notify: Reload firewall
-
-# homelab / trusted / tailnet may initiate into every IoT VLAN.
-- name: IoT inbound forwardings
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: forwarding
-    find: { src: "{{ item.0 }}", dest: "{{ item.1.name }}" }
-    set_find: true
-    autocommit: true
-  loop: "{{ ['lan', 'trusted', 'tailscale0'] | product(router_iot_vlans) | list }}"
-  loop_control:
-    label: "{{ item.0 }} -> {{ item.1.name }}"
-  notify: Reload firewall
-
-# Only the internet-enabled IoT profiles get a route out.
-- name: IoT egress to wan
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: forwarding
-    find: { src: "{{ item.name }}", dest: wan }
-    set_find: true
-    autocommit: true
-  loop: "{{ router_iot_vlans | selectattr('internet') | list }}"
-  loop_control:
-    label: "{{ item.name }} -> wan"
-  notify: Reload firewall
-
-# IoT zones are input REJECT, so the router services IoT clients rely on need
-# explicit accepts. Each rule is scoped to one IoT zone via `src`.
-- name: IoT -- allow DHCP relay to the router
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: rule
-    find: { name: "Allow-DHCP-{{ item.name }}" }
-    set_find: true
-    value:
-      name: "Allow-DHCP-{{ item.name }}"
-      src: "{{ item.name }}"
-      proto: udp
-      dest_port: "67"
-      target: ACCEPT
-    autocommit: true
-  loop: "{{ router_iot_vlans }}"
-  loop_control:
-    label: "{{ item.name }}"
-  notify: Reload firewall
-
-- name: IoT -- allow DNS to Pi-hole only
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: rule
-    find: { name: "Allow-DNS-{{ item.name }}" }
-    set_find: true
-    value:
-      name: "Allow-DNS-{{ item.name }}"
-      src: "{{ item.name }}"
-      dest: lan
-      dest_ip: "192.168.1.10"
-      proto: "tcp udp"
-      dest_port: "53"
-      target: ACCEPT
-    autocommit: true
-  loop: "{{ router_iot_vlans }}"
-  loop_control:
-    label: "{{ item.name }}"
-  notify: Reload firewall
-
-- name: IoT -- allow NTP to the router
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: rule
-    find: { name: "Allow-NTP-{{ item.name }}" }
-    set_find: true
-    value:
-      name: "Allow-NTP-{{ item.name }}"
-      src: "{{ item.name }}"
-      proto: udp
-      dest_port: "123"
-      target: ACCEPT
-    autocommit: true
-  loop: "{{ router_iot_vlans }}"
-  loop_control:
-    label: "{{ item.name }}"
-  notify: Reload firewall
-
-- name: IoT -- allow mDNS to the router (avahi reflector)
-  community.openwrt.uci:
-    command: section
-    config: firewall
-    type: rule
-    find: { name: "Allow-mDNS-{{ item.name }}" }
-    set_find: true
-    value:
-      name: "Allow-mDNS-{{ item.name }}"
-      src: "{{ item.name }}"
-      proto: udp
-      dest_ip: "224.0.0.251"
-      dest_port: "5353"
-      target: ACCEPT
-    autocommit: true
-  loop: "{{ router_iot_vlans }}"
-  loop_control:
-    label: "{{ item.name }}"
   notify: Reload firewall

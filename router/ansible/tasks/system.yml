@@ -1,15 +1,13 @@
 ---
 - name: Hostname, timezone and zone name
   community.openwrt.uci:
-    key: "system.@system[0].{{ item.key }}"
-    value: "{{ item.value }}"
+    command: set
+    key: "system.@system[0]"
+    value:
+      hostname: "{{ router_hostname }}"
+      timezone: "{{ router_timezone }}"
+      zonename: "{{ router_zonename }}"
     autocommit: true
-  loop:
-    - { key: hostname, value: "{{ router_hostname }}" }
-    - { key: timezone, value: "{{ router_timezone }}" }
-    - { key: zonename, value: "{{ router_zonename }}" }
-  loop_control:
-    label: "{{ item.key }}"
   notify: Reload system config
 
 # NTP server for the IoT VLANs -- Kea hands each IoT subnet the router as its

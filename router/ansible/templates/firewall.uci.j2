@@ -1,0 +1,106 @@
+{# Managed firewall state, applied in a single `uci batch` (tasks/firewall.yml).
+
+   Every line is `set`, so re-applying the same desired state stages no uci
+   changes and the task reports ok -- the CI idempotence gate stays clean.
+
+   Sections are named (uci ids are alphanumeric/underscore only); the
+   human-facing label stays on `option name`. Single-interface zones use a
+   scalar `option network` / `option device` -- fw4 treats it the same as a
+   one-element list.
+
+   The stock anonymous `wan` zone is tweaked in tasks/firewall.yml, not here.
+   Blank lines below are stripped before the batch runs. #}
+
+{# --- zones --- #}
+set firewall.trusted=zone
+set firewall.trusted.name='trusted'
+set firewall.trusted.input='ACCEPT'
+set firewall.trusted.output='ACCEPT'
+set firewall.trusted.forward='REJECT'
+set firewall.trusted.network='trusted'
+
+set firewall.tailscale0=zone
+set firewall.tailscale0.name='tailscale0'
+set firewall.tailscale0.input='ACCEPT'
+set firewall.tailscale0.output='ACCEPT'
+set firewall.tailscale0.forward='REJECT'
+set firewall.tailscale0.mtu_fix='1'
+set firewall.tailscale0.device='tailscale0'
+
+{% for v in router_iot_vlans %}
+set firewall.{{ v.name }}=zone
+set firewall.{{ v.name }}.name='{{ v.name }}'
+set firewall.{{ v.name }}.input='REJECT'
+set firewall.{{ v.name }}.output='ACCEPT'
+set firewall.{{ v.name }}.forward='REJECT'
+set firewall.{{ v.name }}.network='{{ v.name }}'
+
+{% endfor %}
+set firewall.iot_park=zone
+set firewall.iot_park.name='iot_park'
+set firewall.iot_park.input='DROP'
+set firewall.iot_park.output='DROP'
+set firewall.iot_park.forward='DROP'
+set firewall.iot_park.network='iot_park'
+
+{# --- forwardings: fixed lan/trusted/tailscale0 mesh --- #}
+{% for pair in [
+     ['tailscale0', 'lan'], ['tailscale0', 'wan'], ['lan', 'tailscale0'],
+     ['tailscale0', 'trusted'], ['trusted', 'tailscale0'],
+     ['trusted', 'wan'], ['trusted', 'lan'], ['lan', 'trusted'],
+   ] %}
+set firewall.fwd_{{ pair[0] }}_{{ pair[1] }}=forwarding
+set firewall.fwd_{{ pair[0] }}_{{ pair[1] }}.src='{{ pair[0] }}'
+set firewall.fwd_{{ pair[0] }}_{{ pair[1] }}.dest='{{ pair[1] }}'
+
+{% endfor %}
+{# homelab / trusted / tailnet may initiate into every IoT VLAN #}
+{% for src in ['lan', 'trusted', 'tailscale0'] %}
+{% for v in router_iot_vlans %}
+set firewall.fwd_{{ src }}_{{ v.name }}=forwarding
+set firewall.fwd_{{ src }}_{{ v.name }}.src='{{ src }}'
+set firewall.fwd_{{ src }}_{{ v.name }}.dest='{{ v.name }}'
+
+{% endfor %}
+{% endfor %}
+{# only the internet-enabled IoT profiles get a route out #}
+{% for v in router_iot_vlans if v.internet %}
+set firewall.fwd_{{ v.name }}_wan=forwarding
+set firewall.fwd_{{ v.name }}_wan.src='{{ v.name }}'
+set firewall.fwd_{{ v.name }}_wan.dest='wan'
+
+{% endfor %}
+{# --- IoT service punch-through rules (zones are input REJECT) --- #}
+{% for v in router_iot_vlans %}
+set firewall.allow_dhcp_{{ v.name }}=rule
+set firewall.allow_dhcp_{{ v.name }}.name='Allow-DHCP-{{ v.name }}'
+set firewall.allow_dhcp_{{ v.name }}.src='{{ v.name }}'
+set firewall.allow_dhcp_{{ v.name }}.proto='udp'
+set firewall.allow_dhcp_{{ v.name }}.dest_port='67'
+set firewall.allow_dhcp_{{ v.name }}.target='ACCEPT'
+
+set firewall.allow_dns_{{ v.name }}=rule
+set firewall.allow_dns_{{ v.name }}.name='Allow-DNS-{{ v.name }}'
+set firewall.allow_dns_{{ v.name }}.src='{{ v.name }}'
+set firewall.allow_dns_{{ v.name }}.dest='lan'
+set firewall.allow_dns_{{ v.name }}.dest_ip='192.168.1.10'
+set firewall.allow_dns_{{ v.name }}.proto='tcp udp'
+set firewall.allow_dns_{{ v.name }}.dest_port='53'
+set firewall.allow_dns_{{ v.name }}.target='ACCEPT'
+
+set firewall.allow_ntp_{{ v.name }}=rule
+set firewall.allow_ntp_{{ v.name }}.name='Allow-NTP-{{ v.name }}'
+set firewall.allow_ntp_{{ v.name }}.src='{{ v.name }}'
+set firewall.allow_ntp_{{ v.name }}.proto='udp'
+set firewall.allow_ntp_{{ v.name }}.dest_port='123'
+set firewall.allow_ntp_{{ v.name }}.target='ACCEPT'
+
+set firewall.allow_mdns_{{ v.name }}=rule
+set firewall.allow_mdns_{{ v.name }}.name='Allow-mDNS-{{ v.name }}'
+set firewall.allow_mdns_{{ v.name }}.src='{{ v.name }}'
+set firewall.allow_mdns_{{ v.name }}.proto='udp'
+set firewall.allow_mdns_{{ v.name }}.dest_ip='224.0.0.251'
+set firewall.allow_mdns_{{ v.name }}.dest_port='5353'
+set firewall.allow_mdns_{{ v.name }}.target='ACCEPT'
+
+{% endfor %}

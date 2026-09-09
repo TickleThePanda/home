@@ -67,6 +67,12 @@ freshly-flashed router should report few or no changes and no interface bounce.
   fingerprint from the console.
 - The playbook assumes `radio0` is 2.4 GHz and `radio1` is 5 GHz; `wireless.yml`
   asserts this and fails clearly if a particular router differs.
-- Anonymous UCI sections (the `tailscale0` firewall zone, the tailnet
-  forwardings, the `eth1` device) are matched by their attributes, not by a
-  positional index, so a run stays idempotent regardless of ordering.
+- Anonymous UCI sections that stay anonymous (the `eth1` device) are matched
+  by their attributes, not a positional index, so a run stays idempotent
+  regardless of ordering.
+- The firewall is rendered by `templates/firewall.uci.j2` and applied in one
+  `uci batch`; its zones, forwardings and IoT rules are **named** sections.
+  `templates/firewall-anon-cleanup.sh.j2` runs first and deletes the
+  anonymous copies a bootstrapped or previously-managed router starts with,
+  so a first run reports firewall changes and one firewall reload; steady
+  state is clean.

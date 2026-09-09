@@ -24,6 +24,10 @@
         # The router has busybox base64 + sha256sum; skip the opkg checks so a
         # stale package list can't make a run report "changed".
         openwrt_install_recommended_packages: false
+        # Dropbear serves neither sftp nor scp; `smart` probes both (and warns)
+        # before settling on the piped transfer. Name it directly so the first
+        # module transfer of the run skips the two dead probes.
+        openwrt_ssh_transfer_method: piped
 
   vars_files:
     - vars/router.yml
@@ -82,7 +86,7 @@
     # so wait for the router to answer again before the play continues.
     - name: Wait for the router
       community.openwrt.wait_for_connection:
-        delay: 5
+        delay: 2
         timeout: 300
       listen:
         - Reload network
