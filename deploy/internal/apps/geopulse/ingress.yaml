@@ -1,0 +1,24 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: geopulse
+  namespace: geopulse
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://geopulse.internal.ticklethepanda.co.uk
+    gethomepage.dev/name: GeoPulse
+    gethomepage.dev/group: Tools
+    gethomepage.dev/icon: mdi-map-marker-path
+    gethomepage.dev/description: GPS location timeline
+    gethomepage.dev/pod-selector: app=geopulse-ui
+spec:
+  entryPoints:
+    - int-web-secure
+  tls: {}
+  routes:
+    - kind: Rule
+      match: Host(`geopulse.internal.ticklethepanda.co.uk`)
+      services:
+        - name: geopulse-ui
+          namespace: geopulse
+          port: 80

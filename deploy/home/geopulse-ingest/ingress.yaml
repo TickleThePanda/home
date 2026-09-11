@@ -1,0 +1,17 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: geopulse-ingest
+spec:
+  entryPoints:
+    - ext-web
+  routes:
+    # Only the OwnTracks ingestion path is exposed externally — GeoPulse itself
+    # (UI, login, every other API route) stays internal-only. The endpoint has
+    # its own per-source auth token, independent of a GeoPulse account login.
+    - kind: Rule
+      match: Host(`geopulse.ticklethepanda.co.uk`) && PathPrefix(`/api/owntracks`)
+      services:
+        - name: geopulse-backend
+          namespace: geopulse
+          port: 8080
