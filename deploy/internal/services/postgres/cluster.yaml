@@ -1,0 +1,50 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  namespace: postgres
+spec:
+  instances: 1
+
+  imageName: imresamu/postgis:17-3.5-alpine
+  # This Alpine-based image uses UID/GID 70 for `postgres`, unlike CNPG's own
+  # Debian-based operand images which default to 26.
+  postgresUID: 70
+  postgresGID: 70
+
+  storage:
+    storageClass: lvm-data
+    size: 20Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+  # Conservative settings for the Pi's limited memory, mirroring GeoPulse's own
+  # docker-compose defaults for this workload.
+  postgresql:
+    parameters:
+      shared_buffers: "128MB"
+      work_mem: "6MB"
+      maintenance_work_mem: "32MB"
+      effective_cache_size: "384MB"
+      max_wal_size: "256MB"
+      wal_buffers: "8MB"
+
+  bootstrap:
+    initdb:
+      database: geopulse
+      owner: geopulse
+
+  # Annotates every object the operator generates for this cluster, including the
+  # auto-generated postgres-app credentials Secret, so Reflector mirrors it into the
+  # `home` namespace where the GeoPulse app runs.
+  inheritedMetadata:
+    annotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "home"
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+      reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: "home"

@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: geopulse
+spec:
+  entryPoints:
+    - ext-web
+  routes:
+    - kind: Rule
+      match: Host(`geopulse.ticklethepanda.co.uk`)
+      services:
+        - name: geopulse-ui
+          namespace: home
+          port: 80

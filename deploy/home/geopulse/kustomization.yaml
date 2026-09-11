@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: geopulse
+
+resources:
+  - ./volume.yaml
+  - ./backend-deployment.yaml
+  - ./backend-service.yaml
+  - ./ui-deployment.yaml
+  - ./ui-service.yaml
+  - ./cert.yaml
+  - ./ingress.yaml
+
+configMapGenerator:
+  - name: geopulse-config
+    literals:
+      - GEOPULSE_VERSION=1.39.0
+      - GEOPULSE_PUBLIC_BASE_URL=https://geopulse.ticklethepanda.co.uk
+      - GEOPULSE_BACKEND_URL=http://geopulse-backend:8080
+      - GEOPULSE_AUTH_SECURE_COOKIES=true
+      - GEOPULSE_CORS_ENABLED=false
+      - GEOPULSE_ADMIN_EMAIL=panda@ticklethepanda.dev

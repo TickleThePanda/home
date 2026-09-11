@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: geopulse-backend
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lvm-data
+  resources:
+    requests:
+      storage: 5Gi

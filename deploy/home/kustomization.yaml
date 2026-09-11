@@ -11,6 +11,7 @@ resources:
   - ./home--cert.yaml
   - ./auth-middleware.yaml
   - ./root
+  - ./geopulse
 
 secretGenerator:
   - name: ingress-auth

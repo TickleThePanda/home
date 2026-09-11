@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geopulse-backend
+  labels:
+    app: geopulse-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: geopulse-backend
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: geopulse-backend
+    spec:
+      # Generates the JWT keypair and AI-encryption key on first start, mirroring
+      # upstream's geopulse-keygen compose service. Idempotent (checks before
+      # writing), and the keys land on the persistent volume so they survive
+      # restarts — regenerating them would invalidate existing JWTs and any
+      # AI-encrypted fields already stored.
+      initContainers:
+        - name: keygen
+          image: alpine:latest
+          command:
+            - sh
+            - -ec
+            - |
+              apk add --no-cache openssl >/dev/null
+              if [ ! -f /keys/jwt-private-key.pem ] || [ ! -f /keys/jwt-public-key.pem ]; then
+                openssl genpkey -algorithm RSA -out /keys/jwt-private-key.pem
+                openssl rsa -pubout -in /keys/jwt-private-key.pem -out /keys/jwt-public-key.pem
+                chmod 644 /keys/jwt-private-key.pem /keys/jwt-public-key.pem
+              fi
+              if [ ! -f /keys/ai-encryption-key.txt ]; then
+                openssl rand -base64 32 > /keys/ai-encryption-key.txt
+                chmod 644 /keys/ai-encryption-key.txt
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /keys
+              subPath: keys
+      containers:
+        - name: geopulse-backend
+          image: tess1o/geopulse-backend:1.39.0-native-compat
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: geopulse-config
+          env:
+            # The mirrored secret's own `host` key is the CNPG service's short name,
+            # which only resolves inside the `postgres` namespace it was minted in —
+            # cross-namespace, it needs the namespace-qualified form.
+            - name: GEOPULSE_POSTGRES_HOST
+              value: postgres-rw.postgres.svc.cluster.local
+            - name: GEOPULSE_POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: port
+            - name: GEOPULSE_POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: dbname
+            - name: GEOPULSE_POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: username
+            - name: GEOPULSE_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: password
+            - name: GEOPULSE_POSTGRES_URL
+              value: jdbc:postgresql://$(GEOPULSE_POSTGRES_HOST):$(GEOPULSE_POSTGRES_PORT)/$(GEOPULSE_POSTGRES_DB)
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /app/keys
+              subPath: keys
+            - name: data
+              mountPath: /data/geopulse-import
+              subPath: geopulse-import
+            - name: data
+              mountPath: /data/geopulse-backups
+              subPath: geopulse-backups
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: geopulse-backend

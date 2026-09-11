@@ -1,0 +1,13 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: postgres-geopulse
+  namespace: postgres
+spec:
+  name: geopulse
+  owner: geopulse
+  cluster:
+    name: postgres
+  extensions:
+    - name: postgis
+    - name: postgis_topology
