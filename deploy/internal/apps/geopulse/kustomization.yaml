@@ -21,6 +21,12 @@ configMapGenerator:
       - GEOPULSE_AUTH_SECURE_COOKIES=true
       - GEOPULSE_CORS_ENABLED=false
       - GEOPULSE_ADMIN_EMAIL=panda@ticklethepanda.dev
+      - GEOPULSE_AUTH_PASSWORD_LOGIN_ENABLED=false
+      - GEOPULSE_AUTH_PASSWORD_REGISTRATION_ENABLED=false
+      # Admins can still bypass this with a password if OIDC ever breaks — this
+      # is the default, set explicitly so it doesn't get lost as a lockout escape
+      # hatch.
+      - GEOPULSE_AUTH_ADMIN_LOGIN_BYPASS_ENABLED=true
       - GEOPULSE_OIDC_ENABLED=true
       - GEOPULSE_AUTH_OIDC_LOGIN_ENABLED=true
       - GEOPULSE_OIDC_CALLBACK_BASE_URL=https://geopulse.internal.ticklethepanda.co.uk
