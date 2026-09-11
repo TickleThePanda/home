@@ -84,6 +84,11 @@ spec:
                   key: password
             - name: GEOPULSE_POSTGRES_URL
               value: jdbc:postgresql://$(GEOPULSE_POSTGRES_HOST):$(GEOPULSE_POSTGRES_PORT)/$(GEOPULSE_POSTGRES_DB)
+            - name: GEOPULSE_OIDC_PROVIDER_GENERIC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: geopulse-oidc
+                  key: client-secret
           livenessProbe:
             httpGet:
               path: /api/health

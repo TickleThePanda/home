@@ -21,8 +21,10 @@ configMapGenerator:
       - GEOPULSE_AUTH_SECURE_COOKIES=true
       - GEOPULSE_CORS_ENABLED=false
       - GEOPULSE_ADMIN_EMAIL=panda@ticklethepanda.dev
-      # OIDC (Pocket ID) login is set up in a follow-up once the client exists
-      # in Pocket ID — see the note left for the operator. Password login stays
-      # on in the meantime so the app isn't locked out.
-      - GEOPULSE_OIDC_ENABLED=false
-      - GEOPULSE_AUTH_OIDC_LOGIN_ENABLED=false
+      - GEOPULSE_OIDC_ENABLED=true
+      - GEOPULSE_AUTH_OIDC_LOGIN_ENABLED=true
+      - GEOPULSE_OIDC_CALLBACK_BASE_URL=https://geopulse.internal.ticklethepanda.co.uk
+      - GEOPULSE_OIDC_PROVIDER_GENERIC_ENABLED=true
+      - GEOPULSE_OIDC_PROVIDER_GENERIC_NAME=Pocket ID
+      - GEOPULSE_OIDC_PROVIDER_GENERIC_DISCOVERY_URL=https://auth.internal.ticklethepanda.co.uk/.well-known/openid-configuration
+      - GEOPULSE_OIDC_PROVIDER_GENERIC_CLIENT_ID=afe758b7-62e2-478e-8de8-073e2c4bcb73
