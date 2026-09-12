@@ -1,0 +1,136 @@
+name: Deploy - cluster
+
+# Called by deploy.yaml's `cluster` job, applying deploy/ and flux-system/
+# via Flux once infra has landed.
+
+on:
+  workflow_call: {}
+
+jobs:
+  cluster:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Connect to Cloudflare Warp
+        uses: Boostport/setup-cloudflare-warp@v1
+        with:
+          organization: ticklethepanda
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup k8s context
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Install the flux CLI
+        uses: fluxcd/flux2/action@main
+
+      # No --prune -- flux-system/ isn't part of the managed-by=kustomize
+      # tree below, so Flux's own objects are never pruned by it.
+      #
+      # Two applies with a CRD-Established wait between them: a single
+      # `kubectl apply -k flux-system` hits the same missing-kind race
+      # CLAUDE.md documents for other vendored operators (kubectl's retry
+      # gives up before ~18 new CRDs finish becoming Established). Once
+      # Flux is running, its own reconciliation of ./flux-system handles
+      # this ordering fine -- only the one-time bootstrap needs the split.
+      - name: Apply flux-system
+        run: |
+          kubectl apply -k flux-system/install
+          kubectl wait --for=condition=Established --timeout=60s \
+            crd/gitrepositories.source.toolkit.fluxcd.io \
+            crd/ocirepositories.source.toolkit.fluxcd.io \
+            crd/kustomizations.kustomize.toolkit.fluxcd.io
+          kubectl apply -k flux-system/sync
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Lets flux-system/sync/oci-repository.yaml's OCIRepository pull the
+      # promoted deploy/ artifact from a private Docker Hub repo. Reuses
+      # the credentials already in this job rather than a new secret.
+      - name: Provision the OCIRepository pull secret
+        run: |
+          set -euo pipefail
+          kubectl create secret docker-registry dockerhub-deploy-pull \
+            --docker-username="${{ secrets.DOCKER_USERNAME }}" \
+            --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
+            --namespace flux-system \
+            --dry-run=client --validate=false -o yaml | kubectl apply -f -
+
+      # Push as one sha-tagged OCI artifact, then move the moving `deploy`
+      # tag to point at it -- the promotion boundary flux-system/sync/
+      # oci-repository.yaml's OCIRepository follows for both deploy/ and
+      # flux-system/. Neither tree is watched straight off `main`, so Flux
+      # only ever reconciles revisions this job has vetted.
+      - name: Push and promote the OCI artifact
+        run: |
+          set -euo pipefail
+          sha="${GITHUB_SHA::12}"
+          flux push artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
+            --path="." \
+            --source="$(git config --get remote.origin.url)" \
+            --revision="main@sha1:${GITHUB_SHA}"
+          flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
+            --tag deploy
+
+      # Trigger reconciliation immediately rather than waiting for the
+      # OCIRepository's own polling interval. Only the source needs an
+      # explicit trigger: kustomize-controller watches its sourceRef and
+      # auto-reconciles on every artifact revision change, so
+      # setup/home/internal pick this up on their own. The wait step below
+      # does the actual waiting, with its own independent budget.
+      - name: Trigger Flux reconciliation
+        run: flux reconcile source oci deploy -n flux-system
+
+      # lastAppliedRevision mirrors the OCIRepository's own
+      # artifact.revision (deploy@sha256:<digest>) -- not the --revision
+      # string passed to `flux push artifact` above, which is metadata
+      # inside the artifact, not what source-controller reports. Read it
+      # straight from the source rather than constructing a sha1-based
+      # string that could never match.
+      - name: Read the promoted revision
+        run: |
+          revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
+          echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
+
+      # Fast feedback on an obviously-broken revision (bad manifest, a
+      # dangling reference) -- not an authoritative gate. The artifact is
+      # already promoted and Flux keeps reconciling on its own 10m interval
+      # regardless. A failure here, or one that only surfaces after this
+      # step's short budget, lands as a red commit status via the Flux
+      # GitHub Alert (flux-system/sync/notifications.yaml).
+      #
+      # continue-on-error plus the tight timeout-minutes keep a cancel or a
+      # stuck run down to seconds -- the old poll loop could hold the
+      # `cluster` concurrency lock for ~50 minutes and swallowed SIGTERM.
+      # `flux reconcile` is a single interruptible process; the loop does
+      # not abort on one bad Kustomization so every commit status still
+      # gets posted.
+      - name: Confirm the promoted revision reconciles
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          set -uo pipefail
+          expected="${PROMOTED_REVISION}"
+          rc=0
+          flux reconcile source oci deploy -n flux-system --timeout=2m || rc=1
+          for ks in flux-system setup setup-config home internal; do
+            if ! flux reconcile kustomization "$ks" -n flux-system --timeout=3m; then
+              echo "::warning::kustomization/$ks did not reconcile cleanly"
+              rc=1
+            fi
+            applied=$(kubectl -n flux-system get kustomization "$ks" \
+              -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)
+            [[ "$applied" == *"$expected"* ]] \
+              || echo "::warning::kustomization/$ks applied ${applied:-<none>}, expected $expected"
+          done
+          exit $rc

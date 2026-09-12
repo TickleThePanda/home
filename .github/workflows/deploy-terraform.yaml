@@ -1,0 +1,44 @@
+name: Deploy - terraform
+
+# Called by deploy.yaml's `terraform` job, applying
+# terraform/cloudflare-zero-trust/. Doesn't need WARP -- Cloudflare's and
+# GCP's APIs are reached over the public internet, not through the tunnel.
+
+on:
+  workflow_call: {}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: terraform/cloudflare-zero-trust
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ticklethepanda-web
+          workload_identity_provider: projects/388566333789/locations/global/workloadIdentityPools/pool/providers/github
+          service_account: tf-home-manager@ticklethepanda-web.iam.gserviceaccount.com
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.9"
+
+      - name: terraform init
+        run: terraform init -input=false
+
+      - name: terraform apply
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          terraform plan -input=false -out=tfplan
+          terraform apply -input=false -auto-approve tfplan

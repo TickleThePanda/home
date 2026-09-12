@@ -1,0 +1,167 @@
+name: Deploy - infra
+
+# Called by deploy.yaml's `infra` job. Layer order matches ansible/site.yml:
+# proxmox creates the VMs k3s joins; node lands the Pi's storage mounts that
+# k3s-agent requires; a k3s bump changes which Traefik chart tarball is
+# served, so it precedes the cluster manifests. The router runs last --
+# nothing depends on it (it serves no DNS and no DHCP), and it is the one
+# layer that can drop CI's own egress, so a WAN blip there cannot strand a
+# layer that had yet to run.
+
+on:
+  workflow_call:
+    inputs:
+      run-proxmox:
+        type: string
+        default: "false"
+      run-node:
+        type: string
+        default: "false"
+      run-k3s:
+        type: string
+        default: "false"
+      run-router:
+        type: string
+        default: "false"
+
+jobs:
+  infra:
+    runs-on: ubuntu-latest
+    environment: prod
+    # Secrets are set for the whole job rather than per layer. Every layer runs
+    # in this one job against the `prod` environment, so each could reference
+    # any of these secrets directly regardless of where they are exported --
+    # per-step scoping would be the appearance of a boundary, not one.
+    env:
+      PROXMOX_API_TOKEN_ID: ${{ secrets.PROXMOX_API_TOKEN_ID }}
+      PROXMOX_API_TOKEN_SECRET: ${{ secrets.PROXMOX_API_TOKEN_SECRET }}
+      DOCKER_PULL_USERNAME: ${{ secrets.DOCKER_PULL_USERNAME }}
+      DOCKER_PULL_TOKEN: ${{ secrets.DOCKER_PULL_TOKEN }}
+      ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
+      ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
+      ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
+      ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
+      ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
+      ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Connect to Cloudflare Warp
+        uses: Boostport/setup-cloudflare-warp@v1
+        with:
+          organization: ticklethepanda
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
+      # Only the k3s layer's end-state assertion needs kubectl.
+      - name: Setup k8s context
+        if: inputs.run-k3s == 'true'
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      # community.proxmox drives the VM lifecycle through the Proxmox API and
+      # needs proxmoxer on the control node; ansible.utils needs netaddr.
+      - name: Set up Ansible
+        uses: ./.github/actions/ansible-setup
+        with:
+          working-directory: ansible
+          extra-pip: proxmoxer>=2.3.0 requests netaddr
+
+      # One key for every host: the Pi's and the VMs' `deploy` user, and root
+      # on the router and proxmox-01. K3S_VM_SSH_PUBKEY goes through the
+      # environment, not -e: an `-e key=value` string is split on whitespace,
+      # which mangles an SSH key.
+      - name: Install the SSH key
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "K3S_VM_SSH_PUBKEY=$(ssh-keygen -y -f ~/.ssh/deploy_key)" >> "$GITHUB_ENV"
+
+      # CI authenticates with a service token, not a user identity, so a Zero
+      # Trust policy could permit 6443 without permitting a given host's 22.
+      # Check the kube API first to tell "the tunnel is down" apart from "a
+      # policy is gating this host", then probe only the hosts in scope.
+      - name: Check the hosts in scope are reachable
+        env:
+          RUN_PROXMOX: ${{ inputs.run-proxmox }}
+          RUN_NODE: ${{ inputs.run-node }}
+          RUN_K3S: ${{ inputs.run-k3s }}
+          RUN_ROUTER: ${{ inputs.run-router }}
+        run: |
+          set -euo pipefail
+          if ! nc -zv -w 10 192.168.1.32 6443; then
+            echo "::error::Cannot reach the kube API -- the tunnel is down, not a per-host policy. cloudflared runs in-cluster; see ansible/node/RECOVERY.md."
+            exit 1
+          fi
+          targets=""
+          # 8006 is the Proxmox API, used by the VM-lifecycle tasks.
+          if [ "$RUN_PROXMOX" = "true" ]; then targets="$targets 192.168.1.3:22 192.168.1.3:8006"; fi
+          if [ "$RUN_NODE" = "true" ]; then targets="$targets 192.168.1.2:22"; fi
+          if [ "$RUN_K3S" = "true" ]; then targets="$targets 192.168.1.2:22 192.168.1.32:22 192.168.1.33:22 192.168.1.34:22"; fi
+          if [ "$RUN_ROUTER" = "true" ]; then targets="$targets 192.168.1.1:22"; fi
+          for t in $(echo "$targets" | tr ' ' '\n' | sort -u); do
+            [ -n "$t" ] || continue
+            if ! nc -zv -w 10 "${t%:*}" "${t##*:}"; then
+              echo "::error::6443 is reachable but ${t} is not -- add it to the Zero Trust network policy for the CI service token (or, for a VM, it is not provisioned yet)."
+              exit 1
+            fi
+          done
+
+      # One parse covers all four layers. Syntax only, not state -- Apply below
+      # is the first SSH-based run, so a partial failure there can still leave
+      # real changes applied. Acceptable for idempotent hosts.
+      - name: Syntax check
+        working-directory: ansible
+        run: ansible-playbook site.yml --syntax-check
+
+      - name: Proxmox host and k3s VMs
+        if: inputs.run-proxmox == 'true'
+        uses: ./.github/actions/ansible-apply
+        with:
+          playbook: proxmox/proxmox.yml
+
+      - name: Pi node state
+        if: inputs.run-node == 'true'
+        uses: ./.github/actions/ansible-apply
+        with:
+          playbook: node/node.yml
+
+      # The k3s.orchestration roles skip their install/restart tasks under
+      # --check, so a drift gate would be meaningless. Assert the real end
+      # state below instead.
+      - name: K3s on every node
+        if: inputs.run-k3s == 'true'
+        uses: ./.github/actions/ansible-apply
+        with:
+          playbook: k3s/k3s.yml
+          check-idempotence: "false"
+
+      - name: Confirm the cluster is whole
+        if: inputs.run-k3s == 'true'
+        run: |
+          set -euo pipefail
+          nodes=$(kubectl get nodes -o json)
+          ready=$(echo "$nodes" | jq '[.items[] | select(
+            any(.status.conditions[]; .type=="Ready" and .status=="True"))] | length')
+          total=$(echo "$nodes" | jq '.items | length')
+          echo "nodes ready: ${ready}/${total}"
+          kubectl get nodes -o wide
+          if [ "$ready" != "4" ] || [ "$total" != "4" ]; then
+            echo "::error::expected 4 Ready nodes, got ${ready}/${total}"; exit 1
+          fi
+          if ! echo "$nodes" | jq -e '.items[] | select(.metadata.name=="k3s-vm-control-01")
+            | .spec.taints // [] | any(.key=="ticklethepanda.dev/control-plane" and .effect=="NoSchedule")' >/dev/null; then
+            echo "::error::k3s-vm-control-01 is missing the control-plane-only taint"; exit 1
+          fi
+
+      # Last: this is CI's own egress path. See the header.
+      - name: Router
+        if: inputs.run-router == 'true'
+        uses: ./.github/actions/ansible-apply
+        with:
+          playbook: router/router.yml

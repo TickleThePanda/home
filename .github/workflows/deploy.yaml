@@ -3,29 +3,34 @@ name: Deploy
 # Applied in order by sequential jobs:
 #
 #   preflight   the k3s/Traefik pin agrees, and the cluster is reachable
-#   infra       ansible/, every layer -- proxmox, node, k3s, router
-#   cluster     deploy/, applied with kustomize
-#   terraform   terraform/cloudflare-zero-trust/, applied last
+#   infra       deploy-infra.yaml -- ansible/, every layer: proxmox, node, k3s, router
+#   cluster     deploy-cluster.yaml -- deploy/, applied with kustomize
+#   terraform   deploy-terraform.yaml -- terraform/cloudflare-zero-trust/, applied last
 #
-# `infra` is ONE job for all four Ansible layers. They used to be four, which
-# meant paying runner provisioning, a checkout, a Cloudflare WARP connect and
-# an ansible-setup four times over before any work happened -- most of the cost
-# of a no-op deploy. One job pays that once.
+# Each of infra/cluster/terraform is a separate file, called here via
+# `workflow_call` rather than inlined. This file's own paths-filter works at
+# file granularity -- with everything in one file, editing any one job's
+# section matched every other job's filter entry for that file too, so an
+# unrelated tweak (say, to the terraform job) reran proxmox/node/k3s/router
+# as well. Splitting the job bodies out lets each layer's filter point at
+# just its own file.
 #
-# Layer order inside the job matches ansible/site.yml: proxmox creates the VMs
-# k3s joins; node lands the Pi's storage mounts that k3s-agent requires; a k3s
-# bump changes which Traefik chart tarball is served, so it precedes the
-# cluster manifests. The router runs last -- nothing depends on it (it serves
-# no DNS and no DHCP), and it is the one layer that can drop CI's own egress,
-# so a WAN blip there cannot strand layers that had yet to run.
+# `infra` stays ONE job for all four Ansible layers, in its own file. They
+# used to be four separate jobs, which meant paying runner provisioning, a
+# checkout, a Cloudflare WARP connect and an ansible-setup four times over
+# before any work happened -- most of the cost of a no-op deploy. One job
+# pays that once. See deploy-infra.yaml for layer ordering within it.
 #
-# Each layer is skipped when the push changed nothing under its own tree, and
-# every layer runs when anything shared changes (see the `shared` filter) or on
-# a manual workflow_dispatch.
+# Each layer is skipped when the push changed nothing under its own tree
+# (including its own workflow file), and every layer runs when anything
+# shared changes (see the `shared` filter) or on a manual workflow_dispatch.
 #
 # preflight exists because CI's only path to any of this is through the cluster
 # itself (cloudflared runs in-cluster) -- checking reachability first gives a
 # clear signal instead of a confusing failure deep inside Ansible or kubectl.
+# It stays in this file, not its own, since it computes the outputs every
+# other job's `if:` depends on -- a change to it should conservatively rerun
+# everything, same as this file itself.
 #
 # terraform runs last, same reasoning as the router: it owns the "home" tunnel
 # and the private-network routes CI's own WARP connection reaches the LAN
@@ -45,7 +50,7 @@ on:
       - ansible/**
       - terraform/cloudflare-zero-trust/**
       - scripts/check-traefik-pin.sh
-      - .github/workflows/deploy.yaml
+      - .github/workflows/deploy*.yaml
       - .github/actions/**
   workflow_dispatch: {}
 
@@ -77,8 +82,10 @@ jobs:
         uses: actions/checkout@v4
 
       # `shared` is the catch-all: anything not owned by exactly one layer --
-      # the merged inventory, group_vars, the shared roles/ -- has to apply
-      # everywhere, or a change to it would silently apply nowhere.
+      # the merged inventory, group_vars, the shared roles/, this file itself
+      # -- has to apply everywhere, or a change to it would silently apply
+      # nowhere. Each other layer's own workflow file lives in that layer's
+      # own filter instead, so it doesn't drag the rest along.
       - name: Detect which layers changed
         uses: dorny/paths-filter@v4
         id: changes
@@ -105,13 +112,14 @@ jobs:
               - 'ansible/router/**'
             infra:
               - 'ansible/**'
+              - '.github/workflows/deploy-infra.yaml'
             cluster:
               - 'deploy/**'
               - 'flux-system/**'
-              - '.github/workflows/deploy.yaml'
+              - '.github/workflows/deploy-cluster.yaml'
             terraform:
               - 'terraform/cloudflare-zero-trust/**'
-              - '.github/workflows/deploy.yaml'
+              - '.github/workflows/deploy-terraform.yaml'
 
       - name: Check the Traefik chart pin
         run: ./scripts/check-traefik-pin.sh --online
@@ -156,145 +164,13 @@ jobs:
   infra:
     needs: preflight
     if: needs.preflight.outputs.infra == 'true'
-    runs-on: ubuntu-latest
-    environment: prod
-    # Secrets are set for the whole job rather than per layer. Every layer runs
-    # in this one job against the `prod` environment, so each could reference
-    # any of these secrets directly regardless of where they are exported --
-    # per-step scoping would be the appearance of a boundary, not one.
-    env:
-      PROXMOX_API_TOKEN_ID: ${{ secrets.PROXMOX_API_TOKEN_ID }}
-      PROXMOX_API_TOKEN_SECRET: ${{ secrets.PROXMOX_API_TOKEN_SECRET }}
-      DOCKER_PULL_USERNAME: ${{ secrets.DOCKER_PULL_USERNAME }}
-      DOCKER_PULL_TOKEN: ${{ secrets.DOCKER_PULL_TOKEN }}
-      ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
-      ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
-      ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
-      ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
-      ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
-      ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Connect to Cloudflare Warp
-        uses: Boostport/setup-cloudflare-warp@v1
-        with:
-          organization: ticklethepanda
-          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
-          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
-
-      # Only the k3s layer's end-state assertion needs kubectl.
-      - name: Setup k8s context
-        if: needs.preflight.outputs.k3s == 'true'
-        uses: azure/k8s-set-context@v1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG }}
-
-      # community.proxmox drives the VM lifecycle through the Proxmox API and
-      # needs proxmoxer on the control node; ansible.utils needs netaddr.
-      - name: Set up Ansible
-        uses: ./.github/actions/ansible-setup
-        with:
-          working-directory: ansible
-          extra-pip: proxmoxer>=2.3.0 requests netaddr
-
-      # One key for every host: the Pi's and the VMs' `deploy` user, and root
-      # on the router and proxmox-01. K3S_VM_SSH_PUBKEY goes through the
-      # environment, not -e: an `-e key=value` string is split on whitespace,
-      # which mangles an SSH key.
-      - name: Install the SSH key
-        run: |
-          set -euo pipefail
-          install -d -m 700 ~/.ssh
-          install -m 600 /dev/null ~/.ssh/deploy_key
-          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/deploy_key
-          echo "K3S_VM_SSH_PUBKEY=$(ssh-keygen -y -f ~/.ssh/deploy_key)" >> "$GITHUB_ENV"
-
-      # CI authenticates with a service token, not a user identity, so a Zero
-      # Trust policy could permit 6443 without permitting a given host's 22.
-      # Check the kube API first to tell "the tunnel is down" apart from "a
-      # policy is gating this host", then probe only the hosts in scope.
-      - name: Check the hosts in scope are reachable
-        env:
-          RUN_PROXMOX: ${{ needs.preflight.outputs.proxmox }}
-          RUN_NODE: ${{ needs.preflight.outputs.node }}
-          RUN_K3S: ${{ needs.preflight.outputs.k3s }}
-          RUN_ROUTER: ${{ needs.preflight.outputs.router }}
-        run: |
-          set -euo pipefail
-          if ! nc -zv -w 10 192.168.1.32 6443; then
-            echo "::error::Cannot reach the kube API -- the tunnel is down, not a per-host policy. cloudflared runs in-cluster; see ansible/node/RECOVERY.md."
-            exit 1
-          fi
-          targets=""
-          # 8006 is the Proxmox API, used by the VM-lifecycle tasks.
-          if [ "$RUN_PROXMOX" = "true" ]; then targets="$targets 192.168.1.3:22 192.168.1.3:8006"; fi
-          if [ "$RUN_NODE" = "true" ]; then targets="$targets 192.168.1.2:22"; fi
-          if [ "$RUN_K3S" = "true" ]; then targets="$targets 192.168.1.2:22 192.168.1.32:22 192.168.1.33:22 192.168.1.34:22"; fi
-          if [ "$RUN_ROUTER" = "true" ]; then targets="$targets 192.168.1.1:22"; fi
-          for t in $(echo "$targets" | tr ' ' '\n' | sort -u); do
-            [ -n "$t" ] || continue
-            if ! nc -zv -w 10 "${t%:*}" "${t##*:}"; then
-              echo "::error::6443 is reachable but ${t} is not -- add it to the Zero Trust network policy for the CI service token (or, for a VM, it is not provisioned yet)."
-              exit 1
-            fi
-          done
-
-      # One parse covers all four layers. Syntax only, not state -- Apply below
-      # is the first SSH-based run, so a partial failure there can still leave
-      # real changes applied. Acceptable for idempotent hosts.
-      - name: Syntax check
-        working-directory: ansible
-        run: ansible-playbook site.yml --syntax-check
-
-      - name: Proxmox host and k3s VMs
-        if: needs.preflight.outputs.proxmox == 'true'
-        uses: ./.github/actions/ansible-apply
-        with:
-          playbook: proxmox/proxmox.yml
-
-      - name: Pi node state
-        if: needs.preflight.outputs.node == 'true'
-        uses: ./.github/actions/ansible-apply
-        with:
-          playbook: node/node.yml
-
-      # The k3s.orchestration roles skip their install/restart tasks under
-      # --check, so a drift gate would be meaningless. Assert the real end
-      # state below instead.
-      - name: K3s on every node
-        if: needs.preflight.outputs.k3s == 'true'
-        uses: ./.github/actions/ansible-apply
-        with:
-          playbook: k3s/k3s.yml
-          check-idempotence: "false"
-
-      - name: Confirm the cluster is whole
-        if: needs.preflight.outputs.k3s == 'true'
-        run: |
-          set -euo pipefail
-          nodes=$(kubectl get nodes -o json)
-          ready=$(echo "$nodes" | jq '[.items[] | select(
-            any(.status.conditions[]; .type=="Ready" and .status=="True"))] | length')
-          total=$(echo "$nodes" | jq '.items | length')
-          echo "nodes ready: ${ready}/${total}"
-          kubectl get nodes -o wide
-          if [ "$ready" != "4" ] || [ "$total" != "4" ]; then
-            echo "::error::expected 4 Ready nodes, got ${ready}/${total}"; exit 1
-          fi
-          if ! echo "$nodes" | jq -e '.items[] | select(.metadata.name=="k3s-vm-control-01")
-            | .spec.taints // [] | any(.key=="ticklethepanda.dev/control-plane" and .effect=="NoSchedule")' >/dev/null; then
-            echo "::error::k3s-vm-control-01 is missing the control-plane-only taint"; exit 1
-          fi
-
-      # Last: this is CI's own egress path. See the header.
-      - name: Router
-        if: needs.preflight.outputs.router == 'true'
-        uses: ./.github/actions/ansible-apply
-        with:
-          playbook: router/router.yml
+    uses: ./.github/workflows/deploy-infra.yaml
+    with:
+      run-proxmox: ${{ needs.preflight.outputs.proxmox }}
+      run-node: ${{ needs.preflight.outputs.node }}
+      run-k3s: ${{ needs.preflight.outputs.k3s }}
+      run-router: ${{ needs.preflight.outputs.router }}
+    secrets: inherit
 
   cluster:
     needs: [preflight, infra]
@@ -308,132 +184,8 @@ jobs:
       needs.preflight.result == 'success' &&
       (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
       needs.preflight.outputs.cluster == 'true'
-    runs-on: ubuntu-latest
-    environment: prod
-    steps:
-      - name: Connect to Cloudflare Warp
-        uses: Boostport/setup-cloudflare-warp@v1
-        with:
-          organization: ticklethepanda
-          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
-          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup k8s context
-        uses: azure/k8s-set-context@v1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG }}
-
-      - name: Install the flux CLI
-        uses: fluxcd/flux2/action@main
-
-      # No --prune -- flux-system/ isn't part of the managed-by=kustomize
-      # tree below, so Flux's own objects are never pruned by it.
-      #
-      # Two applies with a CRD-Established wait between them: a single
-      # `kubectl apply -k flux-system` hits the same missing-kind race
-      # CLAUDE.md documents for other vendored operators (kubectl's retry
-      # gives up before ~18 new CRDs finish becoming Established). Once
-      # Flux is running, its own reconciliation of ./flux-system handles
-      # this ordering fine -- only the one-time bootstrap needs the split.
-      - name: Apply flux-system
-        run: |
-          kubectl apply -k flux-system/install
-          kubectl wait --for=condition=Established --timeout=60s \
-            crd/gitrepositories.source.toolkit.fluxcd.io \
-            crd/ocirepositories.source.toolkit.fluxcd.io \
-            crd/kustomizations.kustomize.toolkit.fluxcd.io
-          kubectl apply -k flux-system/sync
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      # Lets flux-system/sync/oci-repository.yaml's OCIRepository pull the
-      # promoted deploy/ artifact from a private Docker Hub repo. Reuses
-      # the credentials already in this job rather than a new secret.
-      - name: Provision the OCIRepository pull secret
-        run: |
-          set -euo pipefail
-          kubectl create secret docker-registry dockerhub-deploy-pull \
-            --docker-username="${{ secrets.DOCKER_USERNAME }}" \
-            --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
-            --namespace flux-system \
-            --dry-run=client --validate=false -o yaml | kubectl apply -f -
-
-      # Push as one sha-tagged OCI artifact, then move the moving `deploy`
-      # tag to point at it -- the promotion boundary flux-system/sync/
-      # oci-repository.yaml's OCIRepository follows for both deploy/ and
-      # flux-system/. Neither tree is watched straight off `main`, so Flux
-      # only ever reconciles revisions this job has vetted.
-      - name: Push and promote the OCI artifact
-        run: |
-          set -euo pipefail
-          sha="${GITHUB_SHA::12}"
-          flux push artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
-            --path="." \
-            --source="$(git config --get remote.origin.url)" \
-            --revision="main@sha1:${GITHUB_SHA}"
-          flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
-            --tag deploy
-
-      # Trigger reconciliation immediately rather than waiting for the
-      # OCIRepository's own polling interval. Only the source needs an
-      # explicit trigger: kustomize-controller watches its sourceRef and
-      # auto-reconciles on every artifact revision change, so
-      # setup/home/internal pick this up on their own. The wait step below
-      # does the actual waiting, with its own independent budget.
-      - name: Trigger Flux reconciliation
-        run: flux reconcile source oci deploy -n flux-system
-
-      # lastAppliedRevision mirrors the OCIRepository's own
-      # artifact.revision (deploy@sha256:<digest>) -- not the --revision
-      # string passed to `flux push artifact` above, which is metadata
-      # inside the artifact, not what source-controller reports. Read it
-      # straight from the source rather than constructing a sha1-based
-      # string that could never match.
-      - name: Read the promoted revision
-        run: |
-          revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
-          echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
-
-      # Fast feedback on an obviously-broken revision (bad manifest, a
-      # dangling reference) -- not an authoritative gate. The artifact is
-      # already promoted and Flux keeps reconciling on its own 10m interval
-      # regardless. A failure here, or one that only surfaces after this
-      # step's short budget, lands as a red commit status via the Flux
-      # GitHub Alert (flux-system/sync/notifications.yaml).
-      #
-      # continue-on-error plus the tight timeout-minutes keep a cancel or a
-      # stuck run down to seconds -- the old poll loop could hold the
-      # `cluster` concurrency lock for ~50 minutes and swallowed SIGTERM.
-      # `flux reconcile` is a single interruptible process; the loop does
-      # not abort on one bad Kustomization so every commit status still
-      # gets posted.
-      - name: Confirm the promoted revision reconciles
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          set -uo pipefail
-          expected="${PROMOTED_REVISION}"
-          rc=0
-          flux reconcile source oci deploy -n flux-system --timeout=2m || rc=1
-          for ks in flux-system setup setup-config home internal; do
-            if ! flux reconcile kustomization "$ks" -n flux-system --timeout=3m; then
-              echo "::warning::kustomization/$ks did not reconcile cleanly"
-              rc=1
-            fi
-            applied=$(kubectl -n flux-system get kustomization "$ks" \
-              -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)
-            [[ "$applied" == *"$expected"* ]] \
-              || echo "::warning::kustomization/$ks applied ${applied:-<none>}, expected $expected"
-          done
-          exit $rc
+    uses: ./.github/workflows/deploy-cluster.yaml
+    secrets: inherit
 
   terraform:
     needs: [preflight, infra, cluster]
@@ -445,36 +197,8 @@ jobs:
       (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
       (needs.cluster.result == 'success' || needs.cluster.result == 'skipped') &&
       needs.preflight.outputs.terraform == 'true'
-    runs-on: ubuntu-latest
-    environment: prod
     permissions:
       contents: read
       id-token: write
-    defaults:
-      run:
-        working-directory: terraform/cloudflare-zero-trust
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          project_id: ticklethepanda-web
-          workload_identity_provider: projects/388566333789/locations/global/workloadIdentityPools/pool/providers/github
-          service_account: tf-home-manager@ticklethepanda-web.iam.gserviceaccount.com
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.15.9"
-
-      - name: terraform init
-        run: terraform init -input=false
-
-      - name: terraform apply
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          terraform plan -input=false -out=tfplan
-          terraform apply -input=false -auto-approve tfplan
+    uses: ./.github/workflows/deploy-terraform.yaml
+    secrets: inherit
