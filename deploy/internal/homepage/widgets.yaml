@@ -15,8 +15,8 @@
     label: Proxmox
     url: http://192.168.1.3:61208
     version: 4
-    cpu: false
-    mem: false
+    cpu: true
+    mem: true
     cputemp: true
     # Glances' built-in prefix matching (cpu_thermal, Core, Tctl,
     # Temperature) doesn't cover coretemp's package sensor.
@@ -26,8 +26,8 @@
     label: k8s-manager-1
     url: http://192.168.1.2:61208
     version: 3
-    cpu: false
-    mem: false
+    cpu: true
+    mem: true
     cputemp: true
     # The Pi's thermal zone is "cpu-thermal" (hyphen), not the built-in
     # "cpu_thermal" (underscore) prefix match.
