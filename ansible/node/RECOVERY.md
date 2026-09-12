@@ -18,20 +18,28 @@ is down, or both workers are, **GitHub Actions cannot reach the node at all**
 was a second connector as a node-level systemd service). The cost of that
 choice is this document.
 
-Everything below assumes you are **on the LAN**, not going through WARP.
+A human isn't stuck the same way CI is: the router runs its own Tailscale
+subnet router + exit node (`ansible/router/tasks/tailscale.yml`), advertising
+`192.168.1.0/24` independently of the cluster. Join the tailnet and the node
+is reachable without being physically on the LAN — the router itself, not a
+cluster workload, is what has to be up.
 
-## First: get on the LAN
+Everything below assumes you are **on the LAN or the tailnet**, not going
+through WARP.
+
+## First: get off WARP
 
 ```sh
 warp-cli --accept-tos disconnect
-ip route get 192.168.1.2    # must say `dev wlan0`/`dev eth0`, NOT CloudflareWARP
+ip route get 192.168.1.2    # must say `dev wlan0`/`dev eth0`/`dev tailscale0`, NOT CloudflareWARP
 ssh panda@192.168.1.2
 ```
 
 Check the route rather than trusting that WARP is off. It captures the node's
-address even from a laptop already on `192.168.1.0/24`, so a session that looks
-local can be running through the `cloudflared` pod — the very thing you are
-about to restart. It will drop at the worst possible moment.
+address even from a laptop already on `192.168.1.0/24` (or on the tailnet), so
+a session that looks fine can be running through the `cloudflared` pod — the
+very thing you are about to restart. It will drop at the worst possible
+moment.
 
 `panda` has password-sudo via the `sudo` group, and a scoped NOPASSWD set in
 `/etc/sudoers.d/panda-k3s-admin` for the common k3s operations.
@@ -102,13 +110,13 @@ restore those apps from their own backups.
 
 ## Run the playbook by hand
 
-Everything CI does can be done from the laptop on the LAN:
+Everything CI does can be done from the laptop on the LAN or the tailnet:
 
 ```sh
-cd node
-ansible-galaxy collection install -r requirements.yml            # once per machine
-ansible-playbook site.yml --check --diff -e node_user=panda -K   # dry run
-ansible-playbook site.yml --diff -e node_user=panda -K           # apply
+cd ansible
+ansible-galaxy collection install -r requirements.yml                     # once per machine
+ansible-playbook node/node.yml --check --diff -e node_user=panda -K       # dry run
+ansible-playbook node/node.yml --diff -e node_user=panda -K               # apply
 ```
 
 The collections are not optional — ansible-core ships none, and the storage
@@ -120,9 +128,14 @@ the inventory sets `ansible_user`, and an inventory var beats the `-u` flag,
 so `-u panda` is silently ignored. `-K` prompts for panda's sudo password.
 
 For anything k3s-level (version, `config.yaml`, a stuck agent), the playbook
-is `ansible/k3s/` instead — it manages every node as one cluster. It needs the
-`deploy` key (the VMs have no `panda` user); to touch just the Pi,
-`--limit k8s-manager-1 -e node_user=panda`.
+is `ansible/k3s/k3s.yml` instead — it manages every node as one cluster. It
+needs the `deploy` key (the VMs have no `panda` user).
+
+Don't scope this one with `--limit k8s-manager-1` to "just touch the Pi" — the
+agent role reads a token fact that only the server play sets, and filtering
+the server host out of the run leaves it undefined (`'token' is undefined`,
+confirmed live). Run the whole playbook; it's idempotent, and every run
+restarts k3s everywhere anyway (see the k3s layer pattern in `CLAUDE.md`).
 
 ## Every internal service looks down, but the cluster is fine
 

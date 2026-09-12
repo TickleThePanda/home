@@ -307,7 +307,12 @@ When comments are necessary:
   k3s server restart (containerd keeps them up), so cloudflared normally
   stays Ready throughout.
 - The corollary: **when the server or both worker VMs are down, CI cannot
-  reach the LAN at all.** Recovery is LAN-local — see `ansible/node/RECOVERY.md` and
+  reach the LAN at all** — its only path is the in-cluster `cloudflared`
+  Deployment. A human isn't stuck the same way: the router runs its own
+  Tailscale subnet router + exit node (`ansible/router/tasks/tailscale.yml`,
+  independent of the cluster), advertising `192.168.1.0/24` and the other
+  VLANs — connect to the tailnet and the LAN is reachable without being
+  physically present. See `ansible/node/RECOVERY.md` and
   `ansible/k3s/RECOVERY.md`.
 
 ## K3s layer pattern
@@ -330,14 +335,14 @@ When comments are necessary:
   `scripts/check-traefik-pin.sh` (still invoked from `preflight`,
   repointed at the new path) enforces the pair; `--online` checks it against
   the k3s release manifest. One minor version at a time.
-- `site.yml` **composes** the collection's `prereq` / `k3s_server` /
+- `k3s.yml` **composes** the collection's `prereq` / `k3s_server` /
   `k3s_agent` roles rather than running `k3s.orchestration.site`, whose
   hardcoded `raspberrypi` role would edit the Pi's `/boot` cmdline and
   trigger a full **reboot** (kills the cloudflared pod — worse than a k3s
   restart, where pods survive).
 - **The collection restarts k3s with a plain synchronous
-  `service: state=restarted`**, not `ansible/node/`'s old detached `systemd-run`. A
-  server restart keeps pods up so the tunnel only blips;
+  `service: state=restarted`**, not `ansible/node/`'s detached
+  `systemd-run`. A server restart keeps pods up so the tunnel only blips;
   `ansible/ansible.cfg`'s SSH keepalives cover it. Do first runs by hand
   from the LAN. Every run restarts k3s (the collection always does) — that is
   by design, not drift. `ansible.cfg` sets `forks = 4` so the agent play hits
@@ -359,7 +364,7 @@ When comments are necessary:
   name and label. `host_vars/k8s-manager-1.yml` sets the label and the
   storage-anchor taint at registration (the label gates PV binding, so it
   can't wait for `node-labels.yml`).
-- **`site.yml` writes `/etc/rancher/k3s/registries.yaml` on every node** to
+- **`k3s.yml` writes `/etc/rancher/k3s/registries.yaml` on every node** to
   authenticate docker.io pulls against a read-only Docker Hub PAT
   (`DOCKER_PULL_USERNAME` / `DOCKER_PULL_TOKEN` — `prod` env secrets in CI,
   a gitignored root `.env` for a hand run), lifting the cluster's pulls off

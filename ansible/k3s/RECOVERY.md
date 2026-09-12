@@ -5,8 +5,10 @@ server, running embedded etcd with a **single member**. There is no peer to
 fail over to, so recovery means restoring an etcd snapshot.
 
 CI reaches the LAN through the in-cluster `cloudflared` Deployment (see
-`ansible/node/RECOVERY.md`). When the API is down CI cannot reach anything — work from
-the LAN with WARP disconnected, using the `deploy` key:
+`ansible/node/RECOVERY.md`). When the API is down CI cannot reach anything —
+work from the LAN, or from the tailnet via the router's Tailscale subnet route
+(independent of the cluster — see `ansible/node/RECOVERY.md`), with WARP
+disconnected, using the `deploy` key:
 
 ```sh
 warp-cli disconnect ; ip route get 192.168.1.32   # must NOT be CloudflareWARP
@@ -34,7 +36,7 @@ sudo journalctl -u k3s -n 200 --no-pager
 
 - **Bad `config.yaml`.** Written by `ansible/k3s/`'s `k3s_server` role. Move it
   aside to confirm, then fix the value in `group_vars/k3s_cluster.yml` /
-  `vars/versions.yml` and re-run `site.yml` — not on the node.
+  `vars/versions.yml` and re-run `k3s.yml` — not on the node.
   `cluster-init: true` must stay set; removing it makes k3s fall back to
   SQLite and ignore the etcd data.
 - **etcd will not come up.** Restore the newest snapshot:
@@ -62,7 +64,7 @@ datastore; they reconnect.
 
 A single etcd member has no fault tolerance: the VM being down is the API
 being down. The tradeoff buys a simpler cluster (no etcd quorum to manage on
-every `site.yml` run) for a home setup where the recovery path is a snapshot
+every `k3s.yml` run) for a home setup where the recovery path is a snapshot
 restore, not a failover. Adding a second server later needs an **odd** total
 (3) and `--forks=1` runs — see the `k3s.orchestration` collection README.
 
@@ -70,5 +72,5 @@ restore, not a failover. Adding a second server later needs an **odd** total
 
 `cloudflared` (2 replicas) runs on the two worker VMs — it is tainted off
 `k3s-vm-control-01` and Prefer-off the Pi. If **both** workers are down, CI
-cannot reach the LAN even if the control-plane is healthy; recovery is
-LAN-local, as `ansible/node/RECOVERY.md` describes.
+cannot reach the LAN even if the control-plane is healthy. A human still can,
+via the router's Tailscale subnet route — see `ansible/node/RECOVERY.md`.

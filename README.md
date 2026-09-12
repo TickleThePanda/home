@@ -30,7 +30,9 @@ Pi-level configuration for `k8s-manager-1` *below* k3s.
 See [`ansible/node/RECOVERY.md`](ansible/node/RECOVERY.md) and
 [`ansible/k3s/RECOVERY.md`](ansible/k3s/RECOVERY.md) before touching a broken
 cluster — CI reaches the nodes *through* a pod running inside that cluster, so
-when the control-plane is down the recovery path is LAN-local, not CI.
+when the control-plane is down, CI can't reach it either. A human can, via
+the router's Tailscale subnet route (independent of the cluster) instead of
+being physically on the LAN.
 [`ansible/node/STORAGE.md`](ansible/node/STORAGE.md) covers the SSD: its partitions, the LVM
 volume group behind both the node's own state and every PersistentVolume, and
 how to rebuild it.
