@@ -26,8 +26,10 @@
     label: k8s-manager-1
     url: http://192.168.1.2:61208
     version: 3
-    cpu: true
-    mem: true
+    # Unlike Proxmox, this host IS a k3s node -- its cpu/mem already show in
+    # the kubernetes widget's node list above. Only cputemp is unique here.
+    cpu: false
+    mem: false
     cputemp: true
     # The Pi's thermal zone is "cpu-thermal" (hyphen), not the built-in
     # "cpu_thermal" (underscore) prefix match.

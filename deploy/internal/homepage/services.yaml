@@ -7,9 +7,83 @@
         href: https://proxmox.internal.ticklethepanda.co.uk:8006/
         description: proxmox-01 hypervisor
         icon: proxmox
+        widget:
+          type: customapi
+          url: http://192.168.1.3:61208/api/4/load
+          mappings:
+            - field: min1
+              label: 1m
+              format: float
+            - field: min5
+              label: 5m
+              format: float
+            - field: min15
+              label: 15m
+              format: float
     - k8s-manager-1:
         description: Raspberry Pi, k3s agent + storage anchor
         icon: raspberry-pi
+        widget:
+          type: customapi
+          url: http://192.168.1.2:61208/api/3/load
+          mappings:
+            - field: min1
+              label: 1m
+              format: float
+            - field: min5
+              label: 5m
+              format: float
+            - field: min15
+              label: 15m
+              format: float
+    - k3s-vm-control-01:
+        description: k3s server (control-plane), Proxmox guest
+        icon: mdi-server
+        widget:
+          type: customapi
+          url: http://192.168.1.32:61208/api/4/load
+          mappings:
+            - field: min1
+              label: 1m
+              format: float
+            - field: min5
+              label: 5m
+              format: float
+            - field: min15
+              label: 15m
+              format: float
+    - k3s-vm-worker-01:
+        description: k3s agent, Proxmox guest
+        icon: mdi-server
+        widget:
+          type: customapi
+          url: http://192.168.1.33:61208/api/4/load
+          mappings:
+            - field: min1
+              label: 1m
+              format: float
+            - field: min5
+              label: 5m
+              format: float
+            - field: min15
+              label: 15m
+              format: float
+    - k3s-vm-worker-02:
+        description: k3s agent, Proxmox guest
+        icon: mdi-server
+        widget:
+          type: customapi
+          url: http://192.168.1.34:61208/api/4/load
+          mappings:
+            - field: min1
+              label: 1m
+              format: float
+            - field: min5
+              label: 5m
+              format: float
+            - field: min15
+              label: 15m
+              format: float
     - Router:
         href: http://192.168.1.1/
         description: OpenWrt gateway

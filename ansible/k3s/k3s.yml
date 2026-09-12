@@ -104,3 +104,22 @@
   tasks:
     - name: Node labels and the control-VM cordon
       ansible.builtin.import_tasks: tasks/node-labels.yml
+
+# The Pi's own glances is node.yml's job (ansible/group_vars/pi.yml); this
+# covers the three VMs, which have no other layer of their own. Unrelated to
+# k3s itself, so it runs last -- nothing here should compete for attention
+# with the plays above if something in them needs fixing.
+- name: Glances on the k3s VMs
+  hosts: k3s_cluster:!pi
+  gather_facts: false
+  become: true
+  vars:
+    # Debian 13 like proxmox-01 -- same Glances 4 / FastAPI-uvicorn web server.
+    glances_web_package: python3-uvicorn
+    # Each VM's own address -- unlike group_vars/pi.yml or
+    # group_vars/proxmox.yml there are three of these, so compute it from the
+    # `network` facts the first play in this file already gathered.
+    glances_bind_address: "{{ ansible_default_ipv4.address }}"
+  roles:
+    - role: glances
+  tags: [glances]
