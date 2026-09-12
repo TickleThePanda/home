@@ -15,8 +15,8 @@ Gateway) for this account -- not the DNS zones. State lives in
 
 ## Applying
 
-CI applies this as the `terraform` job in `.github/workflows/deploy.yaml`,
-last after `preflight`/`infra`/`cluster` -- this directory controls the
+CI applies this as the `terraform` job in `.github/workflows/deploy-terraform.yaml`
+(called from `deploy.yaml`), last after `preflight`/`infra`/`cluster` -- this directory controls the
 tunnel CI's own WARP connection depends on, so it runs where a blip can't
 strand a layer that hasn't run yet. Authenticated to the GCS backend via
 Workload Identity Federation and to Cloudflare via a `CLOUDFLARE_API_TOKEN`

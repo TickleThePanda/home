@@ -21,7 +21,7 @@ declarative and applied by CI — there is nothing to install by hand:
   not applied by CI.
 
 All four Ansible layers are applied by the single `infra` job in
-`.github/workflows/deploy.yaml`, in the order `ansible/site.yml` documents.
+`.github/workflows/deploy-infra.yaml`, in the order `ansible/site.yml` documents.
 
 ### `ansible/node`
 

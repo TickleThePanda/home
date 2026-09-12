@@ -4,7 +4,7 @@ Config for `proxmox-01` (`192.168.1.3`), the home hypervisor — Proxmox VE 9
 on Debian 13 — and the k3s VMs on it. The source of truth from here on;
 anything not covered is unmanaged.
 
-Applied by the `proxmox` job in `.github/workflows/deploy.yaml` on every push
+Applied by the `proxmox` job in `.github/workflows/deploy-infra.yaml` on every push
 touching `ansible/proxmox/**`. Two access paths in the one play:
 
 - **SSH as `root`** (through the same cloudflared tunnel as `node`/`router`,

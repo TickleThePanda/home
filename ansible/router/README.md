@@ -1,10 +1,10 @@
 # ansible/router
 
 The `community.openwrt` playbook that holds the gateway's ongoing config. It
-reproduces the steady state of [`../bootstrap/`](../bootstrap/) and is the source
-of truth from there on.
+reproduces the steady state of [`../../bootstrap/router/`](../../bootstrap/router/)
+and is the source of truth from there on.
 
-Applied by the `router` job in `.github/workflows/deploy.yaml` on every push
+Applied by the `router` job in `.github/workflows/deploy-infra.yaml` on every push
 touching `ansible/router/**`, over SSH as `root` through the same cloudflared
 tunnel the `node` job uses.
 
@@ -22,10 +22,10 @@ tunnel the `node` job uses.
 | Avahi mDNS reflector (homelab ↔ trusted ↔ every IoT VLAN) | `tasks/mdns-reflector.yml` |
 | forwarding sysctls, `tailscaled` enabled, advertised subnet routes | `tasks/tailscale.yml` |
 
-Not managed: the **root password** (`../bootstrap/` sets it once from the
-GL.iNet backup hash) and the **Tailscale login** (persists in
-`/etc/tailscale/tailscaled.state`; `../bootstrap/`'s hotplug script logs in on
-first WAN up). The advertised routes (`router_tailscale_routes`) *are* enforced
+Not managed: the **root password** (`../../bootstrap/router/` sets it once from
+the GL.iNet backup hash) and the **Tailscale login** (persists in
+`/etc/tailscale/tailscaled.state`; `../../bootstrap/router/`'s hotplug script
+logs in on first WAN up). The advertised routes (`router_tailscale_routes`) *are* enforced
 by `tasks/tailscale.yml`.
 
 ## Secrets

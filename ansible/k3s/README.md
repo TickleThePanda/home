@@ -11,7 +11,7 @@ collection (`k3s-io/k3s-ansible`, pinned in `requirements.yml`). Everything
 fan, sudoers -- stays in `ansible/node/`. Everything *inside* the cluster stays in
 `deploy/`.
 
-Applied by the `infra` job in `.github/workflows/deploy.yaml`, over SSH
+Applied by the `infra` job in `.github/workflows/deploy-infra.yaml`, over SSH
 as `deploy` through the same cloudflared tunnel as `node` / `router` /
 `proxmox`.
 

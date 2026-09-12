@@ -168,30 +168,51 @@ When comments are necessary:
 
 ## Deploy pattern
 
-- `.github/workflows/deploy.yaml` is the single pipeline, running three
-  sequential jobs on push to `deploy/**`, `flux-system/**` or `ansible/**`:
-  `preflight` (the k3s/Traefik pin guard + tunnel reachability — fails fast),
-  then `infra` (every Ansible layer), then `cluster` (kustomize/Flux).
-- **`infra` is one job for all four Ansible layers.** It applies them in the
-  order `ansible/site.yml` documents: `proxmox` (creates the VMs), `node` (the
-  Pi's storage mounts, which a `RequiresMountsFor` drop-in makes `k3s-agent`
-  depend on), `k3s`, then `router` last. A k3s upgrade changes which Traefik
-  chart tarball is served, so `k3s` lands before the `cluster` manifests that
-  reference it. The router goes last because nothing depends on it and it is
-  the only layer that can drop CI's own egress — a WAN blip there cannot
-  strand layers that had yet to run.
-- One job rather than four is deliberate: runner provisioning, checkout, the
-  Cloudflare WARP connect and `ansible-setup` are most of the cost of a no-op
-  deploy, and they are now paid once. **Do not split the layers back into
-  separate jobs** to get per-layer isolation — they are sequential
-  `ansible-playbook` invocations under `set -euo pipefail`, which already
-  blocks later layers on a failure.
-- Each layer is skipped when the push changed nothing under `ansible/<layer>/`.
-  Anything shared — `ansible/inventory.yml`, `group_vars/`, `host_vars/`,
-  `roles/`, `ansible.cfg`, `site.yml`, `requirements.yml`, the workflow, the
-  composite actions — matches the `shared` paths-filter and runs **every**
-  layer. That catch-all is load-bearing: without it a change to a shared role
-  would apply to no host at all. A `workflow_dispatch` runs everything.
+- `.github/workflows/deploy.yaml` is the pipeline's entry point: trigger,
+  paths-filter, and the `preflight` job (the k3s/Traefik pin guard + tunnel
+  reachability — fails fast) live there. The other three jobs —
+  `infra` (every Ansible layer), `cluster` (kustomize/Flux), `terraform`
+  (`terraform/cloudflare-zero-trust/`, last) — are each a separate file
+  (`deploy-infra.yaml`, `deploy-cluster.yaml`, `deploy-terraform.yaml`) called
+  from `deploy.yaml` via `workflow_call`. **This split is deliberate:**
+  `dorny/paths-filter` works at file granularity, so with every job in one
+  file, editing any one job's section matched every other job's filter entry
+  for that file too — editing the terraform job, for instance, reran
+  proxmox/node/k3s/router as well. Each layer's filter now points at just its
+  own file; `preflight` stays in `deploy.yaml` itself since it computes every
+  other job's gating outputs, so a change to it should still conservatively
+  rerun everything, same as this file.
+- **`infra` is one job for all four Ansible layers, in its own file.** It
+  applies them in the order `ansible/site.yml` documents: `proxmox` (creates
+  the VMs), `node` (the Pi's storage mounts, which a `RequiresMountsFor`
+  drop-in makes `k3s-agent` depend on), `k3s`, then `router` last. A k3s
+  upgrade changes which Traefik chart tarball is served, so `k3s` lands
+  before the `cluster` manifests that reference it. The router goes last
+  because nothing depends on it and it is the only Ansible layer that can
+  drop CI's own egress — a WAN blip there cannot strand layers that had yet
+  to run.
+- One job rather than four for the Ansible layers is deliberate: runner
+  provisioning, checkout, the Cloudflare WARP connect and `ansible-setup` are
+  most of the cost of a no-op deploy, and they are now paid once. **Do not
+  split the four Ansible layers back into separate jobs** to get per-layer
+  isolation — they are sequential `ansible-playbook` invocations under
+  `set -euo pipefail`, which already blocks later layers on a failure. (This
+  is unrelated to the top-level infra/cluster/terraform file split above —
+  that split is between jobs that already ran in separate files' worth of
+  concerns; the four Ansible layers stay fused into one.)
+- **`terraform` runs last, same reasoning as `router`:** it owns the "home"
+  Cloudflare tunnel and the private-network routes CI's own WARP connection
+  reaches the LAN through, so it is the one job that can drop CI's own
+  egress. It doesn't need WARP itself (Cloudflare's and GCP's APIs are
+  reached over the public internet), but it still waits on
+  preflight/infra/cluster succeeding-or-skipping before touching that config.
+- Each layer is skipped when the push changed nothing under its own tree
+  (including its own workflow file). Anything shared — `ansible/inventory.yml`,
+  `group_vars/`, `host_vars/`, `roles/`, `ansible.cfg`, `site.yml`,
+  `requirements.yml`, `deploy.yaml` itself, the composite actions — matches
+  the `shared` paths-filter and runs **every** Ansible layer. That catch-all
+  is load-bearing: without it a change to a shared role would apply to no
+  host at all. A `workflow_dispatch` runs everything.
 - `.github/actions/ansible-setup` installs a pinned `ansible-core`
   (`.github/actions/ansible-setup/requirements.txt`, bumped in its own commit
   like the collections) plus the Galaxy collections, with pip / collection /
@@ -287,9 +308,9 @@ When comments are necessary:
 - `ansible/node/` is the layer *below* k3s on the Pi: the LVM volumes and
   mounts backing the PVs, the sudoers entries, the DNS resolver, swap, the
   Argon fan. **k3s itself — version, `/etc/rancher/k3s/config.yaml`, install —
-  is `ansible/k3s/`.** Applied by the `infra` job in
-  `.github/workflows/deploy.yaml`, connecting as `deploy` over SSH (key in
-  `NODE_SSH_KEY`). Don't hand-edit on the node.
+  is `ansible/k3s/`.** Applied by the `infra` job in `deploy-infra.yaml`,
+  connecting as `deploy` over SSH (key in `NODE_SSH_KEY`). Don't hand-edit on
+  the node.
 - The Pi runs `k3s-agent`, not a server. `ansible/node/tasks/storage.yml`'s
   `RequiresMountsFor` guard targets `k3s-agent.service` and only the `agent` /
   `kubelet` LVs; the `server` LV is vestigial (kept — shrinking an LV fails).
@@ -381,11 +402,11 @@ When comments are necessary:
 
 ## Router pattern
 
-- `router/` has two halves. `bootstrap/router/` is the OpenWrt Image Builder
-  setup — a known-good baseline, built and flashed **by hand**, the
+- The router's config has two halves. `bootstrap/router/` is the OpenWrt Image
+  Builder setup — a known-good baseline, built and flashed **by hand**, the
   break-glass path. `ansible/router/` is a `community.openwrt` playbook, the
   source of truth for ongoing config, applied by the `router` job in
-  `.github/workflows/deploy.yaml`. The two need not stay in sync: bootstrap
+  `deploy-infra.yaml`. The two need not stay in sync: bootstrap
   only has to get a bare router far enough for the playbook to take over.
 - The `router` job connects as `root` over SSH (reusing `NODE_SSH_KEY`, whose
   public half `bootstrap/router/` bakes into the router's

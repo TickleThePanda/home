@@ -1,7 +1,7 @@
 # The combined view of Flux's own definition, for Flux's self-management
 # Kustomization (./sync/self.yaml, path: ./flux-system) to reconcile once
 # Flux is running, and for a human to read top to bottom. NOT what the
-# CI bootstrap step applies directly -- see .github/workflows/deploy.yaml's
+# CI bootstrap step applies directly -- see .github/workflows/deploy-cluster.yaml's
 # "Apply flux-system" step, which applies ./install and ./sync as two
 # separate kubectl invocations with a CRD-Established wait in between.
 # Flux's own kustomize-controller handles the CRD-then-CR ordering within
