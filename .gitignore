@@ -27,3 +27,19 @@ ansible/k3s/.kubeconfig
 # Local scratch for the DOCKER_PULL_* values before they go to GitHub Actions
 # secrets (`gh secret set --env prod`). Never committed -- the repo is public.
 /.env
+
+# Terraform local state/plugin/plan artifacts. terraform/bootstrap/ starts on
+# local state before migrating into GCS (see terraform/bootstrap/README.md);
+# terraform/cloudflare-zero-trust/ uses a GCS backend but still caches
+# providers and plan files locally. .terraform.lock.hcl is NOT ignored -- it
+# pins provider versions and belongs in git.
+**/.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+*.tfplan
+terraform/cloudflare-zero-trust/generated/
+
+# Local-only Cloudflare API token for cf-terraforming / manual terraform runs
+# against terraform/cloudflare-zero-trust/. Lives in GitHub Actions secrets
+# for CI; never committed.
+terraform/cloudflare-zero-trust/.cf-terraform-token

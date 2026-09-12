@@ -5,6 +5,7 @@ name: Deploy
 #   preflight   the k3s/Traefik pin agrees, and the cluster is reachable
 #   infra       ansible/, every layer -- proxmox, node, k3s, router
 #   cluster     deploy/, applied with kustomize
+#   terraform   terraform/cloudflare-zero-trust/, applied last
 #
 # `infra` is ONE job for all four Ansible layers. They used to be four, which
 # meant paying runner provisioning, a checkout, a Cloudflare WARP connect and
@@ -25,6 +26,15 @@ name: Deploy
 # preflight exists because CI's only path to any of this is through the cluster
 # itself (cloudflared runs in-cluster) -- checking reachability first gives a
 # clear signal instead of a confusing failure deep inside Ansible or kubectl.
+#
+# terraform runs last, same reasoning as the router: it owns the "home" tunnel
+# and the private-network routes CI's own WARP connection reaches the LAN
+# through, so it is the one layer that can drop CI's own egress -- a blip
+# there must not strand a layer that had yet to run. It doesn't need WARP
+# itself (Cloudflare's and GCP's APIs are reached over the public internet,
+# not through the tunnel), but it still waits on preflight/infra/cluster
+# succeeding-or-skipping, same gate as cluster -- no reason to touch the
+# tunnel's own config while something upstream is already broken.
 
 on:
   push:
@@ -33,6 +43,7 @@ on:
       - deploy/**
       - flux-system/**
       - ansible/**
+      - terraform/cloudflare-zero-trust/**
       - scripts/check-traefik-pin.sh
       - .github/workflows/deploy.yaml
       - .github/actions/**
@@ -60,6 +71,7 @@ jobs:
       router: ${{ steps.changes.outputs.router == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
       infra: ${{ steps.changes.outputs.infra == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
       cluster: ${{ steps.changes.outputs.cluster == 'true' || github.event_name == 'workflow_dispatch' }}
+      terraform: ${{ steps.changes.outputs.terraform == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -96,6 +108,9 @@ jobs:
             cluster:
               - 'deploy/**'
               - 'flux-system/**'
+              - '.github/workflows/deploy.yaml'
+            terraform:
+              - 'terraform/cloudflare-zero-trust/**'
               - '.github/workflows/deploy.yaml'
 
       - name: Check the Traefik chart pin
@@ -419,3 +434,47 @@ jobs:
               || echo "::warning::kustomization/$ks applied ${applied:-<none>}, expected $expected"
           done
           exit $rc
+
+  terraform:
+    needs: [preflight, infra, cluster]
+    # Same gate as cluster, plus cluster itself: see the header for why this
+    # runs last.
+    if: >-
+      always() &&
+      needs.preflight.result == 'success' &&
+      (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
+      (needs.cluster.result == 'success' || needs.cluster.result == 'skipped') &&
+      needs.preflight.outputs.terraform == 'true'
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: terraform/cloudflare-zero-trust
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ticklethepanda-web
+          workload_identity_provider: projects/388566333789/locations/global/workloadIdentityPools/pool/providers/github
+          service_account: tf-home-manager@ticklethepanda-web.iam.gserviceaccount.com
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.9"
+
+      - name: terraform init
+        run: terraform init -input=false
+
+      - name: terraform apply
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          terraform plan -input=false -out=tfplan
+          terraform apply -input=false -auto-approve tfplan
