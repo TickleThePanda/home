@@ -1,4 +1,4 @@
-# router/bootstrap
+# bootstrap/router
 
 A bootstrapped vanilla OpenWrt image for the GL.iNet Flint 2 (GL-MT6000) at
 `192.168.1.1`. `build.sh` runs the OpenWrt Image Builder in a container and bakes
@@ -8,12 +8,12 @@ is built and flashed by hand — CI does not touch it.
 This is the **re-bootstrap / break-glass path**: use it to migrate off stock
 GL.iNet firmware or to rebuild a bricked router from nothing. It sets a
 known-good baseline — enough to bring the router up to where
-[`../ansible/`](../ansible/) can take over as the source of truth for ongoing
-config.
+[`../../ansible/router/`](../../ansible/router/) can take over as the source
+of truth for ongoing config.
 
-The baseline here does not have to track later changes made in `../ansible/`.
-After a re-flash, run the playbook once and it converges the router to current
-state.
+The baseline here does not have to track later changes made in
+`../../ansible/router/`. After a re-flash, run the playbook once and it
+converges the router to current state.
 
 ## What the image sets
 
@@ -21,7 +21,7 @@ state.
 - Wi-Fi: `It reaches out` (5 GHz) and `It reaches out (2.4G)`, WPA2/WPA3
   (`sae-mixed`), country `GB`. The image carries full `wpad-mbedtls` so a
   reflash keeps Wi-Fi working; the IoT VLANs / SSIDs themselves are
-  `../ansible/` only.
+  `../../ansible/router/` only.
 - **No DNS or DHCP on the router.** Kea (`192.168.1.11`) leases;
   BIND/Unbound/Pi-hole resolve. dnsmasq is disabled; the router resolves for
   itself via a static `/etc/resolv.conf` pointing at Quad9.
@@ -52,15 +52,15 @@ Prerequisites:
 Then:
 
 ```sh
-cp router/bootstrap/secrets.env.example router/bootstrap/secrets.env
+cp bootstrap/router/secrets.env.example bootstrap/router/secrets.env
 # fill in secrets.env (see its comments for where each value lives)
-./router/bootstrap/build.sh
+./bootstrap/router/build.sh
 ```
 
 The image lands at
-`router/bootstrap/out/targets/mediatek/filogic/openwrt-*-glinet_gl-mt6000-squashfs-sysupgrade.bin`.
+`bootstrap/router/out/targets/mediatek/filogic/openwrt-*-glinet_gl-mt6000-squashfs-sysupgrade.bin`.
 
-Override the release with `VERSION=24.10.6 ./router/bootstrap/build.sh`.
+Override the release with `VERSION=24.10.6 ./bootstrap/router/build.sh`.
 
 ## Flash
 
@@ -85,8 +85,9 @@ Confirm a new LAN client gets a `192.168.1.128–254` lease (Kea) and resolves
 through Pi-hole, and that the router shows its route + exit node already
 approved in the Tailscale admin console.
 
-Then run `../ansible/` once from the LAN to confirm it reports no drift against
-the freshly-flashed router (see [`../ansible/README.md`](../ansible/README.md)).
+Then run `../../ansible/router/` once from the LAN to confirm it reports no
+drift against the freshly-flashed router (see
+[`../../ansible/router/README.md`](../../ansible/router/README.md)).
 
 ## Recovery
 

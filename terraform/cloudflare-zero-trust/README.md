@@ -2,7 +2,7 @@
 
 Cloudflare Zero Trust (tunnel, Access, service tokens, device posture,
 Gateway) for this account -- not the DNS zones. State lives in
-`ttp-home-tfstate` (see `terraform/bootstrap/`).
+`ttp-home-tfstate` (see `bootstrap/terraform/`).
 
 - `tunnel.tf` -- the "home" `cloudflared` tunnel, its ingress config, and the
   private-network routes CI and the router's dashboard use to reach the LAN.

@@ -1,7 +1,7 @@
 ---
 # Steady-state config: forwarding sysctls, the service being enabled, and the
 # advertised subnet routes + exit node. The tailnet *login* is set once by
-# router/bootstrap/ (hotplug on first WAN up) and persists in
+# bootstrap/router/ (hotplug on first WAN up) and persists in
 # /etc/tailscale/tailscaled.state -- that part is not managed here.
 #
 # tag:home-router autoApprovers covers 192.168.0.0/16, so a route added to

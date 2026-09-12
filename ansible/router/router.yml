@@ -1,7 +1,7 @@
 ---
 # Ongoing configuration for the home gateway (GL.iNet Flint 2, OpenWrt).
 #
-# This is the source of truth for the router's config. router/bootstrap/ only
+# This is the source of truth for the router's config. bootstrap/router/ only
 # has to get a bare router far enough for this playbook to take over.
 #
 # Reached from CI over the same Cloudflare tunnel as the node. A `network`
@@ -9,7 +9,7 @@
 # nohup and reconnect with wait_for_connection -- mirroring ansible/node/node.yml's
 # handling of the k3s restart. Never fold them back into a synchronous restart.
 #
-# Deliberately NOT managed: the root password (router/bootstrap/ sets it once
+# Deliberately NOT managed: the root password (bootstrap/router/ sets it once
 # from the GL.iNet backup hash) and the Tailscale login itself (persists in
 # /etc/tailscale/tailscaled.state). The advertised subnet routes ARE enforced
 # here (tasks/tailscale.yml).

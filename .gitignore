@@ -10,14 +10,14 @@ __pycache__
 # in CI it is an actions/cache entry, not committed.
 .ansible_fact_cache/
 
-# Router bootstrap (router/bootstrap/). The GL.iNet backup and secrets.env hold
+# Router bootstrap (bootstrap/router/). The GL.iNet backup and secrets.env hold
 # live credentials (PPPoE, Wi-Fi PSK, WireGuard/host keys, /etc/shadow); build/
 # holds the rendered overlay with secrets substituted in.
 backup-GL-MT6000-*.tar.gz
-router/bootstrap/secrets.env
-router/bootstrap/authorized_keys.extra
-router/bootstrap/build/
-router/bootstrap/out/
+bootstrap/router/secrets.env
+bootstrap/router/authorized_keys.extra
+bootstrap/router/build/
+bootstrap/router/out/
 
 # k3s.orchestration fetches the cluster kubeconfig here during a run
 # (kubeconfig var in ansible/group_vars/k3s_cluster.yml). Not needed after --
@@ -28,8 +28,8 @@ ansible/k3s/.kubeconfig
 # secrets (`gh secret set --env prod`). Never committed -- the repo is public.
 /.env
 
-# Terraform local state/plugin/plan artifacts. terraform/bootstrap/ starts on
-# local state before migrating into GCS (see terraform/bootstrap/README.md);
+# Terraform local state/plugin/plan artifacts. bootstrap/terraform/ starts on
+# local state before migrating into GCS (see bootstrap/terraform/README.md);
 # terraform/cloudflare-zero-trust/ uses a GCS backend but still caches
 # providers and plan files locally. .terraform.lock.hcl is NOT ignored -- it
 # pins provider versions and belongs in git.

@@ -50,7 +50,7 @@ reload can briefly drop the tunnel CI rides on.
 
 ```sh
 cd ansible
-set -a; . ../router/bootstrap/secrets.env; set +a   # same var names
+set -a; . ../bootstrap/router/secrets.env; set +a   # same var names
 ansible-galaxy collection install -r requirements.yml
 ansible-playbook router/router.yml --diff --private-key ../deploy_key
 # then confirm it is idempotent:

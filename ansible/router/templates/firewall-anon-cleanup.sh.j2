@@ -1,7 +1,7 @@
 #!/bin/sh
 # Delete the anonymous firewall sections that tasks/firewall.yml now owns as
 # named sections. Both an existing router (earlier playbook runs) and a
-# freshly-bootstrapped one (router/bootstrap/ adds an anonymous tailscale0
+# freshly-bootstrapped one (bootstrap/router/ adds an anonymous tailscale0
 # zone + forwardings) start with anonymous copies; without this they would
 # sit as duplicates beside the named sections.
 #

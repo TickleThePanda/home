@@ -250,7 +250,7 @@ When comments are necessary:
   directory: `ansible/proxmox/`, `ansible/node/`, `ansible/k3s/`,
   `ansible/router/`, each holding a playbook named after the layer plus its
   `tasks/`, `templates/`, `vars/`. `ansible/site.yml` imports all four in
-  dependency order. `router/bootstrap/` is *not* part of this — it is
+  dependency order. `bootstrap/router/` is *not* part of this — it is
   hand-flashed, not CI-driven.
 - Connection differences are `group_vars`, not separate trees: the router is
   `ansible_user: root` + `ansible_python_interpreter: /dev/null` (OpenWrt ships
@@ -381,14 +381,14 @@ When comments are necessary:
 
 ## Router pattern
 
-- `router/` has two halves. `router/bootstrap/` is the OpenWrt Image Builder
+- `router/` has two halves. `bootstrap/router/` is the OpenWrt Image Builder
   setup — a known-good baseline, built and flashed **by hand**, the
   break-glass path. `ansible/router/` is a `community.openwrt` playbook, the
   source of truth for ongoing config, applied by the `router` job in
   `.github/workflows/deploy.yaml`. The two need not stay in sync: bootstrap
   only has to get a bare router far enough for the playbook to take over.
 - The `router` job connects as `root` over SSH (reusing `NODE_SSH_KEY`, whose
-  public half `router/bootstrap/` bakes into the router's
+  public half `bootstrap/router/` bakes into the router's
   `authorized_keys`) through the **same cloudflared tunnel as `node`** — the
   Cloudflare Zero Trust private-network routes cover `192.168.1.0/24` and
   `192.168.10.0/24` (both configured in the dashboard, not this repo), so no
@@ -407,7 +407,7 @@ When comments are necessary:
   `base64` / `sha256sum`; the opkg path can otherwise make a run report
   "changed" off a stale package list).
 - The root password is the one thing `ansible/router/` does not manage —
-  `router/bootstrap/` writes it once from the GL.iNet backup hash.
+  `bootstrap/router/` writes it once from the GL.iNet backup hash.
 
 ## Proxmox pattern
 

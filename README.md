@@ -17,7 +17,7 @@ declarative and applied by CI — there is nothing to install by hand:
   - `ansible/router/` — the gateway (OpenWrt).
 - `deploy/` owns everything inside the cluster, applied with kustomize.
 - `apps/` holds the source for the apps built into images by CI.
-- `router/bootstrap/` is the hand-flashed OpenWrt image — the break-glass path,
+- `bootstrap/router/` is the hand-flashed OpenWrt image — the break-glass path,
   not applied by CI.
 
 All four Ansible layers are applied by the single `infra` job in
@@ -69,8 +69,8 @@ agents). See
 Router: 192.168.1.1 — a GL.iNet Flint 2 (GL-MT6000) running vanilla OpenWrt.
 Ongoing config is a `community.openwrt` Ansible playbook
 ([`ansible/router/`](ansible/router/)), applied by CI over SSH. The initial
-image ([`router/bootstrap/`](router/bootstrap/)) is built and flashed by hand —
-the break-glass path. See [`router/README.md`](router/README.md).
+image ([`bootstrap/router/`](bootstrap/router/)) is built and flashed by hand —
+the break-glass path. See [`bootstrap/router/README.md`](bootstrap/router/README.md).
 
 VLANs, routed by the gateway. `homelab` ↔ `trusted` is fully open for now; the
 IoT VLANs are inbound-only (see below).

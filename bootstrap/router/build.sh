@@ -15,7 +15,7 @@ for bin in "$RUNTIME" openssl python3; do
 done
 
 [ -f secrets.env ] || {
-  echo "create router/bootstrap/secrets.env from secrets.env.example" >&2; exit 1
+  echo "create bootstrap/router/secrets.env from secrets.env.example" >&2; exit 1
 }
 set -a; . ./secrets.env; set +a
 : "${ROUTER_PPPOE_USERNAME:?}" "${ROUTER_PPPOE_PASSWORD:?}" "${ROUTER_WIFI_KEY:?}" \
@@ -80,4 +80,4 @@ trap '"$RUNTIME" rm -f "$cid" >/dev/null 2>&1 || true' EXIT
 image="$(find out -name "*-${PROFILE}-squashfs-sysupgrade.bin" | head -1)"
 [ -n "$image" ] || { echo "build produced no sysupgrade image" >&2; exit 1; }
 echo
-echo "built: router/bootstrap/$image"
+echo "built: bootstrap/router/$image"
