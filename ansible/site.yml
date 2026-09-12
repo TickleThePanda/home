@@ -1,0 +1,33 @@
+---
+# Every layer, in dependency order. For a hand run of the lot:
+#
+#   ansible-playbook site.yml --diff
+#
+# CI does NOT use this file to apply. It invokes each layer playbook separately
+# so that a failure blocks the layers after it (one flattened run would drop
+# only the failed host and carry on), and so each layer keeps its own secrets,
+# its own PLAY RECAP, and its own idempotence re-run. site.yml is still what
+# `--syntax-check` parses, which covers all four in one pass.
+#
+# Order:
+#
+#   proxmox  creates the VMs that k3s joins.
+#   node     lands the Pi's LVM mounts; a RequiresMountsFor drop-in makes
+#            k3s-agent depend on them.
+#   k3s      needs both of the above. A k3s bump also changes which Traefik
+#            chart tarball is served, so it precedes the cluster manifests.
+#   router   last. Nothing depends on it -- it serves no DNS and no DHCP -- and
+#            it is the one layer that can drop CI's own egress (the cloudflared
+#            tunnel leaves through its WAN). Running it last means a WAN blip
+#            cannot strand the layers that had yet to run. It still lands
+#            before the `cluster` job, so a router change that gates a cluster
+#            change is applied first.
+#
+# Never scope a run with --limit alone: k8s-manager-1 is in both `pi` and
+# `agent`, so limiting to `pi` still matches the k3s agent play. See
+# inventory.yml.
+
+- ansible.builtin.import_playbook: proxmox/proxmox.yml
+- ansible.builtin.import_playbook: node/node.yml
+- ansible.builtin.import_playbook: k3s/k3s.yml
+- ansible.builtin.import_playbook: router/router.yml

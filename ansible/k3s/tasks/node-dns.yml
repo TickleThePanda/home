@@ -1,0 +1,65 @@
+---
+# Node-level DNS must never depend on a workload running inside this cluster.
+# The homelab VLAN's normal resolver is Pi-hole (192.168.1.10), which is a
+# cluster Deployment -- so a cold start where it is down deadlocks: the
+# kubelet cannot resolve a registry to pull the image that would bring Pi-hole
+# back. Point the node resolver straight at Quad9, the same upstream the Pi
+# already uses (ansible/node/ owns the Pi's /etc/resolv.conf, so this is the VMs
+# only). Pods are unaffected -- they resolve through CoreDNS -> Unbound.
+#
+# This edits cloud-init's own /etc/netplan/50-cloud-init.yaml in place, rather
+# than layering a second netplan file on top of it. A separate drop-in
+# (previously 90-k3s-node-dns.yaml) matched eth0 by device name while
+# 50-cloud-init.yaml matches it by MAC address -- two different selectors for
+# the same link produce two separate generated .network files, and
+# systemd-networkd applied the nameservers from *both* rather than the
+# higher-numbered file overriding the lower one. Editing the one file that
+# exists removes the ambiguity instead of relying on override-vs-merge
+# behaviour. Only the nameservers key is touched; the VM-specific match,
+# addresses and routes cloud-init wrote are preserved untouched.
+#
+# cloud-init's network stage runs once per instance-id and does not re-render
+# this file on a normal reboot, so the fix persists. A rebuilt VM gets the
+# right value from cloud-init directly -- proxmox_vm_nameservers in
+# ansible/proxmox/vars/main.yml is already Quad9 -- this task exists for the
+# VMs that predate that.
+
+- name: Read the existing cloud-init netplan config
+  ansible.builtin.slurp:
+    src: /etc/netplan/50-cloud-init.yaml
+  register: node_dns_cloud_init_raw
+
+- name: Remove the superseded separate netplan drop-in
+  ansible.builtin.file:
+    path: /etc/netplan/90-k3s-node-dns.yaml
+    state: absent
+  register: node_dns_dropin_removed
+
+- name: Point cloud-init's own netplan config at Quad9
+  vars:
+    node_dns_cloud_init: "{{ node_dns_cloud_init_raw.content | b64decode | from_yaml }}"
+    node_dns_fixed: "{{ node_dns_cloud_init | combine({
+      'network': {'ethernets': {'eth0': {'nameservers': {
+        'addresses': ['9.9.9.9', '149.112.112.112'],
+        'search': ['home.arpa'],
+      }}}}}, recursive=True) }}"
+  ansible.builtin.copy:
+    dest: /etc/netplan/50-cloud-init.yaml
+    content: "{{ node_dns_fixed | to_nice_yaml }}"
+    owner: root
+    group: root
+    mode: "0600"
+  register: node_dns_netplan
+
+- name: Apply the netplan change
+  ansible.builtin.command: netplan apply
+  when: node_dns_netplan is changed or node_dns_dropin_removed is changed
+  changed_when: true
+
+- name: Confirm eth0 now resolves via Quad9 only
+  ansible.builtin.command: resolvectl dns eth0
+  register: node_dns_check
+  changed_when: false
+  failed_when: >-
+    '9.9.9.9' not in node_dns_check.stdout
+    or '192.168.1.10' in node_dns_check.stdout

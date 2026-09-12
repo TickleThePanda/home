@@ -2,26 +2,29 @@ name: Deploy
 
 # Applied in order by sequential jobs:
 #
-#   preflight     the k3s/Traefik pin agrees, and the cluster is reachable
-#   node          node/, Ansible over SSH as `deploy` -- the layer below k3s
-#   router        router/ansible/, Ansible over SSH as root
-#   proxmox       proxmox/, Ansible -- host apt repos (SSH) + the k3s VMs (API)
-#   k3s-cluster   k3s-cluster/, Ansible over SSH -- k3s on the Pi + VM agents
-#   cluster       deploy/, applied with kustomize
+#   preflight   the k3s/Traefik pin agrees, and the cluster is reachable
+#   infra       ansible/, every layer -- proxmox, node, k3s, router
+#   cluster     deploy/, applied with kustomize
 #
-# Order matters: proxmox creates the VMs that k3s-cluster then joins; the Pi's
-# storage mounts (node) must exist before k3s starts; a k3s upgrade changes
-# which Traefik chart tarball the node serves, so k3s-cluster lands before the
-# cluster manifests that reference it.
+# `infra` is ONE job for all four Ansible layers. They used to be four, which
+# meant paying runner provisioning, a checkout, a Cloudflare WARP connect and
+# an ansible-setup four times over before any work happened -- most of the cost
+# of a no-op deploy. One job pays that once.
 #
-# Each of node, router, proxmox, k3s-cluster and cluster is skipped when the
-# push changed nothing under its tree; a skipped job counts as a pass for the
-# jobs after it. A manual workflow_dispatch runs them all.
+# Layer order inside the job matches ansible/site.yml: proxmox creates the VMs
+# k3s joins; node lands the Pi's storage mounts that k3s-agent requires; a k3s
+# bump changes which Traefik chart tarball is served, so it precedes the
+# cluster manifests. The router runs last -- nothing depends on it (it serves
+# no DNS and no DHCP), and it is the one layer that can drop CI's own egress,
+# so a WAN blip there cannot strand layers that had yet to run.
 #
-# preflight exists because CI's only path to the node and the router is
-# through the cluster itself (cloudflared runs in-cluster) -- checking
-# reachability first gives a clear signal instead of a confusing failure
-# deep inside Ansible or kubectl output.
+# Each layer is skipped when the push changed nothing under its own tree, and
+# every layer runs when anything shared changes (see the `shared` filter) or on
+# a manual workflow_dispatch.
+#
+# preflight exists because CI's only path to any of this is through the cluster
+# itself (cloudflared runs in-cluster) -- checking reachability first gives a
+# clear signal instead of a confusing failure deep inside Ansible or kubectl.
 
 on:
   push:
@@ -29,15 +32,14 @@ on:
     paths:
       - deploy/**
       - flux-system/**
-      - node/**
-      - router/ansible/**
-      - proxmox/**
-      - k3s-cluster/**
+      - ansible/**
+      - scripts/check-traefik-pin.sh
       - .github/workflows/deploy.yaml
+      - .github/actions/**
   workflow_dispatch: {}
 
-# Never let two runs touch the cluster at once -- the node job can restart
-# k3s, which takes down the tunnel the cluster job reaches the API through.
+# Never let two runs touch the cluster at once -- the infra job restarts k3s,
+# which takes down the tunnel the cluster job reaches the API through.
 concurrency:
   group: cluster
   cancel-in-progress: false
@@ -47,44 +49,57 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     outputs:
-      node-changed: ${{ steps.changes.outputs.node }}
-      router-changed: ${{ steps.changes.outputs.router }}
-      proxmox-changed: ${{ steps.changes.outputs.proxmox }}
-      k3s-cluster-changed: ${{ steps.changes.outputs.k3scluster }}
-      cluster-changed: ${{ steps.changes.outputs.cluster }}
+      # Each layer runs on its own tree, on anything shared, or on a manual
+      # dispatch. Folding the dispatch case in here keeps every downstream
+      # `if:` to a single expression. paths-filter finds nothing on a
+      # workflow_dispatch (it diffs HEAD against its own merge-base), which is
+      # why that case has to be handled explicitly.
+      proxmox: ${{ steps.changes.outputs.proxmox == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
+      node: ${{ steps.changes.outputs.node == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
+      k3s: ${{ steps.changes.outputs.k3s == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
+      router: ${{ steps.changes.outputs.router == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
+      infra: ${{ steps.changes.outputs.infra == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
+      cluster: ${{ steps.changes.outputs.cluster == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Each downstream job is skipped when nothing under its tree changed --
-      # see the `if:` on each. On workflow_dispatch paths-filter diffs HEAD
-      # against its own merge-base and finds nothing, so every filter reports
-      # false; each downstream `if:` special-cases workflow_dispatch to run
-      # anyway.
-      - name: Detect which trees changed
+      # `shared` is the catch-all: anything not owned by exactly one layer --
+      # the merged inventory, group_vars, the shared roles/ -- has to apply
+      # everywhere, or a change to it would silently apply nowhere.
+      - name: Detect which layers changed
         uses: dorny/paths-filter@v4
         id: changes
         with:
           filters: |
-            node:
-              - 'node/**'
+            shared:
+              - 'ansible/ansible.cfg'
+              - 'ansible/inventory.yml'
+              - 'ansible/known_hosts'
+              - 'ansible/requirements.yml'
+              - 'ansible/site.yml'
+              - 'ansible/group_vars/**'
+              - 'ansible/host_vars/**'
+              - 'ansible/roles/**'
               - '.github/workflows/deploy.yaml'
-            router:
-              - 'router/ansible/**'
-              - '.github/workflows/deploy.yaml'
+              - '.github/actions/**'
             proxmox:
-              - 'proxmox/**'
-              - '.github/workflows/deploy.yaml'
-            k3scluster:
-              - 'k3s-cluster/**'
-              - '.github/workflows/deploy.yaml'
+              - 'ansible/proxmox/**'
+            node:
+              - 'ansible/node/**'
+            k3s:
+              - 'ansible/k3s/**'
+            router:
+              - 'ansible/router/**'
+            infra:
+              - 'ansible/**'
             cluster:
               - 'deploy/**'
               - 'flux-system/**'
               - '.github/workflows/deploy.yaml'
 
       - name: Check the Traefik chart pin
-        run: ./node/scripts/check-traefik-pin.sh --online
+        run: ./scripts/check-traefik-pin.sh --online
 
       - name: Connect to Cloudflare Warp
         uses: Boostport/setup-cloudflare-warp@v1
@@ -99,8 +114,10 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
 
-      # An open port isn't a ready API -- see node/site.yml's own readyz
-      # poll. Not ready within a minute means genuinely down, not mid-restart.
+      # An open port isn't a ready API -- k3s binds 6443 well before it serves,
+      # and kubectl fails immediately against an unavailable API rather than
+      # respecting --timeout. Not ready within a minute means genuinely down,
+      # not mid-restart.
       - name: Confirm the API server is ready
         run: |
           set -euo pipefail
@@ -111,24 +128,36 @@ jobs:
             fi
             sleep 5
           done
-          echo "::error::API server did not report ready after 60s -- the cluster may genuinely be down, not just slow. See node/RECOVERY.md."
+          echo "::error::API server did not report ready after 60s -- the cluster may genuinely be down, not just slow. See ansible/node/RECOVERY.md."
           exit 1
 
-      # cloudflared is itself a pod inside the cluster this pipeline
-      # manages -- confirm it's healthy, not just that the API responds.
+      # cloudflared is itself a pod inside the cluster this pipeline manages --
+      # confirm it's healthy, not just that the API responds.
       - name: Confirm cloudflared is Ready
         run: |
           kubectl wait --namespace default --for=condition=Ready pod \
             --selector pod=cloudflared --timeout=30s
 
-
-  node:
+  infra:
     needs: preflight
-    if: >-
-      needs.preflight.outputs.node-changed == 'true' ||
-      github.event_name == 'workflow_dispatch'
+    if: needs.preflight.outputs.infra == 'true'
     runs-on: ubuntu-latest
     environment: prod
+    # Secrets are set for the whole job rather than per layer. Every layer runs
+    # in this one job against the `prod` environment, so each could reference
+    # any of these secrets directly regardless of where they are exported --
+    # per-step scoping would be the appearance of a boundary, not one.
+    env:
+      PROXMOX_API_TOKEN_ID: ${{ secrets.PROXMOX_API_TOKEN_ID }}
+      PROXMOX_API_TOKEN_SECRET: ${{ secrets.PROXMOX_API_TOKEN_SECRET }}
+      DOCKER_PULL_USERNAME: ${{ secrets.DOCKER_PULL_USERNAME }}
+      DOCKER_PULL_TOKEN: ${{ secrets.DOCKER_PULL_TOKEN }}
+      ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
+      ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
+      ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
+      ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
+      ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
+      ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -140,317 +169,95 @@ jobs:
           auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
 
-      # CI authenticates with a service token, not a user identity, so a
-      # Zero Trust policy could permit 6443 without permitting 22. Checking
-      # both surfaces a policy problem plainly instead of as an Ansible
-      # "unreachable".
-      - name: Check the node is reachable
-        run: |
-          set -euo pipefail
-          if ! nc -zv -w 10 192.168.1.32 6443; then
-            echo "::error::Cannot reach the kube API either -- the tunnel is down, not a port-22 policy. cloudflared runs inside the cluster; see node/RECOVERY.md."
-            exit 1
-          fi
-          if ! nc -zv -w 10 192.168.1.2 22; then
-            echo "::error::6443 is reachable but 22 is not -- the WARP route is fine and a Zero Trust network policy is gating SSH for the service-token identity."
-            exit 1
-          fi
-
-      - name: Set up Ansible
-        uses: ./.github/actions/ansible-setup
-        with:
-          working-directory: node
-
-      - name: Install the SSH key
-        run: |
-          install -d -m 700 ~/.ssh
-          install -m 600 /dev/null ~/.ssh/node_key
-          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/node_key
-
-      # Syntax only, not state -- Apply below is the first SSH-based run,
-      # so a partial failure there can still leave real changes applied.
-      # Acceptable for a single, idempotent host.
-      - name: Syntax check
-        working-directory: node
-        run: ansible-playbook site.yml --syntax-check
-
-      - name: Apply
-        working-directory: node
-        run: ansible-playbook site.yml --diff --private-key ~/.ssh/node_key
-
-      # Idempotence is the proof the automation is honest about what it owns.
-      - name: Confirm no drift remains
-        working-directory: node
-        run: |
-          set -euo pipefail
-          ansible-playbook site.yml --check --diff --private-key ~/.ssh/node_key \
-            | tee /tmp/recheck.log
-          # Only the PLAY RECAP block carries the counts; anchoring to line
-          # start never matches, since the host name precedes them.
-          if sed -n '/PLAY RECAP/,$p' /tmp/recheck.log | grep -qE 'changed=[1-9]'; then
-            echo "::error::Playbook is not idempotent -- a second --check run still reports changes."
-            exit 1
-          fi
-
-  router:
-    needs: [preflight, node]
-    # Depends on node purely for ordering: node and router both mutate infra
-    # CI reaches through the same tunnel, so they must not run at once. node
-    # is skipped when nothing under node/ changed -- treat that as a pass.
-    if: >-
-      always() &&
-      needs.preflight.result == 'success' &&
-      (needs.node.result == 'success' || needs.node.result == 'skipped') &&
-      (needs.preflight.outputs.router-changed == 'true' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    environment: prod
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Connect to Cloudflare Warp
-        uses: Boostport/setup-cloudflare-warp@v1
-        with:
-          organization: ticklethepanda
-          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
-          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
-
-      # The router rides the same cloudflared tunnel as the node (Zero Trust
-      # routes 192.168.1.0/24 + 192.168.10.0/24). If 22 is unreachable the
-      # tunnel is down, not a per-host policy -- there is no service-token
-      # policy gating the router specifically.
-      - name: Check the router is reachable
-        run: |
-          set -euo pipefail
-          if ! nc -zv -w 10 192.168.1.1 22; then
-            echo "::error::Cannot reach the router on 22 -- the cloudflared tunnel is down. It runs in-cluster; see node/RECOVERY.md."
-            exit 1
-          fi
-
-      - name: Set up Ansible
-        uses: ./.github/actions/ansible-setup
-        with:
-          working-directory: router/ansible
-
-      - name: Install the SSH key
-        run: |
-          install -d -m 700 ~/.ssh
-          install -m 600 /dev/null ~/.ssh/router_key
-          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/router_key
-
-      - name: Syntax check
-        working-directory: router/ansible
-        run: ansible-playbook site.yml --syntax-check
-
-      - name: Apply
-        id: apply
-        working-directory: router/ansible
-        env:
-          ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
-          ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
-          ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
-          ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
-          ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
-          ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
-        run: |
-          set -euo pipefail
-          ansible-playbook site.yml --diff --private-key ~/.ssh/router_key \
-            | tee /tmp/router-apply.log
-          if sed -n '/PLAY RECAP/,$p' /tmp/router-apply.log | grep -qE 'changed=[1-9]'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Idempotence is the proof the automation is honest about what it owns.
-      # An Apply that changed nothing is idempotent by definition -- only re-run
-      # the full check pass when Apply actually did something (or on a manual
-      # dispatch, which always exercises the whole pipeline).
-      - name: Confirm no drift remains
-        if: steps.apply.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-        working-directory: router/ansible
-        env:
-          ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
-          ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
-          ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
-          ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
-          ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
-          ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
-        run: |
-          set -euo pipefail
-          ansible-playbook site.yml --check --diff --private-key ~/.ssh/router_key \
-            | tee /tmp/router-recheck.log
-          if sed -n '/PLAY RECAP/,$p' /tmp/router-recheck.log | grep -qE 'changed=[1-9]'; then
-            echo "::error::Playbook is not idempotent -- a second --check run still reports changes."
-            exit 1
-          fi
-
-  proxmox:
-    needs: [preflight, node, router]
-    # node and router both mutate infra CI reaches through the same tunnel, so
-    # nothing may run alongside them -- depend on both purely for ordering and
-    # treat a skip as a pass. proxmox's own changes don't touch the tunnel.
-    if: >-
-      always() &&
-      needs.preflight.result == 'success' &&
-      (needs.node.result == 'success' || needs.node.result == 'skipped') &&
-      (needs.router.result == 'success' || needs.router.result == 'skipped') &&
-      (needs.preflight.outputs.proxmox-changed == 'true' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    environment: prod
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Connect to Cloudflare Warp
-        uses: Boostport/setup-cloudflare-warp@v1
-        with:
-          organization: ticklethepanda
-          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
-          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
-
-      # The host rides the same cloudflared tunnel as the node (Zero Trust
-      # routes 192.168.1.0/24). Check the kube API first: if that is reachable
-      # but 192.168.1.3 is not, the tunnel is fine and a Zero Trust network
-      # policy is gating this host for the service-token identity. Both SSH
-      # (host config) and 8006 (the API, for the VM tasks) must be open.
-      - name: Check the host is reachable
-        run: |
-          set -euo pipefail
-          if ! nc -zv -w 10 192.168.1.32 6443; then
-            echo "::error::Cannot reach the kube API either -- the tunnel is down, not a per-host policy. cloudflared runs inside the cluster; see node/RECOVERY.md."
-            exit 1
-          fi
-          for port in 22 8006; do
-            if ! nc -zv -w 10 192.168.1.3 "$port"; then
-              echo "::error::6443 is reachable but 192.168.1.3:$port is not -- add the host (this port) to the Zero Trust network policy for the CI service token."
-              exit 1
-            fi
-          done
-
-      # community.proxmox drives the VM lifecycle through the Proxmox API and
-      # needs proxmoxer on the control node. The apt-repos tasks use only
-      # ansible.builtin.
-      - name: Set up Ansible
-        uses: ./.github/actions/ansible-setup
-        with:
-          working-directory: proxmox
-          extra-pip: proxmoxer>=2.3.0 requests
-
-      - name: Install the SSH key
-        run: |
-          install -d -m 700 ~/.ssh
-          install -m 600 /dev/null ~/.ssh/proxmox_key
-          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/proxmox_key
-
-      - name: Syntax check
-        working-directory: proxmox
-        run: ansible-playbook site.yml --syntax-check
-
-      # The token and the SSH pubkey go through the environment, not -e: an
-      # `-e key=value` string is split on whitespace, which mangles an SSH key.
-      - name: Apply
-        working-directory: proxmox
-        env:
-          PROXMOX_API_TOKEN_ID: ${{ secrets.PROXMOX_API_TOKEN_ID }}
-          PROXMOX_API_TOKEN_SECRET: ${{ secrets.PROXMOX_API_TOKEN_SECRET }}
-        run: |
-          export K3S_VM_SSH_PUBKEY="$(ssh-keygen -y -f ~/.ssh/proxmox_key)"
-          ansible-playbook site.yml --diff --private-key ~/.ssh/proxmox_key
-
-      # Idempotence is the proof the automation is honest about what it owns.
-      - name: Confirm no drift remains
-        working-directory: proxmox
-        env:
-          PROXMOX_API_TOKEN_ID: ${{ secrets.PROXMOX_API_TOKEN_ID }}
-          PROXMOX_API_TOKEN_SECRET: ${{ secrets.PROXMOX_API_TOKEN_SECRET }}
-        run: |
-          set -euo pipefail
-          export K3S_VM_SSH_PUBKEY="$(ssh-keygen -y -f ~/.ssh/proxmox_key)"
-          ansible-playbook site.yml --check --diff --private-key ~/.ssh/proxmox_key \
-            | tee /tmp/proxmox-recheck.log
-          if sed -n '/PLAY RECAP/,$p' /tmp/proxmox-recheck.log | grep -qE 'changed=[1-9]'; then
-            echo "::error::Playbook is not idempotent -- a second --check run still reports changes."
-            exit 1
-          fi
-
-  k3s-cluster:
-    needs: [preflight, node, router, proxmox]
-    # Runs after proxmox (which creates the VMs this joins) and after node
-    # (the Pi's storage mounts must exist before k3s). Ordering only -- treat
-    # an upstream skip as a pass, block on a real failure.
-    if: >-
-      always() &&
-      needs.preflight.result == 'success' &&
-      (needs.node.result == 'success' || needs.node.result == 'skipped') &&
-      (needs.router.result == 'success' || needs.router.result == 'skipped') &&
-      (needs.proxmox.result == 'success' || needs.proxmox.result == 'skipped') &&
-      (needs.preflight.outputs.k3s-cluster-changed == 'true' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    environment: prod
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Connect to Cloudflare Warp
-        uses: Boostport/setup-cloudflare-warp@v1
-        with:
-          organization: ticklethepanda
-          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
-          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
-
-      # Every node rides the same tunnel (Zero Trust routes 192.168.1.0/24).
-      # If the kube API is reachable but a node's :22 is not, the tunnel is
-      # fine and a Zero Trust policy is gating that host for the CI token.
-      - name: Check every node is reachable
-        run: |
-          set -euo pipefail
-          if ! nc -zv -w 10 192.168.1.32 6443; then
-            echo "::error::Cannot reach the kube API -- the tunnel is down. cloudflared runs in-cluster; see node/RECOVERY.md."
-            exit 1
-          fi
-          for ip in 192.168.1.2 192.168.1.32 192.168.1.33 192.168.1.34; do
-            if ! nc -zv -w 10 "$ip" 22; then
-              echo "::error::6443 is reachable but ${ip}:22 is not -- add ${ip} to the Zero Trust network policy for the CI service token (or the VM is not provisioned yet -- run the proxmox job)."
-              exit 1
-            fi
-          done
-
-      # ansible.utils needs netaddr on the control node.
-      - name: Set up Ansible
-        uses: ./.github/actions/ansible-setup
-        with:
-          working-directory: k3s-cluster
-          extra-pip: netaddr
-
+      # Only the k3s layer's end-state assertion needs kubectl.
       - name: Setup k8s context
+        if: needs.preflight.outputs.k3s == 'true'
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
 
+      # community.proxmox drives the VM lifecycle through the Proxmox API and
+      # needs proxmoxer on the control node; ansible.utils needs netaddr.
+      - name: Set up Ansible
+        uses: ./.github/actions/ansible-setup
+        with:
+          working-directory: ansible
+          extra-pip: proxmoxer>=2.3.0 requests netaddr
+
+      # One key for every host: the Pi's and the VMs' `deploy` user, and root
+      # on the router and proxmox-01. K3S_VM_SSH_PUBKEY goes through the
+      # environment, not -e: an `-e key=value` string is split on whitespace,
+      # which mangles an SSH key.
       - name: Install the SSH key
         run: |
+          set -euo pipefail
           install -d -m 700 ~/.ssh
-          install -m 600 /dev/null ~/.ssh/node_key
-          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/node_key
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "K3S_VM_SSH_PUBKEY=$(ssh-keygen -y -f ~/.ssh/deploy_key)" >> "$GITHUB_ENV"
 
+      # CI authenticates with a service token, not a user identity, so a Zero
+      # Trust policy could permit 6443 without permitting a given host's 22.
+      # Check the kube API first to tell "the tunnel is down" apart from "a
+      # policy is gating this host", then probe only the hosts in scope.
+      - name: Check the hosts in scope are reachable
+        env:
+          RUN_PROXMOX: ${{ needs.preflight.outputs.proxmox }}
+          RUN_NODE: ${{ needs.preflight.outputs.node }}
+          RUN_K3S: ${{ needs.preflight.outputs.k3s }}
+          RUN_ROUTER: ${{ needs.preflight.outputs.router }}
+        run: |
+          set -euo pipefail
+          if ! nc -zv -w 10 192.168.1.32 6443; then
+            echo "::error::Cannot reach the kube API -- the tunnel is down, not a per-host policy. cloudflared runs in-cluster; see ansible/node/RECOVERY.md."
+            exit 1
+          fi
+          targets=""
+          # 8006 is the Proxmox API, used by the VM-lifecycle tasks.
+          if [ "$RUN_PROXMOX" = "true" ]; then targets="$targets 192.168.1.3:22 192.168.1.3:8006"; fi
+          if [ "$RUN_NODE" = "true" ]; then targets="$targets 192.168.1.2:22"; fi
+          if [ "$RUN_K3S" = "true" ]; then targets="$targets 192.168.1.2:22 192.168.1.32:22 192.168.1.33:22 192.168.1.34:22"; fi
+          if [ "$RUN_ROUTER" = "true" ]; then targets="$targets 192.168.1.1:22"; fi
+          for t in $(echo "$targets" | tr ' ' '\n' | sort -u); do
+            [ -n "$t" ] || continue
+            if ! nc -zv -w 10 "${t%:*}" "${t##*:}"; then
+              echo "::error::6443 is reachable but ${t} is not -- add it to the Zero Trust network policy for the CI service token (or, for a VM, it is not provisioned yet)."
+              exit 1
+            fi
+          done
+
+      # One parse covers all four layers. Syntax only, not state -- Apply below
+      # is the first SSH-based run, so a partial failure there can still leave
+      # real changes applied. Acceptable for idempotent hosts.
       - name: Syntax check
-        working-directory: k3s-cluster
+        working-directory: ansible
         run: ansible-playbook site.yml --syntax-check
 
-      - name: Apply
-        working-directory: k3s-cluster
-        env:
-          DOCKER_PULL_USERNAME: ${{ secrets.DOCKER_PULL_USERNAME }}
-          DOCKER_PULL_TOKEN: ${{ secrets.DOCKER_PULL_TOKEN }}
-        run: ansible-playbook site.yml --diff --private-key ~/.ssh/node_key
+      - name: Proxmox host and k3s VMs
+        if: needs.preflight.outputs.proxmox == 'true'
+        uses: ./.github/actions/ansible-apply
+        with:
+          playbook: proxmox/proxmox.yml
+
+      - name: Pi node state
+        if: needs.preflight.outputs.node == 'true'
+        uses: ./.github/actions/ansible-apply
+        with:
+          playbook: node/node.yml
 
       # The k3s.orchestration roles skip their install/restart tasks under
-      # --check, so a drift gate like the other jobs' would be meaningless.
-      # Assert the real end state instead: four nodes Ready, and the sole
-      # server carrying the control-plane-only NoSchedule taint.
+      # --check, so a drift gate would be meaningless. Assert the real end
+      # state below instead.
+      - name: K3s on every node
+        if: needs.preflight.outputs.k3s == 'true'
+        uses: ./.github/actions/ansible-apply
+        with:
+          playbook: k3s/k3s.yml
+          check-idempotence: "false"
+
       - name: Confirm the cluster is whole
+        if: needs.preflight.outputs.k3s == 'true'
         run: |
           set -euo pipefail
           nodes=$(kubectl get nodes -o json)
@@ -467,21 +274,25 @@ jobs:
             echo "::error::k3s-vm-control-01 is missing the control-plane-only taint"; exit 1
           fi
 
+      # Last: this is CI's own egress path. See the header.
+      - name: Router
+        if: needs.preflight.outputs.router == 'true'
+        uses: ./.github/actions/ansible-apply
+        with:
+          playbook: router/router.yml
+
   cluster:
-    needs: [preflight, node, router, proxmox, k3s-cluster]
+    needs: [preflight, infra]
     # Runs when deploy/ or flux-system/ changed (or on a manual dispatch), and
-    # only after node/router/proxmox/k3s-cluster either passed or were
-    # themselves skipped -- they land before Flux reconciles through the same
-    # tunnel. always() plus explicit result checks: a genuine upstream failure
-    # blocks cluster, a skip does not.
+    # only after infra either passed or was itself skipped -- every Ansible
+    # layer lands before Flux reconciles through the same tunnel. always() plus
+    # an explicit result check: a genuine infra failure blocks cluster, a skip
+    # does not.
     if: >-
       always() &&
       needs.preflight.result == 'success' &&
-      (needs.node.result == 'success' || needs.node.result == 'skipped') &&
-      (needs.router.result == 'success' || needs.router.result == 'skipped') &&
-      (needs.proxmox.result == 'success' || needs.proxmox.result == 'skipped') &&
-      (needs.k3s-cluster.result == 'success' || needs.k3s-cluster.result == 'skipped') &&
-      (needs.preflight.outputs.cluster-changed == 'true' || github.event_name == 'workflow_dispatch')
+      (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
+      needs.preflight.outputs.cluster == 'true'
     runs-on: ubuntu-latest
     environment: prod
     steps:

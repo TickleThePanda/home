@@ -16,13 +16,14 @@ metadata:
   name: lvm-data
   annotations:
     # The default since every volume moved off local-path and `local-storage`
-    # joined k3s_disable in node/vars/versions.yml. A PVC that names no class
+    # joined the `disable` list in ansible/group_vars/k3s_cluster.yml. A PVC
+    # that names no class
     # gets a real block device rather than a directory on the root filesystem.
     storageclass.kubernetes.io/is-default-class: "true"
 provisioner: local.csi.openebs.io
 parameters:
   storage: lvm
-  # Must match `node_vg` in node/vars/storage.yml, and the `allowedTopologies`
+  # Must match `node_vg` in ansible/node/vars/storage.yml, and the `allowedTopologies`
   # value below. Three mirrors of one name across the Ansible/kustomize boundary;
   # keep them in step.
   volgroup: data
@@ -35,7 +36,7 @@ volumeBindingMode: WaitForFirstConsumer
 # second node added later cannot get a pod scheduled onto it with no backing VG
 # and leave the PVC unbindable. The gate is a capability label, not node
 # identity: `ticklethepanda.dev/lvm-vg` is set from `node_vg` by
-# node/tasks/k3s-node-labels.yml, so renaming the OS hostname or the k3s node
+# ansible/k3s/tasks/node-labels.yml, so renaming the OS hostname or the k3s node
 # name never touches this class or the label wiring. The value mirrors
 # `parameters.volgroup` above.
 #

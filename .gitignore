@@ -1,13 +1,13 @@
 # Bootstrap keypair for the node's `deploy` user. Generated into the repo
-# root by node/bootstrap.yml's documented flow, then uploaded to the
+# root by ansible/node/bootstrap.yml's documented flow, then uploaded to the
 # NODE_SSH_KEY GitHub secret and shredded. Ignored so a stray `git add -A`
 # can never commit the private half.
 deploy_key
 deploy_key.pub
 __pycache__
 
-# Ansible's jsonfile fact cache (node/, proxmox/, k3s-cluster/ ansible.cfg).
-# Regenerated each run; in CI it is an actions/cache entry, not committed.
+# Ansible's jsonfile fact cache (ansible/ansible.cfg). Regenerated each run;
+# in CI it is an actions/cache entry, not committed.
 .ansible_fact_cache/
 
 # Router bootstrap (router/bootstrap/). The GL.iNet backup and secrets.env hold
@@ -20,9 +20,9 @@ router/bootstrap/build/
 router/bootstrap/out/
 
 # k3s.orchestration fetches the cluster kubeconfig here during a run
-# (kubeconfig var in k3s-cluster/group_vars). Not needed after -- the real
-# kubeconfig setup is documented in CLAUDE.md.
-k3s-cluster/.kubeconfig
+# (kubeconfig var in ansible/group_vars/k3s_cluster.yml). Not needed after --
+# the real kubeconfig setup is documented in CLAUDE.md.
+ansible/k3s/.kubeconfig
 
 # Local scratch for the DOCKER_PULL_* values before they go to GitHub Actions
 # secrets (`gh secret set --env prod`). Never committed -- the repo is public.

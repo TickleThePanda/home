@@ -1,0 +1,13 @@
+---
+# Connection defaults. Overridden per layer by the other group_vars files --
+# any group_vars/<group>.yml beats group_vars/all.yml.
+
+# Every Linux host authenticates the same CI key as `deploy` (the Pi's
+# automation user, the VMs' cloud-init user). The router and proxmox-01 log in
+# as root instead and override this.
+#
+# An inventory-sourced ansible_user beats the -u flag, so -u panda would be
+# silently ignored. The indirection through node_user is the escape hatch for
+# the one-time bootstrap and for hand runs against the Pi:
+#   ansible-playbook node/node.yml -e node_user=panda
+ansible_user: "{{ node_user | default('deploy') }}"

@@ -1,0 +1,106 @@
+---
+# k3s across every node: k3s-vm-control-01 (server) and the Pi plus the two
+# worker VMs (agents), one cluster. Owns the k3s version,
+# /etc/rancher/k3s/config.yaml, the VM node resolver, and the install/join.
+# The layer below k3s on the Pi -- storage, its DNS resolver, swap, sudoers,
+# the fan -- stays in ansible/node/.
+#
+# This composes the k3s.orchestration roles rather than importing that
+# collection's playbooks/site.yml, which hardcodes the `raspberrypi` role.
+# That role edits the Pi's /boot cmdline and notifies a full reboot -- a
+# reboot kills the in-cluster cloudflared pod that is CI's own transport
+# (see ansible/node/RECOVERY.md). Its only real effects (cgroup cmdline args,
+# iptables-legacy for pre-1.6.2) are already satisfied on a running cluster.
+#
+# The k3s_server / k3s_agent roles restart k3s with a plain synchronous
+# `service: state=restarted`, unlike the node layer's detached restart. A k3s restart
+# keeps pods (cloudflared included) up, so the tunnel only blips;
+# ansible.cfg's keepalives cover it. Do the first run by hand from the LAN.
+
+- name: Cluster prerequisites
+  hosts: k3s_cluster
+  gather_facts: true
+  # Must match every other gathering play -- see ansible.cfg. The prereq /
+  # k3s_server / k3s_agent roles read distribution, kernel, hostname,
+  # service_mgr (min) and default_ipv4 / all_ipv6_addresses (network);
+  # ansible_facts.packages / .services come from their own *_facts tasks.
+  gather_subset:
+    - "!all"
+    - min
+    - network
+  become: true
+  pre_tasks:
+    # Fix node DNS before anything that needs to resolve a name. The VMs ship
+    # from cloud-init pointing at the in-cluster Pi-hole; that cannot be a
+    # dependency of starting the cluster.
+    - name: Pin the VM node resolvers to Quad9
+      ansible.builtin.import_tasks: tasks/node-dns.yml
+      when: inventory_hostname != 'k8s-manager-1'
+
+    # The k3s_server / k3s_agent roles run /usr/local/bin/k3s-install.sh
+    # unconditionally, but only fetch it when a version change is needed. On a
+    # node already at the target version (the Pi) the script is otherwise
+    # absent. force: false keeps this a one-time fetch.
+    - name: Ensure the k3s install script is present
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /usr/local/bin/k3s-install.sh
+        mode: "0755"
+        force: false
+
+    # Authenticate docker.io pulls so the cluster draws on an account's
+    # Docker Hub rate limit instead of the shared anonymous per-IP one.
+    # Skipped when the credentials are absent (a hand run without them
+    # exported), which leaves any existing registries.yaml in place. k3s
+    # re-reads this file only on restart -- the k3s_server / k3s_agent roles
+    # below restart every run, so a change here lands in the same run.
+    - name: Authenticate docker.io pulls (raises the Docker Hub rate limit)
+      when: docker_pull_token | length > 0
+      block:
+        - name: Ensure the k3s config directory exists
+          ansible.builtin.file:
+            path: /etc/rancher/k3s
+            state: directory
+            mode: "0755"
+        - name: Write the registry credentials
+          ansible.builtin.copy:
+            dest: /etc/rancher/k3s/registries.yaml
+            mode: "0600"
+            content: |
+              mirrors:
+                docker.io:
+                  endpoint:
+                    - "https://index.docker.io/v2"
+              configs:
+                "https://index.docker.io/v2":
+                  auth:
+                    username: "{{ docker_pull_username }}"
+                    password: "{{ docker_pull_token }}"
+  roles:
+    - role: k3s.orchestration.prereq
+
+- name: K3s server (k3s-vm-control-01)
+  hosts: server
+  gather_facts: false
+  become: true
+  vars_files:
+    - vars/versions.yml
+  roles:
+    - role: k3s.orchestration.k3s_server
+
+- name: K3s agents (the Pi and the two worker VMs)
+  hosts: agent
+  gather_facts: false
+  become: true
+  vars_files:
+    - vars/versions.yml
+  roles:
+    - role: k3s.orchestration.k3s_agent
+
+- name: Cluster-visible node state
+  hosts: server
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Node labels and the control-VM cordon
+      ansible.builtin.import_tasks: tasks/node-labels.yml

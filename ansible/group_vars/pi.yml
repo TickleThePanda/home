@@ -1,0 +1,7 @@
+---
+# Bound to the Pi's LAN address, not 0.0.0.0 -- this is an unauthenticated
+# read-only API.
+glances_bind_address: 192.168.1.2
+
+# The Pi ships Glances 3, whose web server is Bottle-based.
+glances_web_package: python3-bottle

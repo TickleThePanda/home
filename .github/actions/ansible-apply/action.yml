@@ -1,0 +1,58 @@
+name: Ansible apply
+description: >-
+  Apply one layer playbook, then prove idempotence with a --check re-run -- but
+  only when the apply actually changed something. A no-op apply is idempotent
+  by definition, so re-running the whole playbook over the tunnel to confirm it
+  is pure wall-clock cost. A manual dispatch always runs the check.
+
+inputs:
+  playbook:
+    description: Playbook path, relative to the ansible/ directory (e.g. node/node.yml).
+    required: true
+  check-idempotence:
+    description: >-
+      Set false for a layer whose modules skip their work under --check, which
+      makes a drift gate meaningless (the k3s layer asserts its end state with
+      kubectl instead).
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Apply ${{ inputs.playbook }}
+      id: apply
+      shell: bash
+      working-directory: ansible
+      env:
+        PLAYBOOK: ${{ inputs.playbook }}
+      run: |
+        set -euo pipefail
+        ansible-playbook "$PLAYBOOK" --diff --private-key ~/.ssh/deploy_key \
+          | tee /tmp/apply.log
+        # Only the PLAY RECAP block carries the counts; anchoring to line start
+        # never matches, since the host name precedes them.
+        if sed -n '/PLAY RECAP/,$p' /tmp/apply.log | grep -qE 'changed=[1-9]'; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    # Idempotence is the proof the automation is honest about what it owns.
+    - name: Confirm no drift remains in ${{ inputs.playbook }}
+      if: >-
+        inputs.check-idempotence == 'true' &&
+        (steps.apply.outputs.changed == 'true' ||
+         github.event_name == 'workflow_dispatch')
+      shell: bash
+      working-directory: ansible
+      env:
+        PLAYBOOK: ${{ inputs.playbook }}
+      run: |
+        set -euo pipefail
+        ansible-playbook "$PLAYBOOK" --check --diff --private-key ~/.ssh/deploy_key \
+          | tee /tmp/recheck.log
+        if sed -n '/PLAY RECAP/,$p' /tmp/recheck.log | grep -qE 'changed=[1-9]'; then
+          echo "::error::${PLAYBOOK} is not idempotent -- a second --check run still reports changes."
+          exit 1
+        fi

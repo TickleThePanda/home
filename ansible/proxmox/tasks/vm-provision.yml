@@ -1,0 +1,134 @@
+---
+# Clone the Debian 13 template into the three k3s agent VMs.
+#
+# Clone / disk resize / power state go through the Proxmox API
+# (community.proxmox, delegated to the control node). The per-VM cloud-init
+# config is done with `qm set` over SSH instead: community.proxmox 2.0.0's
+# `proxmox_kvm` update path double-encodes `sshkeys` and the API rejects it
+# ("SSH public key validation error"), and its update mode never diffs
+# anyway.
+#
+# Idempotent by construction: clone + `qm set` run only for a vmid that does
+# not exist yet. Changing an existing VM's shape means deleting it by hand and
+# re-running -- the VMs are disposable (see ansible/proxmox/README.md).
+#
+# k3s on these VMs is ansible/k3s/'s job, not this one.
+
+- name: Require the VM SSH public key
+  ansible.builtin.assert:
+    that:
+      - k3s_vm_ssh_pubkey is defined
+      - k3s_vm_ssh_pubkey | length > 0
+    fail_msg: >-
+      export K3S_VM_SSH_PUBKEY="$(ssh-keygen -y -f ./deploy_key)" first
+      (the CI key's public half -- not -e, which splits the value on spaces).
+
+- name: List existing VMs
+  community.proxmox.proxmox_vm_info:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: false
+    node: "{{ proxmox_node_name }}"
+    type: qemu
+  delegate_to: localhost
+  become: false
+  register: proxmox_vms
+
+- name: Note which target VMIDs already exist
+  ansible.builtin.set_fact:
+    proxmox_existing_vmids: "{{ proxmox_vms.proxmox_vms | map(attribute='vmid') | list }}"
+
+- name: Clone the template
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: false
+    node: "{{ proxmox_node_name }}"
+    clone: "{{ proxmox_template_name }}"
+    vmid: "{{ proxmox_template_vmid }}"
+    newid: "{{ item.vmid }}"
+    name: "{{ item.name }}"
+    full: true
+    storage: "{{ proxmox_vm_storage }}"
+    timeout: 600
+  delegate_to: localhost
+  become: false
+  loop: "{{ k3s_vms }}"
+  loop_control:
+    label: "{{ item.name }} ({{ item.vmid }})"
+  when: item.vmid not in proxmox_existing_vmids
+
+- name: Stage the VM SSH public key on the host
+  ansible.builtin.copy:
+    content: "{{ k3s_vm_ssh_pubkey }}\n"
+    dest: /root/k3s-vm-sshkey.pub
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Configure the freshly cloned VMs (cloud-init + hardware)
+  ansible.builtin.command:
+    argv:
+      - qm
+      - set
+      - "{{ item.vmid }}"
+      - --cores
+      - "{{ item.cores }}"
+      - --memory
+      - "{{ item.memory }}"
+      - --balloon
+      - "0"
+      - --onboot
+      - "1"
+      - --ciuser
+      - deploy
+      - --sshkeys
+      - /root/k3s-vm-sshkey.pub
+      - --ipconfig0
+      - "ip={{ item.ip }}/24,gw=192.168.1.1"
+      - --nameserver
+      - "{{ proxmox_vm_nameservers }}"
+      - --searchdomain
+      - home.arpa
+  loop: "{{ k3s_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.vmid not in proxmox_existing_vmids
+  changed_when: true
+
+- name: Grow the root disk
+  community.proxmox.proxmox_disk:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: false
+    vmid: "{{ item.vmid }}"
+    disk: scsi0
+    size: "{{ proxmox_vm_disk_gb }}G"
+    state: resized
+  delegate_to: localhost
+  become: false
+  loop: "{{ k3s_vms }}"
+  loop_control:
+    label: "{{ item.name }} -> {{ proxmox_vm_disk_gb }}G"
+
+- name: Ensure each VM is running
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: false
+    node: "{{ proxmox_node_name }}"
+    vmid: "{{ item.vmid }}"
+    state: started
+  delegate_to: localhost
+  become: false
+  loop: "{{ k3s_vms }}"
+  loop_control:
+    label: "{{ item.name }}"

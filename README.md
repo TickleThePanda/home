@@ -7,37 +7,41 @@ agent, the storage anchor).
 The cluster is installed using [k3s](https://k3s.io/). Every layer is
 declarative and applied by CI — there is nothing to install by hand:
 
-- `node/` owns the Pi *below* k3s (LVM/PV-backing volumes, sudoers, the DNS
-  resolver, swap, the Argon ONE fan), applied with Ansible.
-- `k3s-cluster/` owns k3s on every node (version, config, agent join), via
-  the `k3s.orchestration` collection, applied with Ansible.
+- `ansible/` owns every host outside the cluster, as one Ansible project with
+  four layers:
+  - `ansible/proxmox/` — the hypervisor `proxmox-01` and the k3s VMs on it.
+  - `ansible/node/` — the Pi *below* k3s (LVM/PV-backing volumes, sudoers, the
+    DNS resolver, swap, the Argon ONE fan).
+  - `ansible/k3s/` — k3s on every node (version, config, agent join), via the
+    `k3s.orchestration` collection.
+  - `ansible/router/` — the gateway (OpenWrt).
 - `deploy/` owns everything inside the cluster, applied with kustomize.
 - `apps/` holds the source for the apps built into images by CI.
-- `router/` owns the gateway (OpenWrt), applied with Ansible.
-- `proxmox/` owns the hypervisor `proxmox-01` and the k3s VMs on it, applied
-  with Ansible.
+- `router/bootstrap/` is the hand-flashed OpenWrt image — the break-glass path,
+  not applied by CI.
 
-### `node`
+All four Ansible layers are applied by the single `infra` job in
+`.github/workflows/deploy.yaml`, in the order `ansible/site.yml` documents.
 
-Pi-level configuration for `k8s-manager-1` *below* k3s, applied by the `node`
-job in `.github/workflows/deploy.yaml`.
+### `ansible/node`
 
-See [`node/RECOVERY.md`](node/RECOVERY.md) and
-[`k3s-cluster/RECOVERY.md`](k3s-cluster/RECOVERY.md) before touching a broken
+Pi-level configuration for `k8s-manager-1` *below* k3s.
+
+See [`ansible/node/RECOVERY.md`](ansible/node/RECOVERY.md) and
+[`ansible/k3s/RECOVERY.md`](ansible/k3s/RECOVERY.md) before touching a broken
 cluster — CI reaches the nodes *through* a pod running inside that cluster, so
 when the control-plane is down the recovery path is LAN-local, not CI.
-[`node/STORAGE.md`](node/STORAGE.md) covers the SSD: its partitions, the LVM
+[`ansible/node/STORAGE.md`](ansible/node/STORAGE.md) covers the SSD: its partitions, the LVM
 volume group behind both the node's own state and every PersistentVolume, and
 how to rebuild it.
 
-### `k3s-cluster`
+### `ansible/k3s`
 
 k3s itself, on `k3s-vm-control-01` (server) and the Pi plus two worker VMs
-(agents), as one cluster — applied by the `k3s-cluster` job. The k3s version
-lives in
-[`k3s-cluster/vars/versions.yml`](k3s-cluster/vars/versions.yml); bumping it
+(agents), as one cluster. The k3s version lives in
+[`ansible/k3s/vars/versions.yml`](ansible/k3s/vars/versions.yml); bumping it
 there upgrades every node. See
-[`k3s-cluster/README.md`](k3s-cluster/README.md).
+[`ansible/k3s/README.md`](ansible/k3s/README.md).
 
 ### `deploy`
 
@@ -51,18 +55,18 @@ Source for the apps this repo builds and deploys. Each has its own
 
 - `home-root` — a root site linking to the other services.
 
-### `proxmox`
+### `ansible/proxmox`
 
 Ansible for the hypervisor `proxmox-01` (192.168.1.3) — its apt repos, plus
 the Debian 13 template and the three k3s VMs on it (the server and two
-agents). Applied by the `proxmox` job in `.github/workflows/deploy.yaml`. See
-[`proxmox/README.md`](proxmox/README.md).
+agents). See
+[`ansible/proxmox/README.md`](ansible/proxmox/README.md).
 
 ## Network
 
 Router: 192.168.1.1 — a GL.iNet Flint 2 (GL-MT6000) running vanilla OpenWrt.
 Ongoing config is a `community.openwrt` Ansible playbook
-([`router/ansible/`](router/ansible/)), applied by CI over SSH. The initial
+([`ansible/router/`](ansible/router/)), applied by CI over SSH. The initial
 image ([`router/bootstrap/`](router/bootstrap/)) is built and flashed by hand —
 the break-glass path. See [`router/README.md`](router/README.md).
 

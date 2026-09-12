@@ -1,0 +1,65 @@
+---
+# Variables for the k3s.orchestration roles. k3s_version comes from
+# vars/versions.yml, loaded at play level in site.yml.
+
+# The API endpoint agents join. k3s-vm-control-01, the sole server. Its
+# address is static (ansible/proxmox/ sets it via cloud-init, no DHCP reservation).
+# The server cert SANs are set explicitly in server_config_yaml below and
+# still carry the Pi's old address so a stale kubeconfig keeps validating.
+api_endpoint: 192.168.1.32
+
+# The prereq role's ufw/firewalld handling. The Pi runs neither; the VMs get
+# their firewalling from the router. Nothing to open locally.
+manage_firewall: false
+
+# Do not symlink kubectl or edit ~/.bashrc / ~/.kube on the nodes.
+user_kubectl: false
+
+# Where the k3s_server role fetches the cluster kubeconfig on the control
+# node. A non-default path keeps the role from merging it into the runner's
+# ~/.kube/config (that merge only fires when kubeconfig == "~/.kube/config.new").
+kubeconfig: "{{ playbook_dir }}/.kubeconfig"
+
+# token is deliberately left undefined: the server role reads the existing
+# /var/lib/rancher/k3s/server/token off k3s-vm-control-01 and the agent play
+# consumes it in the same run. Setting it would rewrite the token on a live
+# cluster.
+
+# docker.io pull authentication, written to /etc/rancher/k3s/registries.yaml
+# by site.yml. Lifts the cluster's Docker Hub pulls off the shared anonymous
+# per-IP rate limit onto the account's own. Values come from the
+# DOCKER_PULL_* prod secrets in CI, or a hand-exported .env locally; empty
+# when absent, which leaves any existing registries.yaml as-is.
+docker_pull_username: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_USERNAME') | default('', true) }}"
+docker_pull_token: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_TOKEN') | default('', true) }}"
+
+# Written to /etc/rancher/k3s/config.yaml on the server. These addons are
+# vendored into deploy/setup/ instead (see CLAUDE.md); MetalLB replaces
+# servicelb and every volume is on the lvm-data StorageClass.
+#
+# cluster-init keeps the embedded-etcd datastore (a single member) selected;
+# it must stay set for the life of the server. tls-san still lists the Pi's
+# old address alongside the current one so a kubeconfig or client that has
+# not been repointed yet keeps validating. A YAML list here fully replaces
+# the single api_endpoint SAN the role would otherwise add (shallow combine).
+#
+# The Pi's storage-anchor taint and lvm-vg label are host-specific: set at
+# registration from host_vars/k8s-manager-1.yml and re-asserted through the
+# API by tasks/node-labels.yml. The control-plane taint on this server is
+# applied there too.
+#
+# etcd is a single member, so a snapshot is the only recovery path -- schedule
+# one every 6h, keep a day's worth. They land on the root filesystem
+# (/var/lib/rancher/k3s/server/db/snapshots); the etcd db is tens of MB.
+# ansible/node/RECOVERY.md's companion covers restoring from one.
+server_config_yaml: |
+  cluster-init: true
+  disable:
+    - servicelb
+    - traefik
+    - local-storage
+  tls-san:
+    - 192.168.1.2
+    - 192.168.1.32
+  etcd-snapshot-schedule-cron: "0 */6 * * *"
+  etcd-snapshot-retention: 4

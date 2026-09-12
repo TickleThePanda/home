@@ -1,10 +1,11 @@
 ---
 # Vendored copy of k3s's own bundled Traefik HelmCharts, so the repo is the
-# single owner (the addon is disabled in node/vars/versions.yml).
+# single owner (the addon is disabled by `server_config_yaml` in
+# ansible/group_vars/k3s_cluster.yml).
 #
 # Keep this in lockstep with k3s: it serves these tarballs from its own
 # static/charts directory, and only ever ships the pair bundled with the
-# installed version. node/scripts/check-traefik-pin.sh enforces that.
+# installed version. scripts/check-traefik-pin.sh enforces that.
 #
 # To refresh after a k3s bump, diff against upstream (note the %2B):
 #   curl -s "https://api.github.com/repos/k3s-io/k3s/contents/manifests/traefik.yaml?ref=v1.33.13%2Bk3s2" \

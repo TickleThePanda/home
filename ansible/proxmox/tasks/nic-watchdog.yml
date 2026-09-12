@@ -1,0 +1,61 @@
+---
+# A targeted watchdog for the I219-V TX hang (see nic-watchdog.sh.j2 and
+# tasks/host-network.yml). PVE's watchdog-mux only fires if it stops feeding
+# /dev/watchdog -- it does nothing when the NIC wedges but the host is
+# otherwise alive, which is exactly what happened. This timer pings the
+# gateway, recovers the NIC in place, and reboots only as a rate-limited last
+# resort.
+
+- name: Install the nic-watchdog script
+  ansible.builtin.template:
+    src: nic-watchdog.sh.j2
+    dest: /usr/local/sbin/nic-watchdog
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the nic-watchdog systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/nic-watchdog.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ansible/proxmox/tasks/nic-watchdog.yml. Do not edit on the host.
+      [Unit]
+      Description=Recover the onboard NIC from an e1000e TX hang
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      TimeoutStartSec=180
+      ExecStart=/usr/local/sbin/nic-watchdog
+  notify: reload systemd
+
+- name: Install the nic-watchdog timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/nic-watchdog.timer
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ansible/proxmox/tasks/nic-watchdog.yml. Do not edit on the host.
+      [Unit]
+      Description=Run nic-watchdog periodically
+
+      [Timer]
+      OnBootSec=3min
+      OnUnitActiveSec=60s
+
+      [Install]
+      WantedBy=timers.target
+  notify: reload systemd
+
+# On a first-ever --check run the units above were only simulated, so
+# systemctl has nothing real to enable. Every run after is unaffected.
+- name: Enable and start the nic-watchdog timer
+  ansible.builtin.systemd_service:
+    name: nic-watchdog.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode

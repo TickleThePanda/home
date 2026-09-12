@@ -1,0 +1,49 @@
+---
+# Glances' web-server mode, polled by gethomepage's `glances` widget
+# (deploy/internal/homepage/services.yaml) for this host's CPU temperature.
+# The packaged unit runs `-s` (Glances' own binary server protocol,
+# loopback-only) -- this replaces it with `-w` (the REST API gethomepage
+# speaks), bound to the LAN so the cluster can reach it.
+#
+# The web dependency is only a package Recommends, not a hard Depends, but `-w`
+# fails at runtime without it. Which package it is depends on the Glances major
+# version the host ships -- see glances_web_package in group_vars.
+
+- name: Install glances and its web-server dependency
+  ansible.builtin.package:
+    name:
+      - glances
+      - "{{ glances_web_package }}"
+    state: present
+
+- name: Install the glances web-server systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/glances.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by the glances role. Do not edit on the host.
+      [Unit]
+      Description=Glances web server
+      After=network.target
+
+      [Service]
+      User=glances
+      Group=glances
+      ExecStart=/usr/bin/glances -w -B {{ glances_bind_address }} -p {{ glances_port }} --disable-webui
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: restart glances
+
+# On a first-ever --check run the unit above was only simulated, so systemctl
+# has nothing real to enable. Every run after is unaffected.
+- name: Enable and start glances
+  ansible.builtin.systemd_service:
+    name: glances
+    enabled: true
+    state: started
+  when: not ansible_check_mode

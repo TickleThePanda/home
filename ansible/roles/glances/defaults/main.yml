@@ -1,0 +1,8 @@
+---
+# The REST API port gethomepage's `glances` widget defaults to.
+glances_port: 61208
+
+# glances_bind_address and glances_web_package have no default on purpose:
+# the address is host-specific, and the package differs by Glances major
+# version (python3-bottle on 3, python3-uvicorn on 4). Both are set in
+# group_vars for each host that runs this role.

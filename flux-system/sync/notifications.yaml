@@ -15,7 +15,7 @@
 # Needs an out-of-band Secret `github-commit-status` with key `token`: a
 # GitHub PAT scoped to commit-status write on this repo (fine-grained:
 # "Commit statuses: Read and write"; classic: `repo:status`). See
-# node/RECOVERY.md.
+# ansible/node/RECOVERY.md.
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
 kind: Provider
 metadata:

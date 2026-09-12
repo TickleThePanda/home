@@ -1,0 +1,10 @@
+---
+# Self-contained: daemon_reload here rather than notifying a play-level
+# handler, so the role carries no dependency on its consumer's handler names.
+# Read-only monitoring, so a restart has no storage, VM or k3s impact.
+- name: restart glances
+  ansible.builtin.systemd_service:
+    name: glances
+    state: restarted
+    daemon_reload: true
+  when: not ansible_check_mode

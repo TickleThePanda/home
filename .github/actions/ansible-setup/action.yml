@@ -6,7 +6,7 @@ description: >-
 
 inputs:
   working-directory:
-    description: Tree holding the requirements.yml to install (e.g. node, router/ansible).
+    description: Tree holding the requirements.yml to install (i.e. ansible).
     required: true
   extra-pip:
     description: Extra pip packages the collections need on the controller (space-separated).

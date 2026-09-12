@@ -54,8 +54,9 @@ When comments are necessary:
   storage anchor — every `lvm-data` volume lives on its SSD, and its
   `ticklethepanda.dev/prefer-no-schedule=storage-anchor:PreferNoSchedule`
   taint steers portable pods to the workers.
-- k3s on every node is managed by `k3s-cluster/` (the `k3s.orchestration`
-  collection), not `node/`. `node/` owns only the layer below k3s on the Pi.
+- k3s on every node is managed by `ansible/k3s/` (the `k3s.orchestration`
+  collection), not `ansible/node/`, which owns only the layer below k3s on
+  the Pi.
 - SSH: `ssh 192.168.1.2` as `panda` (Pi); every node (Pi included) also takes
   the `deploy` CI key. Key-based, no host aliases — use the IPs. Control-plane
   work goes through `deploy@192.168.1.32`.
@@ -109,7 +110,7 @@ When comments are necessary:
   and resolve via routed access to Pi-hole (`listeningMode=ALL`, so it answers
   off-subnet). IoT VLANs also get NTP from the router (`192.168.<n>.1`;
   `system.ntp.enable_server`).
-- **mDNS**: an Avahi reflector on the router (`router/ansible/tasks/mdns-reflector.yml`)
+- **mDNS**: an Avahi reflector on the router (`ansible/router/tasks/mdns-reflector.yml`)
   forwards mDNS between `br-lan`, `br-trusted` and every `br-iot-*` — link-local
   multicast does not route on its own. This is what lets Home Assistant
   (`homelab`) rediscover ESPHome / IoT devices on the Wi-Fi VLANs after a DHCP
@@ -167,29 +168,38 @@ When comments are necessary:
 
 ## Deploy pattern
 
-- `.github/workflows/deploy.yaml` is the single pipeline, running sequential
-  jobs on push to `deploy/**`, `node/**`, `router/ansible/**`, `proxmox/**`
-  or `k3s-cluster/**`: `preflight` (the k3s/Traefik pin guard + tunnel
-  reachability — no secrets, fails fast), then `node` (Ansible, Pi below
-  k3s), then `router` (gateway, see `router/ansible/`), then `proxmox`
-  (hypervisor apt repos + the k3s VMs, see `proxmox/`), then `k3s-cluster`
-  (k3s on every node, see `k3s-cluster/`), then `cluster`. Order matters:
-  `proxmox` creates the VMs `k3s-cluster` joins; `node` lands the Pi's
-  storage mounts before k3s; a k3s upgrade changes which Traefik chart
-  tarball the node serves, so `k3s-cluster` moves before the manifests that
-  reference it. `node`, `router`, `proxmox`, `k3s-cluster` and `cluster` each
-  skip when their own tree is unchanged (`cluster` = `deploy/**` +
-  `flux-system/**`; all also trigger on the workflow file itself); a skipped
-  job counts as a pass for the jobs that follow, and a manual
-  `workflow_dispatch` runs them all.
-- Every Ansible job shares `.github/actions/ansible-setup`: a pinned
-  `ansible-core` (`.github/actions/ansible-setup/requirements.txt`, bumped in
-  its own commit like the collections) plus that tree's Galaxy collections,
-  with pip / collection / fact caches restored. `node`, `proxmox` and
-  `k3s-cluster` set `gathering = smart` + a `jsonfile` fact cache
-  (`.ansible_fact_cache/`, gitignored): play 1 gathers a trimmed
-  `gather_subset`, later plays and the `--check` re-run reuse it, and within
-  `fact_caching_timeout` a follow-up run skips the gather entirely.
+- `.github/workflows/deploy.yaml` is the single pipeline, running three
+  sequential jobs on push to `deploy/**`, `flux-system/**` or `ansible/**`:
+  `preflight` (the k3s/Traefik pin guard + tunnel reachability — fails fast),
+  then `infra` (every Ansible layer), then `cluster` (kustomize/Flux).
+- **`infra` is one job for all four Ansible layers.** It applies them in the
+  order `ansible/site.yml` documents: `proxmox` (creates the VMs), `node` (the
+  Pi's storage mounts, which a `RequiresMountsFor` drop-in makes `k3s-agent`
+  depend on), `k3s`, then `router` last. A k3s upgrade changes which Traefik
+  chart tarball is served, so `k3s` lands before the `cluster` manifests that
+  reference it. The router goes last because nothing depends on it and it is
+  the only layer that can drop CI's own egress — a WAN blip there cannot
+  strand layers that had yet to run.
+- One job rather than four is deliberate: runner provisioning, checkout, the
+  Cloudflare WARP connect and `ansible-setup` are most of the cost of a no-op
+  deploy, and they are now paid once. **Do not split the layers back into
+  separate jobs** to get per-layer isolation — they are sequential
+  `ansible-playbook` invocations under `set -euo pipefail`, which already
+  blocks later layers on a failure.
+- Each layer is skipped when the push changed nothing under `ansible/<layer>/`.
+  Anything shared — `ansible/inventory.yml`, `group_vars/`, `host_vars/`,
+  `roles/`, `ansible.cfg`, `site.yml`, `requirements.yml`, the workflow, the
+  composite actions — matches the `shared` paths-filter and runs **every**
+  layer. That catch-all is load-bearing: without it a change to a shared role
+  would apply to no host at all. A `workflow_dispatch` runs everything.
+- `.github/actions/ansible-setup` installs a pinned `ansible-core`
+  (`.github/actions/ansible-setup/requirements.txt`, bumped in its own commit
+  like the collections) plus the Galaxy collections, with pip / collection /
+  fact caches restored. `.github/actions/ansible-apply` applies one layer and
+  then proves idempotence with a `--check` re-run — **but only when the apply
+  actually changed something.** A no-op apply is idempotent by definition, so
+  re-running the whole playbook over the tunnel to confirm it is pure
+  wall-clock cost.
 - The `cluster` job applies everything under `deploy/` via kustomize:
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,
@@ -231,22 +241,63 @@ When comments are necessary:
   from `deploy/`. Workloads that must stay on the Pi are held there by their
   `lvm-data` PVC (storage topology), not by an arch `nodeSelector`.
 
+## Ansible layout
+
+- **`ansible/` is one Ansible project for every managed host** — one
+  `ansible.cfg`, one `inventory.yml`, one `known_hosts`, one
+  `requirements.yml` (the union of every layer's collections), shared
+  `group_vars/`, `host_vars/` and `roles/`. Each layer keeps its own
+  directory: `ansible/proxmox/`, `ansible/node/`, `ansible/k3s/`,
+  `ansible/router/`, each holding a playbook named after the layer plus its
+  `tasks/`, `templates/`, `vars/`. `ansible/site.yml` imports all four in
+  dependency order. `router/bootstrap/` is *not* part of this — it is
+  hand-flashed, not CI-driven.
+- Connection differences are `group_vars`, not separate trees: the router is
+  `ansible_user: root` + `ansible_python_interpreter: /dev/null` (OpenWrt ships
+  no Python, every task is a `community.openwrt` module running in ash),
+  proxmox-01 is root, everything else is `deploy`.
+- **Every play that gathers must use the same `gather_subset`
+  (`!all, min, network`).** The fact cache is shared across layers and
+  `gathering = smart` means a cached entry wins over the play's own subset — so
+  a layer that gathered less would starve one that needs more.
+  `k3s.orchestration`'s prereq role reads `all_ipv6_addresses` and (in
+  `k3s.nft.j2`) `default_ipv4`, both of which live in `network`; the other
+  layers need only `min`, but they share one cache so they share one subset.
+  There is **no `ansible.cfg` key** for this — `gather_subset` under
+  `[defaults]` is silently ignored (there is no `DEFAULT_GATHER_SUBSET` in
+  ansible-core), and dropping the per-play setting falls back to a full
+  hardware scan on every host. It has to be repeated per play.
+- **Never scope a run with `--limit` alone.** `k8s-manager-1` is in both `pi`
+  and `agent` — limiting to `pi` still matches the k3s agent play and would
+  drag the Pi through a k3s reinstall, then fail on an undefined `token` (the
+  agent role interpolates it unconditionally but only defines it when the
+  server play ran). Select whole layer playbooks instead; that is what CI does.
+- `localhost` is in its own `control` group, needed for `community.proxmox`'s
+  `delegate_to: localhost`. No play uses `hosts: all` — that would run `become`
+  tasks on the runner.
+- Anything genuinely shared between layers becomes a role under
+  `ansible/roles/`, parameterised by `group_vars`. `glances` is the current
+  example: identical on the Pi and proxmox-01 except the web-server package
+  (`python3-bottle` on Glances 3, `python3-uvicorn` on Glances 4), which is
+  `glances_web_package`. A naive merge there breaks a host at *runtime*, not at
+  apply time.
+
 ## Node pattern
 
-- `node/` is the layer *below* k3s on the Pi: the LVM volumes and mounts
-  backing the PVs, the sudoers entries, the DNS resolver, swap, the Argon
-  fan. **k3s itself — version, `/etc/rancher/k3s/config.yaml`, install —
-  moved to `k3s-cluster/`.** Applied by the `node` job in
+- `ansible/node/` is the layer *below* k3s on the Pi: the LVM volumes and
+  mounts backing the PVs, the sudoers entries, the DNS resolver, swap, the
+  Argon fan. **k3s itself — version, `/etc/rancher/k3s/config.yaml`, install —
+  is `ansible/k3s/`.** Applied by the `infra` job in
   `.github/workflows/deploy.yaml`, connecting as `deploy` over SSH (key in
   `NODE_SSH_KEY`). Don't hand-edit on the node.
-- The Pi runs `k3s-agent`, not a server. `node/tasks/storage.yml`'s
+- The Pi runs `k3s-agent`, not a server. `ansible/node/tasks/storage.yml`'s
   `RequiresMountsFor` guard targets `k3s-agent.service` and only the `agent` /
   `kubelet` LVs; the `server` LV is vestigial (kept — shrinking an LV fails).
 - **CI's own transport runs through the cluster.** The in-cluster
   `cloudflared` Deployment is the Cloudflare Zero Trust private-network
   connector (logs show `originService=warp-routing` carrying `192.168.1.2:22`
-  and `192.168.1.32:6443`). `node/` no longer restarts k3s, so its playbook
-  doesn't disturb its own transport — but `k3s-cluster/` does (see that
+  and `192.168.1.32:6443`). `ansible/node/` no longer restarts k3s, so its playbook
+  doesn't disturb its own transport — but `ansible/k3s/` does (see that
   pattern). cloudflared has two replicas and is tainted off the server, so it
   runs on the two worker VMs.
 - **An open 6443 is not a ready API.** k3s binds the port well before it
@@ -256,27 +307,27 @@ When comments are necessary:
   k3s server restart (containerd keeps them up), so cloudflared normally
   stays Ready throughout.
 - The corollary: **when the server or both worker VMs are down, CI cannot
-  reach the LAN at all.** Recovery is LAN-local — see `node/RECOVERY.md` and
-  `k3s-cluster/RECOVERY.md`.
+  reach the LAN at all.** Recovery is LAN-local — see `ansible/node/RECOVERY.md` and
+  `ansible/k3s/RECOVERY.md`.
 
-## k3s-cluster pattern
+## K3s layer pattern
 
-- `k3s-cluster/` owns k3s on every node — `k3s-vm-control-01` (`server`), and
+- `ansible/k3s/` owns k3s on every node — `k3s-vm-control-01` (`server`), and
   the Pi plus the two worker VMs (`agent`) — as one cluster, via the pinned
   `k3s.orchestration` collection (`k3s-io/k3s-ansible`). Applied by the
-  `k3s-cluster` job, after `proxmox` (which creates the VMs) and `node` (Pi
-  storage mounts), before `cluster`. Connects as `deploy` over SSH through the
-  same tunnel.
+  `infra` job, after the proxmox layer (which creates the VMs) and the node
+  layer (Pi storage mounts), before `cluster`. Connects as `deploy` over SSH
+  through the same tunnel.
 - **Node DNS is pinned to Quad9, not the in-cluster Pi-hole.** The VMs' first
   `pre_task` (`tasks/node-dns.yml`) writes a netplan drop-in and asserts it
   took — a node whose resolver is a cluster workload cannot cold-start the
   cluster (the kubelet can't resolve a registry to pull the image that brings
-  the resolver back). `proxmox/` sets the same for a fresh clone. Pods still
+  the resolver back). `ansible/proxmox/` sets the same for a fresh clone. Pods still
   use CoreDNS.
-- **Bumping k3s is an edit to `k3s-cluster/vars/versions.yml`.** It must move
+- **Bumping k3s is an edit to `ansible/k3s/vars/versions.yml`.** It must move
   in the same commit as `deploy/setup/traefik/traefik-helm-chart.yaml`: k3s
   only serves the Traefik chart tarball bundled with the *installed* version.
-  `node/scripts/check-traefik-pin.sh` (still invoked from `preflight`,
+  `scripts/check-traefik-pin.sh` (still invoked from `preflight`,
   repointed at the new path) enforces the pair; `--online` checks it against
   the k3s release manifest. One minor version at a time.
 - `site.yml` **composes** the collection's `prereq` / `k3s_server` /
@@ -285,9 +336,9 @@ When comments are necessary:
   trigger a full **reboot** (kills the cloudflared pod — worse than a k3s
   restart, where pods survive).
 - **The collection restarts k3s with a plain synchronous
-  `service: state=restarted`**, not `node/`'s old detached `systemd-run`. A
+  `service: state=restarted`**, not `ansible/node/`'s old detached `systemd-run`. A
   server restart keeps pods up so the tunnel only blips;
-  `k3s-cluster/ansible.cfg`'s SSH keepalives cover it. Do first runs by hand
+  `ansible/ansible.cfg`'s SSH keepalives cover it. Do first runs by hand
   from the LAN. Every run restarts k3s (the collection always does) — that is
   by design, not drift. `ansible.cfg` sets `forks = 4` so the agent play hits
   the three agents at once; serialising only matters with a second server
@@ -301,7 +352,7 @@ When comments are necessary:
   recover from, so `server_config_yaml` schedules `k3s etcd-snapshot` every
   6h (retention 4) to `/var/lib/rancher/k3s/server/db/snapshots` on the
   server's root disk. Recover a bad run by reverting; recover a lost
-  datastore from a snapshot — see `k3s-cluster/RECOVERY.md`.
+  datastore from a snapshot — see `ansible/k3s/RECOVERY.md`.
 - **The Pi's node identity is load-bearing.** It rejoins as an agent named
   `k8s-manager-1` with `ticklethepanda.dev/lvm-vg=data` — the OpenEBS PVs'
   `nodeAffinity` and the `lvm-data` StorageClass topology both key off that
@@ -315,7 +366,7 @@ When comments are necessary:
   the shared anonymous per-IP rate limit. Absent creds → the file is skipped
   (any existing one left as-is). k3s only re-reads it on restart, which every
   run does anyway.
-- **No `--check` drift gate** for the `k3s-cluster` job — the collection
+- **No `--check` drift gate** for the k3s layer — the collection
   skips its mutating tasks under `--check`. The job asserts four Ready nodes
   and the server's `control-plane:NoSchedule` taint with `kubectl` instead.
 - The workflow holds `concurrency: group: cluster` so two runs can never
@@ -327,7 +378,7 @@ When comments are necessary:
 
 - `router/` has two halves. `router/bootstrap/` is the OpenWrt Image Builder
   setup — a known-good baseline, built and flashed **by hand**, the
-  break-glass path. `router/ansible/` is a `community.openwrt` playbook, the
+  break-glass path. `ansible/router/` is a `community.openwrt` playbook, the
   source of truth for ongoing config, applied by the `router` job in
   `.github/workflows/deploy.yaml`. The two need not stay in sync: bootstrap
   only has to get a bare router far enough for the playbook to take over.
@@ -341,7 +392,7 @@ When comments are necessary:
   `ROUTER_PPPOE_PASSWORD` / `ROUTER_WIFI_KEY` / `ROUTER_WIFI_IOT_KEY_{INET,LOCAL,ECHO}`
   in the `prod` environment.
 - **Same tunnel-through-the-thing-you're-changing risk as k3s.** CI egresses
-  through this router's WAN. `router/ansible/site.yml`'s network / dropbear
+  through this router's WAN. `ansible/router/router.yml`'s network / dropbear
   handlers detach with `community.openwrt.nohup` and reconnect with
   `wait_for_connection` — do not fold them into a synchronous restart. Do the
   first apply after any reflash from the LAN, not through CI.
@@ -350,18 +401,16 @@ When comments are necessary:
   with `openwrt_install_recommended_packages: false` (busybox already has
   `base64` / `sha256sum`; the opkg path can otherwise make a run report
   "changed" off a stale package list).
-- The root password is the one thing `router/ansible/` does not manage —
+- The root password is the one thing `ansible/router/` does not manage —
   `router/bootstrap/` writes it once from the GL.iNet backup hash.
 
 ## Proxmox pattern
 
-- `proxmox/` is the Ansible layer for `proxmox-01` (`192.168.1.3`), the home
-  hypervisor — Proxmox VE 9 on Debian 13. Its own tree, like `node/` and
-  `router/ansible/`, not a shared inventory: the three hosts differ enough
-  (connection user, collections, tunnel-disruption handling) that merging
-  them buys little until there is shared logic to extract.
-- The `proxmox` job connects as `root` over SSH (reusing `NODE_SSH_KEY`)
-  through the **same cloudflared tunnel as `node`** — the Zero Trust routes
+- `ansible/proxmox/` is the Ansible layer for `proxmox-01` (`192.168.1.3`),
+  the home hypervisor — Proxmox VE 9 on Debian 13. One layer of the shared
+  `ansible/` project; its `root` login lives in `group_vars/proxmox.yml`.
+- It connects as `root` over SSH (reusing `NODE_SSH_KEY`)
+  through the **same cloudflared tunnel as the node layer** — the Zero Trust routes
   already cover `192.168.1.0/24`. The key's public half is already in the
   host's `authorized_keys` (a symlink into `/etc/pve/priv/`); no bootstrap
   playbook. The VM-lifecycle half instead hits the **Proxmox API** (port
@@ -378,32 +427,32 @@ When comments are necessary:
   (`proxmox_kvm` update mode doesn't diff — it always reports changed), so
   reshaping a VM's CPU/RAM/IP means deleting it and re-running. For
   `k3s-vm-control-01` (the server) that also means restoring etcd from a
-  snapshot — see `k3s-cluster/RECOVERY.md`.
+  snapshot — see `ansible/k3s/RECOVERY.md`.
 - **The k3s VMs' cloud-init resolver is Quad9** (`proxmox_vm_nameservers`),
   not the in-cluster Pi-hole — a fresh clone must not depend on a cluster
-  workload to resolve. `k3s-cluster/` re-asserts it on running VMs.
+  workload to resolve. `ansible/k3s/` re-asserts it on running VMs.
 - Neither path touches how CI reaches the host, so no tunnel-disruption
   handling. The job runs after `node`/`router` purely so nothing overlaps.
 - apt sources are deb822 `.sources` (PVE 9 / Debian 13), managed with
   `ansible.builtin.deb822_repository`. Enterprise repos are disabled **in
   place** (`Enabled: no`), not deleted — `pve-manager` recreates them on
-  upgrade. `proxmox/vars/main.yml` holds `proxmox_apt_suite`; bump it on a
+  upgrade. `ansible/proxmox/vars/main.yml` holds `proxmox_apt_suite`; bump it on a
   major PVE / Debian upgrade.
 - Deliberately not managed: the subscription key / nag, LXC containers,
   non-k3s VMs and all VM/CT storage, the cluster config and `/etc/pve`,
   `authorized_keys`, and **VM deletion** (never automated). k3s *on* the VMs
-  is `k3s-cluster/`'s job.
+  is `ansible/k3s/`'s job.
 
 ## Storage
 
-`node/STORAGE.md` is the reference. The essentials:
+`ansible/node/STORAGE.md` is the reference. The essentials:
 
 - Most of the SSD is `sda3`, one LVM volume group named `data`. Four LVs hold
-  node state (sized in `node/vars/storage.yml`); the unallocated ~327G **is
+  node state (sized in `ansible/node/vars/storage.yml`); the unallocated ~327G **is
   the PersistentVolume pool**, not spare capacity. Don't pre-allocate it. The
   `server` LV is vestigial since the control-plane left the Pi — kept, not
   reclaimed (shrinking fails).
-- **Growing a volume is an edit to `node/vars/storage.yml`.** It extends
+- **Growing a volume is an edit to `ansible/node/vars/storage.yml`.** It extends
   online. Shrinking fails.
 - **Ansible does not own the partition table or the VG**, and must not — CI
   reaches this node through a pod running on it, so a bad repartition has no
@@ -428,7 +477,7 @@ When comments are necessary:
   `deploy/internal/auth/pocketid/volume.yaml`.
 - The pre-migration copies still sit on the root filesystem under `/mnt/disk`
   and `/var/lib/rancher/k3s/storage` (~700M). They are the rollback — see the
-  end of `node/STORAGE.md` for removing them.
+  end of `ansible/node/STORAGE.md` for removing them.
 
 ## Administration notes
 
@@ -438,7 +487,7 @@ When comments are necessary:
   and re-applies whatever's there on every restart, independent of CI. If the repo
   manages a resource that k3s also bundles by default (this happened with
   Traefik), add that addon to `server_config_yaml` in
-  `k3s-cluster/group_vars/k3s_cluster.yml` (`disable: [servicelb, traefik,
+  `ansible/group_vars/k3s_cluster.yml` (`disable: [servicelb, traefik,
   local-storage]`, written to `/etc/rancher/k3s/config.yaml`) and vendor the
   full resource into the repo so there's a single owner. `deploy/setup/traefik/`
   is the current example of this pattern.

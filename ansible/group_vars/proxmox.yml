@@ -1,0 +1,13 @@
+---
+# Proxmox tooling (pvesh, pveum) assumes root, and the authorized_keys file is
+# the cluster-managed /etc/pve/priv/authorized_keys symlink -- a scoped
+# automation user buys little here. The CI key (the same private half as
+# NODE_SSH_KEY) is already in it.
+ansible_user: root
+
+# Bound to the host's LAN address, not 0.0.0.0 -- proxmox-01 has other bridges
+# for VM traffic, and this is an unauthenticated read-only API.
+glances_bind_address: 192.168.1.3
+
+# PVE 9 / Debian 13 ships Glances 4, whose web server is FastAPI/uvicorn.
+glances_web_package: python3-uvicorn
