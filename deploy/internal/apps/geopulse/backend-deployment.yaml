@@ -89,18 +89,27 @@ spec:
                 secretKeyRef:
                   name: geopulse-oidc
                   key: client-secret
+          # timeoutSeconds/failureThreshold widened past the 1s/3-strikes default —
+          # a heavy import (e.g. reverse-geocoding a large historical GPS history)
+          # can make /api/health slow to answer on this hardware without the
+          # backend actually being down; too strict a probe flips it NotReady and
+          # Traefik/nginx 502 requests, including unrelated new ones.
           livenessProbe:
             httpGet:
               path: /api/health
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6
           readinessProbe:
             httpGet:
               path: /api/health
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 6
           volumeMounts:
             - name: data
               mountPath: /app/keys
