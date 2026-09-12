@@ -11,9 +11,9 @@ variable "region" {
 }
 
 variable "github_repository" {
-  description = "GitHub \"owner/repo\" that terraform/cloudflare-zero-trust/ runs from in CI."
+  description = "GitHub \"owner/repo\" that terraform/cloudflare-zero-trust/ runs from in CI. Must match the repo's canonical case -- GitHub's OIDC `repository` claim preserves it, it isn't lowercased like the git remote URL."
   type        = string
-  default     = "ticklethepanda/home"
+  default     = "TickleThePanda/home"
 }
 
 variable "wif_pool_name" {
