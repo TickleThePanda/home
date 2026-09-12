@@ -29,6 +29,7 @@
   vars_files:
     - vars/storage.yml
     - vars/argon-fan.yml
+    - vars/glances.yml
 
   tasks:
     - name: Sudoers
@@ -42,6 +43,10 @@
     - name: Argon ONE fan controller
       ansible.builtin.import_tasks: tasks/argon-fan.yml
       tags: [argon-fan]
+
+    - name: Glances web server
+      ansible.builtin.import_tasks: tasks/glances.yml
+      tags: [glances]
 
     - name: Network
       ansible.builtin.import_tasks: tasks/network.yml
@@ -60,10 +65,10 @@
         cmd: nmcli device reapply eth0
       changed_when: true
 
-    # Unit-file changes only (tasks/storage.yml's k3s-agent.service.d drop-in).
-    # RequiresMountsFor takes effect on the next start, so this only
-    # daemon-reloads -- it does not bounce k3s-agent. k3s restarts are
-    # k3s-cluster/'s concern now.
+    # Unit-file changes only (tasks/storage.yml's k3s-agent.service.d drop-in,
+    # glances.service). RequiresMountsFor takes effect on the next start, so
+    # this only daemon-reloads -- it does not bounce k3s-agent. k3s restarts
+    # are k3s-cluster/'s concern now.
     - name: Reload the systemd manager configuration
       listen: reload systemd
       ansible.builtin.systemd_service:
@@ -77,5 +82,13 @@
       listen: restart argon-fan
       ansible.builtin.systemd_service:
         name: argon-fan
+        state: restarted
+      when: not ansible_check_mode
+
+    # Read-only monitoring -- no storage/k3s impact either way.
+    - name: Restart glances
+      listen: restart glances
+      ansible.builtin.systemd_service:
+        name: glances
         state: restarted
       when: not ansible_check_mode

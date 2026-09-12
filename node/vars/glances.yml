@@ -1,0 +1,5 @@
+---
+# Bound to the Pi's LAN address, not 0.0.0.0 -- this is an unauthenticated
+# read-only API.
+node_glances_bind_address: 192.168.1.2
+node_glances_port: 61208

@@ -11,11 +11,6 @@
       memory: true
       showLabel: true
 
-- resources:
-    label: homepage
-    cpu: true
-    memory: true
-
 - search:
     provider: duckduckgo
     target: _blank

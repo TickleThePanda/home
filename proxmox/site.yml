@@ -54,6 +54,10 @@
       ansible.builtin.import_tasks: tasks/host-watchdog.yml
       tags: [host, watchdog]
 
+    - name: Glances web server
+      ansible.builtin.import_tasks: tasks/glances.yml
+      tags: [host, glances]
+
     - name: Debian 13 cloud template
       ansible.builtin.import_tasks: tasks/vm-template.yml
       tags: [vm, template]
@@ -69,13 +73,20 @@
       ansible.builtin.apt:
         update_cache: true
 
-    # Unit-file changes only (nic-watchdog.service / .timer). Reload only --
-    # the timer's enable/start is a separate task, and a running nic-watchdog
-    # invocation is a no-op unless the NIC is actually down.
+    # Unit-file changes only (nic-watchdog.service / .timer, glances.service).
+    # Reload only -- each unit's enable/start is a separate task.
     - name: Reload the systemd manager configuration
       listen: reload systemd
       ansible.builtin.systemd_service:
         daemon_reload: true
+
+    # Read-only monitoring -- no VM/network impact either way.
+    - name: Restart glances
+      listen: restart glances
+      ansible.builtin.systemd_service:
+        name: glances
+        state: restarted
+      when: not ansible_check_mode
 
     # Swap the live watchdog module. Only closes/reopens /dev/watchdog -- no
     # network impact, VM/HA state untouched. A no-op restart if iTCO_wdt is
