@@ -94,6 +94,17 @@ spec:
           # can make /api/health slow to answer on this hardware without the
           # backend actually being down; too strict a probe flips it NotReady and
           # Traefik/nginx 502 requests, including unrelated new ones.
+          #
+          # /api/health also runs `SELECT 1` against postgres, so liveness failure
+          # here doesn't mean this process is stuck — it means postgres is
+          # unreachable, which a restart can't fix. A tight liveness threshold just
+          # turns a several-minute postgres restart (CNPG's smart shutdown alone
+          # can take ~3-5 minutes) into a crash loop: kubelet kills the container,
+          # it comes back up, Flyway's migrate-at-start has no connect-retry
+          # configured so it fails hard against the still-down database, exits 1,
+          # and repeats. failureThreshold is widened to ~10 minutes so liveness
+          # only fires for an actually-stuck process; readiness stays tight so
+          # Traefik still stops routing to the pod during a real outage.
           livenessProbe:
             httpGet:
               path: /api/health
@@ -101,7 +112,7 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 10
-            failureThreshold: 6
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /api/health
