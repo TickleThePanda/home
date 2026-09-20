@@ -14,13 +14,17 @@
 #
 # 2. Prometheus exporter mode (--export prometheus), scraped by Prometheus
 #    (deploy/internal/monitoring/) for this host's CPU/RAM/swap/load/disk/
-#    network/diskio/uptime, and (Pi + proxmox-01 only) temperature.
+#    network/diskio/uptime, and (Pi + proxmox-01 only) temperature. Needs
+#    python3-prometheus-client -- also only a package Recommends, not a
+#    hard Depends, so --export prometheus fails at runtime without it, same
+#    story as the web dependency above.
 
-- name: Install glances and its web-server dependency
+- name: Install glances and its web-server and Prometheus-exporter dependencies
   ansible.builtin.package:
     name:
       - glances
       - "{{ glances_web_package }}"
+      - python3-prometheus-client
     state: present
 
 - name: Install the glances web-server systemd unit
