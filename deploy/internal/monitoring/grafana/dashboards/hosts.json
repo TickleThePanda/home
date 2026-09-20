@@ -59,11 +59,13 @@
       "id": 5,
       "title": "Network I/O (bytes/s)",
       "type": "timeseries",
+      "description": "Glances exposes these as ever-increasing totals (as Prometheus Gauges, not Counters, but the values still only go up) -- rate() over the _cumulative_rx/_tx series turns them into a per-second rate. The plain _rx/_tx series (no rate()) are Glances' own since-last-poll delta and would double-count against these.",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
       "targets": [
-        { "expr": "{__name__=~\"glances_network.*_bytes_(recv|sent)\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+        { "expr": "rate({__name__=~\"glances_network.*_cumulative_rx\"}[5m])", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" },
+        { "expr": "rate({__name__=~\"glances_network.*_cumulative_tx\"}[5m])", "legendFormat": "{{instance}} {{__name__}}", "refId": "B" }
       ]
     },
     {
@@ -74,7 +76,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
       "targets": [
-        { "expr": "{__name__=~\"glances_diskio.*\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+        { "expr": "rate({__name__=~\"glances_diskio.*_read_bytes\"}[5m])", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" },
+        { "expr": "rate({__name__=~\"glances_diskio.*_write_bytes\"}[5m])", "legendFormat": "{{instance}} {{__name__}}", "refId": "B" }
       ]
     },
     {
@@ -86,7 +89,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "celsius" }, "overrides": [] },
       "targets": [
-        { "expr": "{__name__=~\"glances_sensors.*\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+        { "expr": "{__name__=~\"glances_sensors.*_value\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
       ]
     },
     {
