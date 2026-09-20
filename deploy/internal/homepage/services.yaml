@@ -7,18 +7,6 @@
         href: https://proxmox.internal.ticklethepanda.co.uk:8006/
         description: proxmox-01 hypervisor
         icon: proxmox
-    - k8s-manager-1:
-        description: Raspberry Pi, k3s agent + storage anchor
-        icon: raspberry-pi
-    - k3s-vm-control-01:
-        description: k3s server (control-plane), Proxmox guest
-        icon: mdi-server
-    - k3s-vm-worker-01:
-        description: k3s agent, Proxmox guest
-        icon: mdi-server
-    - k3s-vm-worker-02:
-        description: k3s agent, Proxmox guest
-        icon: mdi-server
     - Router:
         href: http://192.168.1.1/
         description: OpenWrt gateway
