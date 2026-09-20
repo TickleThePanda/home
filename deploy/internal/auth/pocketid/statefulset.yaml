@@ -73,24 +73,20 @@ spec:
               value: "firstname"
             - name: LDAP_ATTRIBUTE_USER_LAST_NAME
               value: "lastname"
+            # Routed through deploy/internal/services/smtp-relay/ (an
+            # in-cluster null relay forwarding to ProtonMail) rather than
+            # ProtonMail directly -- no credential needed here any more, the
+            # relay authenticates upstream itself. SMTP_TLS: none since this
+            # leg never leaves the cluster; real TLS still happens on the
+            # relay's own leg to ProtonMail.
             - name: SMTP_HOST
-              value: "smtp.protonmail.ch"
+              value: "smtp-relay.smtp-relay.svc.cluster.local"
             - name: SMTP_PORT
               value: "587"
             - name: SMTP_TLS
-              value: "starttls"
+              value: "none"
             - name: SMTP_FROM
               value: "noreply@ticklethepanda.co.uk"
-            - name: SMTP_USER
-              valueFrom:
-                secretKeyRef:
-                  name: pocket-id-secret
-                  key: SMTP_USER
-            - name: SMTP_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: pocket-id-secret
-                  key: SMTP_PASSWORD
           volumeMounts:
             - name: data
               mountPath: /app/data
