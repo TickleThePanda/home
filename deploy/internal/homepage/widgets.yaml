@@ -5,6 +5,8 @@
       memory: true
       showLabel: true
       label: cluster
+    nodes:
+      show: false
 
 - search:
     provider: duckduckgo
