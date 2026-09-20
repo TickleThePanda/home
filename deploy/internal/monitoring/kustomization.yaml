@@ -14,7 +14,6 @@ resources:
   - ./kube-state-metrics/rbac.yaml
   - ./kube-state-metrics/deployment.yaml
   - ./kube-state-metrics/service.yaml
-  - ./grafana/volume.yaml
   - ./grafana/deployment.yaml
   - ./grafana/service.yaml
   - ./grafana/ingress.yaml

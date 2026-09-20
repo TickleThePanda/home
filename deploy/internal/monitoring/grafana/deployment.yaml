@@ -8,8 +8,6 @@ metadata:
     app: grafana
 spec:
   replicas: 1
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app: grafana
@@ -18,8 +16,8 @@ spec:
       labels:
         app: grafana
     spec:
-      # The image runs as uid 472; a fresh lvm-data PVC mounts owned by
-      # root, so without this Grafana can't write /var/lib/grafana.
+      # The image runs as uid 472; without this it can't write to its own
+      # emptyDir at /var/lib/grafana.
       securityContext:
         runAsUser: 472
         runAsGroup: 472
@@ -39,8 +37,7 @@ spec:
             # tinyauth sets (auth.proxy) -- see
             # deploy/internal/auth/tinyauth/middleware.yaml, tinyauth's own
             # header names, not X-User/X-Email -- auto-provisioning that
-            # user as an Org Admin on first login, no separate password to
-            # create or rotate.
+            # user, no separate password to create or rotate.
             - name: GF_AUTH_PROXY_ENABLED
               value: "true"
             - name: GF_AUTH_PROXY_HEADER_NAME
@@ -53,22 +50,35 @@ spec:
               value: "true"
             - name: GF_AUTH_DISABLE_LOGIN_FORM
               value: "true"
+            # Read-only: dashboards are provisioned from this repo, not
+            # clicked together in the UI, and there's no PVC any more (see
+            # volumes: data below) to persist UI-made changes past a pod
+            # restart anyway.
             - name: GF_USERS_AUTO_ASSIGN_ORG_ROLE
-              value: "Admin"
+              value: "Viewer"
           ports:
             - name: http
               containerPort: 3000
+          # Longer timeout/failureThreshold than the Kubernetes defaults
+          # (1s / 3) -- this and Prometheus both land on the Pi (the only
+          # node with lvm-data), which is a 4-core/4GB board already running
+          # a dozen other pods. A brief slowdown there shouldn't kill and
+          # restart the container.
           readinessProbe:
             httpGet:
               path: /api/health
               port: http
             initialDelaySeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 5
           livenessProbe:
             httpGet:
               path: /api/health
               port: http
             initialDelaySeconds: 15
             periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
           resources:
             requests:
               cpu: 20m
@@ -98,8 +108,7 @@ spec:
               subPath: platform.json
       volumes:
         - name: data
-          persistentVolumeClaim:
-            claimName: grafana-data
+          emptyDir: {}
         - name: datasources
           configMap:
             name: grafana-datasources
