@@ -44,6 +44,15 @@ spec:
           ports:
             - name: smtp
               containerPort: 587
+          readinessProbe:
+            tcpSocket:
+              port: smtp
+            initialDelaySeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: smtp
+            initialDelaySeconds: 15
+            periodSeconds: 30
           resources:
             requests:
               cpu: 10m
