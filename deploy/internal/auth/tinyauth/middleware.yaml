@@ -6,6 +6,8 @@ spec:
   forwardAuth:
     address: http://tinyauth.tinyauth.svc.cluster.local:3000/api/auth/traefik
     trustForwardHeader: true
+    # tinyauth's actual header names (https://tinyauth.app/docs/reference/headers/)
+    # -- not X-User/X-Email, which it never sends.
     authResponseHeaders:
-      - X-User
-      - X-Email
+      - Remote-User
+      - Remote-Email

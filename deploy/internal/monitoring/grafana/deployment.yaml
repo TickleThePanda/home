@@ -35,18 +35,20 @@ spec:
             # IngressRoute already puts every request through the tinyauth
             # Middleware before it reaches here, same as Prometheus and
             # Alertmanager have no auth of their own behind their
-            # ClusterIP-only Services. Grafana trusts the X-User header
-            # tinyauth sets (auth.proxy), auto-provisioning that user as an
-            # Org Admin on first login -- no separate password to create or
-            # rotate.
+            # ClusterIP-only Services. Grafana trusts the Remote-User header
+            # tinyauth sets (auth.proxy) -- see
+            # deploy/internal/auth/tinyauth/middleware.yaml, tinyauth's own
+            # header names, not X-User/X-Email -- auto-provisioning that
+            # user as an Org Admin on first login, no separate password to
+            # create or rotate.
             - name: GF_AUTH_PROXY_ENABLED
               value: "true"
             - name: GF_AUTH_PROXY_HEADER_NAME
-              value: "X-User"
+              value: "Remote-User"
             - name: GF_AUTH_PROXY_HEADER_PROPERTY
               value: "username"
             - name: GF_AUTH_PROXY_HEADERS
-              value: "Email:X-Email"
+              value: "Email:Remote-Email"
             - name: GF_AUTH_PROXY_AUTO_SIGN_UP
               value: "true"
             - name: GF_AUTH_DISABLE_LOGIN_FORM
