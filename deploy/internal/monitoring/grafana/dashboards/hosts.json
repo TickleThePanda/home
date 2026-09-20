@@ -16,7 +16,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
       "targets": [
-        { "expr": "glances_cpu_total", "legendFormat": "{{instance}}", "refId": "A" }
+        { "expr": "glances_cpu_total", "legendFormat": "{{hostname}}", "refId": "A" }
       ]
     },
     {
@@ -27,8 +27,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
       "targets": [
-        { "expr": "glances_mem_percent", "legendFormat": "{{instance}} RAM", "refId": "A" },
-        { "expr": "glances_memswap_percent", "legendFormat": "{{instance}} swap", "refId": "B" }
+        { "expr": "glances_mem_percent", "legendFormat": "{{hostname}} RAM", "refId": "A" },
+        { "expr": "glances_memswap_percent", "legendFormat": "{{hostname}} swap", "refId": "B" }
       ]
     },
     {
@@ -38,9 +38,9 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "expr": "glances_load_min1", "legendFormat": "{{instance}} 1m", "refId": "A" },
-        { "expr": "glances_load_min5", "legendFormat": "{{instance}} 5m", "refId": "B" },
-        { "expr": "glances_load_min15", "legendFormat": "{{instance}} 15m", "refId": "C" }
+        { "expr": "glances_load_min1", "legendFormat": "{{hostname}} 1m", "refId": "A" },
+        { "expr": "glances_load_min5", "legendFormat": "{{hostname}} 5m", "refId": "B" },
+        { "expr": "glances_load_min15", "legendFormat": "{{hostname}} 15m", "refId": "C" }
       ]
     },
     {
@@ -52,7 +52,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
       "targets": [
-        { "expr": "{__name__=~\"glances_fs.*_percent\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+        { "expr": "{__name__=~\"glances_fs.*_percent\"}", "legendFormat": "{{hostname}} {{__name__}}", "refId": "A" }
       ]
     },
     {
@@ -64,8 +64,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
       "targets": [
-        { "expr": "rate({__name__=~\"glances_network.*_cumulative_rx\"}[5m])", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" },
-        { "expr": "rate({__name__=~\"glances_network.*_cumulative_tx\"}[5m])", "legendFormat": "{{instance}} {{__name__}}", "refId": "B" }
+        { "expr": "rate({__name__=~\"glances_network.*_cumulative_rx\"}[5m])", "legendFormat": "{{hostname}} {{__name__}}", "refId": "A" },
+        { "expr": "rate({__name__=~\"glances_network.*_cumulative_tx\"}[5m])", "legendFormat": "{{hostname}} {{__name__}}", "refId": "B" }
       ]
     },
     {
@@ -76,8 +76,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
       "targets": [
-        { "expr": "rate({__name__=~\"glances_diskio.*_read_bytes\"}[5m])", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" },
-        { "expr": "rate({__name__=~\"glances_diskio.*_write_bytes\"}[5m])", "legendFormat": "{{instance}} {{__name__}}", "refId": "B" }
+        { "expr": "rate({__name__=~\"glances_diskio.*_read_bytes\"}[5m])", "legendFormat": "{{hostname}} {{__name__}}", "refId": "A" },
+        { "expr": "rate({__name__=~\"glances_diskio.*_write_bytes\"}[5m])", "legendFormat": "{{hostname}} {{__name__}}", "refId": "B" }
       ]
     },
     {
@@ -89,7 +89,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "celsius" }, "overrides": [] },
       "targets": [
-        { "expr": "{__name__=~\"glances_sensors.*_value\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+        { "expr": "{__name__=~\"glances_sensors.*_value\"}", "legendFormat": "{{hostname}} {{__name__}}", "refId": "A" }
       ]
     },
     {
@@ -100,7 +100,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "expr": "glances_uptime_seconds", "legendFormat": "{{instance}}", "refId": "A" }
+        { "expr": "glances_uptime_seconds", "legendFormat": "{{hostname}}", "refId": "A" }
       ]
     }
   ]

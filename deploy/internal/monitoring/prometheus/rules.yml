@@ -12,9 +12,9 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.instance }}: {{ $labels.__name__ }} is {{ $value | printf \"%.1f\" }}% full"
+          summary: "{{ $labels.hostname }}: {{ $labels.__name__ }} is {{ $value | printf \"%.1f\" }}% full"
           description: >-
-            A filesystem on {{ $labels.instance }} has been over 80% full for
+            A filesystem on {{ $labels.hostname }} has been over 80% full for
             15 minutes.
 
       - alert: HostDiskSpaceCritical
@@ -23,9 +23,9 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "{{ $labels.instance }}: {{ $labels.__name__ }} is {{ $value | printf \"%.1f\" }}% full"
+          summary: "{{ $labels.hostname }}: {{ $labels.__name__ }} is {{ $value | printf \"%.1f\" }}% full"
           description: >-
-            A filesystem on {{ $labels.instance }} has been over 90% full for
+            A filesystem on {{ $labels.hostname }} has been over 90% full for
             5 minutes.
 
   - name: lvm
