@@ -37,17 +37,26 @@ spec:
           ports:
             - name: http
               containerPort: 9090
+          # Longer timeout/failureThreshold than the Kubernetes defaults
+          # (1s / 3) -- this and Grafana both land on the Pi (the only node
+          # with lvm-data), which is a 4-core/4GB board already running a
+          # dozen other pods. A brief slowdown there shouldn't kill and
+          # restart the container.
           readinessProbe:
             httpGet:
               path: /-/ready
               port: http
             initialDelaySeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 5
           livenessProbe:
             httpGet:
               path: /-/healthy
               port: http
             initialDelaySeconds: 15
             periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
           resources:
             requests:
               cpu: 100m
