@@ -19,6 +19,12 @@ spec:
         app: prometheus
     spec:
       serviceAccountName: prometheus
+      # The image runs as nobody (65534:65534); a fresh lvm-data PVC mounts
+      # owned by root, so without this Prometheus can't write its own TSDB.
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
       containers:
         - name: prometheus
           image: prom/prometheus:v3.14.0

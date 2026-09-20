@@ -18,6 +18,12 @@ spec:
       labels:
         app: grafana
     spec:
+      # The image runs as uid 472; a fresh lvm-data PVC mounts owned by
+      # root, so without this Grafana can't write /var/lib/grafana.
+      securityContext:
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
       containers:
         - name: grafana
           image: grafana/grafana:13.2.2

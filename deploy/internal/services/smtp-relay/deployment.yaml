@@ -16,6 +16,13 @@ spec:
       labels:
         app: smtp-relay
     spec:
+      # This pod never talks to the Kubernetes API. Without this, the
+      # default service-account token auto-mounts at
+      # /var/run/secrets/kubernetes.io/serviceaccount -- which collides
+      # with relay-password below (/var/run is a symlink to /run), and the
+      # container can't create that mountpoint inside our read-only Secret
+      # mount.
+      automountServiceAccountToken: false
       containers:
         - name: smtp-relay
           image: boky/postfix:v5.1.0
