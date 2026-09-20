@@ -1,0 +1,112 @@
+/*
+ * Visual hierarchy that Homepage's own config options can't express:
+ * Applications first and large, Administration second and compact, metrics
+ * tucked away as supplementary info. See CLAUDE.md's Homepage section for
+ * the underlying design principles.
+ *
+ * Homepage doesn't expose a service group's name as a CSS hook, so these
+ * rules key off render order within #layout-groups instead -- which
+ * follows settings.yaml's `layout:` key order. This only works because
+ * settings.yaml declares exactly two service groups, Applications then
+ * Administration, in that order.
+ */
+
+/* --- Applications: primary content, large and spacious --- */
+
+#layout-groups > div:nth-of-type(1) .service-group-name {
+  font-size: 1.5rem;
+}
+
+#layout-groups > div:nth-of-type(1) .services-list {
+  gap: 1.25rem;
+  row-gap: 1.25rem;
+}
+
+#layout-groups > div:nth-of-type(1) .service-card {
+  padding: 1rem;
+}
+
+#layout-groups > div:nth-of-type(1) .service-icon {
+  width: 3.5rem;
+}
+
+#layout-groups > div:nth-of-type(1) .service-icon > * {
+  width: 2.75rem !important;
+  height: 2.75rem !important;
+}
+
+#layout-groups > div:nth-of-type(1) .service-name {
+  font-size: 1.15rem;
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+#layout-groups > div:nth-of-type(1) .service-description {
+  font-size: 0.85rem;
+}
+
+/* --- Administration: secondary, compact, reachable but out of the way --- */
+
+#layout-groups > div:nth-of-type(2) {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+#layout-groups > div:nth-of-type(2) .service-group-name {
+  font-size: 0.95rem;
+  opacity: 0.7;
+}
+
+#layout-groups > div:nth-of-type(2) .services-list {
+  gap: 0.5rem;
+  row-gap: 0.5rem;
+}
+
+#layout-groups > div:nth-of-type(2) .service-card {
+  padding: 0.25rem;
+}
+
+#layout-groups > div:nth-of-type(2) .service-icon {
+  width: 1.75rem;
+}
+
+#layout-groups > div:nth-of-type(2) .service-icon > * {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+}
+
+#layout-groups > div:nth-of-type(2) .service-name {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
+}
+
+#layout-groups > div:nth-of-type(2) .service-description {
+  display: none;
+}
+
+/* --- Metrics: supplementary, bottom-right, out of the main hierarchy --- */
+
+#information-widgets {
+  order: 2;
+  width: fit-content;
+  max-width: 100%;
+  margin: 1.5rem 0 0 auto;
+  padding: 0.5rem 0.75rem;
+  justify-content: flex-end;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+#information-widgets:hover {
+  opacity: 1;
+}
+
+#widgets-wrap {
+  width: auto;
+  justify-content: flex-end;
+}
+
+#footer {
+  order: 3;
+}

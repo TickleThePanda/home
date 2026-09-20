@@ -262,6 +262,38 @@ When comments are necessary:
   from `deploy/`. Workloads that must stay on the Pi are held there by their
   `lvm-data` PVC (storage topology), not by an arch `nodeSelector`.
 
+## Homepage
+
+`deploy/internal/homepage/` is an application launcher first, not an
+infrastructure monitoring dashboard. It should answer "what do I want to
+open?" before "what infrastructure am I running?" Design principles, not a
+fixed layout — apply these when adding or moving services rather than
+treating the current groups/services as a spec to preserve exactly:
+
+- User-facing applications (the things a person opens day to day — currently
+  Audiobookshelf, Home Assistant, GeoPulse, Label Studio) get the strongest
+  visual priority: large cards, generous spacing, top of the page.
+- Infrastructure, networking, IAM and other supporting/admin services stay
+  reachable but visually secondary: one compact area below the
+  applications, smaller cards, subtle status indicators rather than
+  prominent state labels.
+- Operational detail shouldn't dominate the page just because Homepage can
+  show it. Don't expose individual cluster/VM nodes here unless there's a
+  specific UX reason to — that's what Grafana/Headlamp are for.
+- Low-priority information (e.g. cluster metrics) belongs unobtrusively at
+  the edge of the page, not the main interaction area.
+- Avoid UI elements that don't earn their space (e.g. the search bar isn't
+  useful enough here to justify the room it takes).
+- When adding a new service: decide whether it's something the owner opens
+  directly (→ Applications group) or something that supports the system (→
+  Administration group), and style/place it accordingly — don't give every
+  group equal visual weight just because Homepage supports it.
+- Homepage doesn't expose a group's name as a CSS hook, so group-specific
+  styling in `custom.css` keys off render order within `#layout-groups`,
+  which follows `settings.yaml`'s `layout:` key order. Keep that block to
+  exactly the groups the CSS assumes, in the same order, or the styling
+  will land on the wrong group.
+
 ## Ansible layout
 
 - **`ansible/` is one Ansible project for every managed host** — one

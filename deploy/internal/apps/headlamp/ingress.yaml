@@ -7,7 +7,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/href: https://headlamp.internal.ticklethepanda.co.uk
     gethomepage.dev/name: Headlamp
-    gethomepage.dev/group: Tools
+    gethomepage.dev/group: Administration
     gethomepage.dev/icon: headlamp
     gethomepage.dev/description: Kubernetes dashboard
     gethomepage.dev/pod-selector: app=headlamp

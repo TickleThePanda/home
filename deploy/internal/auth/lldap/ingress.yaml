@@ -6,7 +6,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/href: https://lldap.internal.ticklethepanda.co.uk
     gethomepage.dev/name: LLDAP
-    gethomepage.dev/group: IAM
+    gethomepage.dev/group: Administration
     gethomepage.dev/icon: lldap
     gethomepage.dev/description: User directory
     gethomepage.dev/pod-selector: app=lldap

@@ -7,7 +7,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/href: https://geopulse.internal.ticklethepanda.co.uk
     gethomepage.dev/name: GeoPulse
-    gethomepage.dev/group: Tools
+    gethomepage.dev/group: Applications
     gethomepage.dev/icon: mdi-map-marker-path
     gethomepage.dev/description: GPS location timeline
     gethomepage.dev/pod-selector: app=geopulse-ui

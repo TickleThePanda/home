@@ -1,3 +1,5 @@
+# Search is intentionally omitted -- not useful enough here to justify the
+# screen space (see CLAUDE.md's Homepage section).
 - kubernetes:
     cluster:
       show: true
@@ -7,7 +9,3 @@
       label: cluster
     nodes:
       show: false
-
-- search:
-    provider: duckduckgo
-    target: _blank

@@ -2,3 +2,11 @@
     - home:
         - abbr: HM
           href: https://github.com/ticklethepanda/home
+
+# The public site is a small link, not a dedicated section -- see
+# CLAUDE.md's Homepage section.
+- Web:
+    - Home:
+        - icon: mdi-web
+          href: http://home.ticklethepanda.co.uk
+          description: Public root site
