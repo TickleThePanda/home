@@ -82,9 +82,14 @@ spec:
           resources:
             requests:
               cpu: 20m
-              memory: 128Mi
+              memory: 256Mi
             limits:
-              memory: 384Mi
+              # 384Mi was a guess that turned out too low -- Grafana 13's
+              # bundled search indexing and plugin set genuinely sit around
+              # 280-300Mi steady state (confirmed live via kubectl top),
+              # leaving no headroom and OOMKilling it repeatedly. The worker
+              # VMs have ~6GB each with room to spare.
+              memory: 512Mi
           volumeMounts:
             - name: data
               mountPath: /var/lib/grafana
