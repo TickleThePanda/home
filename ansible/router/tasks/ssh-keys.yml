@@ -1,0 +1,15 @@
+---
+# Ongoing management of dropbear's trusted keys, from the same
+# ansible/files/ssh-authorized-keys every other layer reads (group_vars/all.yml's
+# ssh_authorized_keys). bootstrap/router/build.sh bakes the same file in at
+# flash time -- this is what keeps a running router's keys current
+# afterwards, the same way ansible/node/ takes over from the Pi's one-time
+# bootstrap.yml. ansible.posix.authorized_key doesn't apply here: no Python
+# on the router, so this is a template write instead of exclusive-set.
+
+- name: Trusted SSH keys (dropbear)
+  community.openwrt.template:
+    src: authorized_keys.j2
+    dest: /etc/dropbear/authorized_keys
+    mode: "0644"   # dropbear rejects a *writable* file, not 0600 like sshd
+  notify: Restart dropbear

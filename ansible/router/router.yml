@@ -42,6 +42,10 @@
       ansible.builtin.import_tasks: tasks/mgmt-access.yml
       tags: [mgmt]
 
+    - name: Trusted SSH keys
+      ansible.builtin.import_tasks: tasks/ssh-keys.yml
+      tags: [ssh-keys]
+
     - name: Network / WAN / LAN
       ansible.builtin.import_tasks: tasks/network.yml
       tags: [network]

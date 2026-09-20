@@ -123,3 +123,17 @@
   roles:
     - role: glances
   tags: [glances]
+
+# Same reasoning as the glances play above: the Pi's own deploy user is
+# node.yml's job, so it's excluded here. cloud-init only ever sets a VM's
+# trusted keys once, at clone time (ansible/proxmox/tasks/vm-provision.yml)
+# -- this is what keeps them current afterwards.
+- name: Deploy user's trusted SSH keys on the k3s VMs
+  hosts: k3s_cluster:!pi
+  gather_facts: false
+  become: true
+  roles:
+    - role: ssh_keys
+      vars:
+        ssh_keys_user: deploy
+  tags: [ssh-keys]

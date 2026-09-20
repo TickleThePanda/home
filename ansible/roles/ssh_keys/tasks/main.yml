@@ -1,0 +1,14 @@
+---
+# Fleet-wide trusted keys, from ansible/files/ssh-authorized-keys (see
+# group_vars/all.yml's ssh_authorized_keys), plus any host-specific extras
+# (ssh_authorized_keys_extra -- e.g. group_vars/proxmox.yml's self-key,
+# trusted only there, not pushed to every other host). exclusive: true makes
+# this the actual source of truth -- removing a key from the file/extras and
+# re-applying revokes it, instead of only ever accumulating keys.
+
+- name: Trusted SSH keys for {{ ssh_keys_user }}
+  ansible.posix.authorized_key:
+    user: "{{ ssh_keys_user }}"
+    key: "{{ ([ssh_authorized_keys] + ssh_authorized_keys_extra) | join('\n') }}"
+    exclusive: true
+    state: present

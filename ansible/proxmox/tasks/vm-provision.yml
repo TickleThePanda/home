@@ -14,15 +14,6 @@
 #
 # k3s on these VMs is ansible/k3s/'s job, not this one.
 
-- name: Require the VM SSH public key
-  ansible.builtin.assert:
-    that:
-      - k3s_vm_ssh_pubkey is defined
-      - k3s_vm_ssh_pubkey | length > 0
-    fail_msg: >-
-      export K3S_VM_SSH_PUBKEY="$(ssh-keygen -y -f ./deploy_key)" first
-      (the CI key's public half -- not -e, which splits the value on spaces).
-
 - name: List existing VMs
   community.proxmox.proxmox_vm_info:
     api_host: "{{ proxmox_api_host }}"
@@ -62,9 +53,9 @@
     label: "{{ item.name }} ({{ item.vmid }})"
   when: item.vmid not in proxmox_existing_vmids
 
-- name: Stage the VM SSH public key on the host
+- name: Stage the VM SSH public keys on the host
   ansible.builtin.copy:
-    content: "{{ k3s_vm_ssh_pubkey }}\n"
+    content: "{{ ssh_authorized_keys }}\n"
     dest: /root/k3s-vm-sshkey.pub
     owner: root
     group: root

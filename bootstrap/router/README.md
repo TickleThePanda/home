@@ -37,7 +37,7 @@ Prerequisites:
 
 - `podman` (or set `CONTAINER_RUNTIME=docker`), `openssl`, `python3` with
   `jinja2` (ships with Ansible).
-- `deploy_key.pub` in the repo root (from the node bootstrap).
+- `ansible/files/ssh-authorized-keys` (the repo's committed trusted keys).
 - Tailnet ACL, once: `tagOwners` for `tag:home-router`, and
 
   ```jsonc

@@ -70,17 +70,15 @@ jobs:
           working-directory: ansible
           extra-pip: proxmoxer>=2.3.0 requests netaddr
 
-      # One key for every host: the Pi's and the VMs' `deploy` user, and root
-      # on the router and proxmox-01. K3S_VM_SSH_PUBKEY goes through the
-      # environment, not -e: an `-e key=value` string is split on whitespace,
-      # which mangles an SSH key.
+      # The CI key. Its trusted public half is committed
+      # (ansible/files/ssh-authorized-keys), so nothing here needs to derive
+      # it -- this only installs the private key CI authenticates with.
       - name: Install the SSH key
         run: |
           set -euo pipefail
           install -d -m 700 ~/.ssh
           install -m 600 /dev/null ~/.ssh/deploy_key
           printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/deploy_key
-          echo "K3S_VM_SSH_PUBKEY=$(ssh-keygen -y -f ~/.ssh/deploy_key)" >> "$GITHUB_ENV"
 
       # CI authenticates with a service token, not a user identity, so a Zero
       # Trust policy could permit 6443 without permitting a given host's 22.

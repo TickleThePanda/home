@@ -19,9 +19,14 @@
 # Deliberately NOT managed:
 #   - the subscription key / "no valid subscription" nag
 #   - the Proxmox cluster config and /etc/pve
-#   - /root/.ssh/authorized_keys (a symlink into the cluster-managed
-#     /etc/pve/priv/; the CI key is already there)
 #   - VM deletion -- never automated. k3s on the VMs is ansible/k3s/'s job.
+#
+# root's trusted keys ARE managed (the ssh_keys role below), through
+# /root/.ssh/authorized_keys -- a symlink into the cluster-managed
+# /etc/pve/priv/authorized_keys. Writing through a pmxcfs symlink like this
+# works (pmxcfs is a normal-looking FUSE filesystem), but it's the one target
+# in this repo that isn't a plain file; if a run here ever looks wrong,
+# check it from the host's own console.
 
 - name: Manage the Proxmox host and its k3s VMs
   hosts: proxmox
@@ -40,6 +45,13 @@
     - vars/main.yml
 
   tasks:
+    - name: Trusted SSH keys
+      ansible.builtin.import_role:
+        name: ssh_keys
+      vars:
+        ssh_keys_user: root
+      tags: [ssh-keys]
+
     - name: APT repositories
       ansible.builtin.import_tasks: tasks/apt-repos.yml
       tags: [apt, repos]

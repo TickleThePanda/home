@@ -11,3 +11,16 @@
 # the one-time bootstrap and for hand runs against the Pi:
 #   ansible-playbook node/node.yml -e node_user=panda
 ansible_user: "{{ node_user | default('deploy') }}"
+
+# The fleet's trusted public keys, one source of truth for the deploy/root
+# automation login everywhere -- see ansible/roles/ssh_keys. Read as a raw
+# multi-line string: both ansible.posix.authorized_key's `key` param and a
+# plain authorized_keys file accept that shape directly, no split/join
+# needed. inventory_dir (not playbook_dir) so this resolves the same
+# regardless of which layer's playbook is running.
+ssh_authorized_keys: "{{ lookup('ansible.builtin.file', inventory_dir ~ '/files/ssh-authorized-keys') }}"
+
+# Per-host additions to the list above -- keys that only make sense trusted
+# on one specific host (e.g. group_vars/proxmox.yml's self-key), not the
+# whole fleet. Empty here; a group_vars/<group>.yml overrides it.
+ssh_authorized_keys_extra: []

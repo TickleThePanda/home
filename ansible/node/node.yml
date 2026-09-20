@@ -5,8 +5,8 @@
 # ansible/k3s/, which manages the Pi and the Proxmox VM agents as one cluster
 # via the k3s.orchestration collection. Everything inside the cluster is owned
 # by kustomize (deploy/). This playbook owns what is left: the LVM volumes and
-# mounts behind the PVs, the sudoers entries, the node's DNS resolver, swap,
-# and the Argon ONE fan.
+# mounts behind the PVs, the deploy user's trusted SSH keys, the sudoers
+# entries, the node's DNS resolver, swap, and the Argon ONE fan.
 #
 # Deliberately NOT managed:
 #   /etc/rancher/k3s/config.yaml            -- owned by ansible/k3s/ (agent config)
@@ -33,6 +33,13 @@
     - vars/argon-fan.yml
 
   tasks:
+    - name: Trusted SSH keys
+      ansible.builtin.import_role:
+        name: ssh_keys
+      vars:
+        ssh_keys_user: deploy
+      tags: [ssh-keys]
+
     - name: Sudoers
       ansible.builtin.import_tasks: tasks/access.yml
       tags: [access]

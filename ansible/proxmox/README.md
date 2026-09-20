@@ -74,7 +74,6 @@ ansible-galaxy collection install -r requirements.yml
 pip install 'proxmoxer>=2.3.0' requests            # into the ansible venv
 export PROXMOX_API_TOKEN_ID=ci
 export PROXMOX_API_TOKEN_SECRET=...
-export K3S_VM_SSH_PUBKEY="$(ssh-keygen -y -f ../deploy_key)"
 ansible-playbook proxmox/proxmox.yml --syntax-check
 ansible-playbook proxmox/proxmox.yml --diff --private-key ../deploy_key
 ansible-playbook proxmox/proxmox.yml --check --diff --private-key ../deploy_key   # changed=0

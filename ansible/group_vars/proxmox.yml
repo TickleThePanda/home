@@ -5,6 +5,12 @@
 # NODE_SSH_KEY) is already in it.
 ansible_user: root
 
+# proxmox-01's own self-key, generated at install for Proxmox's own internal
+# SSH use (live migration, cluster-join checks) -- not part of the
+# fleet-wide list (ansible/files/ssh-authorized-keys), trusted only here.
+ssh_authorized_keys_extra:
+  - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDMeNfUgTbx+jqT9YMznET0cUpk94T/e+NZrhigEQ1lPbeHFlh7ilqyReLDiRL8IaIr2drOquUKUDiA+fpF1jOGSlRV0vPMfxpZEkZOjXyn/TiJjZXaWMw3Oiyk9LEUkrVzU540SnBgNq8QKLki2P5UGa6IdwWkaeODb8Tbp65WwPF5V+gyrS9/GZMi7d41UCn6brtuhWC/O+0sT79Jz/uxwKyTyaYQV+Eqg838Ug+38fl1B41bVUYqzgepflHlyPOBJVl3JyA8YEnKV5RLd+qIIQuboCfHjZh7ZUa1RSOtTaqISEMGiOv1agBJ4uhsaUNKLWZgR1QWuFnlsDd1m4FFVSHUtvjLFbthdLXs+GHmIgJIghSH8TGvs1NbQA9LQo4s6sxqKDyMhklWTuhBEICfLsJlZTIV4qk7nV9qw/bdZ3ODqYBfEFfT2WKc02gpWDBgGyrjC1ebBTSoIiLl1SGXLVmPSbBPVnHbsPhB2s/rlz4kTCX/xSPEgXbatmOVZkbx7gypgTgmzLlz5urBH2hrSuzTICUiUJ4xbrtipQ/dFfi/QNKIvrwELar4dgU3dOMEd3YDnEzLxiwW5Irk28s/dKAihpNzpEV/jpiN5TT8DCGf9e0JM/uUn6MbNJq39JApzBYOATds43b8HohFBl4MqqKKaVB6zbEgEKxAfD9mFQ== root@proxmox-01"
+
 # Bound to the host's LAN address, not 0.0.0.0 -- proxmox-01 has other bridges
 # for VM traffic, and this is an unauthenticated read-only API.
 glances_bind_address: 192.168.1.3

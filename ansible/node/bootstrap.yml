@@ -13,7 +13,9 @@
 # an inventory var beats the -u flag. -K prompts for panda's sudo password.
 #
 # Then put ./deploy_key (the PRIVATE half) into the GitHub secret
-# NODE_SSH_KEY, and delete both local copies.
+# NODE_SSH_KEY, delete both local copies, and confirm the public half is
+# already the `ci@github/home` line in ansible/files/ssh-authorized-keys
+# (node.yml takes over ongoing management of this key from here).
 
 - name: Bootstrap the CI automation user
   hosts: k8s-manager-1

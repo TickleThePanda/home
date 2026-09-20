@@ -301,7 +301,42 @@ When comments are necessary:
   example: identical on the Pi and proxmox-01 except the web-server package
   (`python3-bottle` on Glances 3, `python3-uvicorn` on Glances 4), which is
   `glances_web_package`. A naive merge there breaks a host at *runtime*, not at
-  apply time.
+  apply time. `ssh_keys` is the same pattern for the fleet's trusted keys —
+  see "SSH keys" below.
+
+## SSH keys
+
+- `ansible/files/ssh-authorized-keys` is the one source of truth for every
+  device trusted to log in as the deploy/root automation user — plain
+  `authorized_keys` format, committed in full (public keys, not secrets, so
+  this is safe on a public repo). Exposed to every layer as
+  `ssh_authorized_keys` (`ansible/group_vars/all.yml`).
+- The `ssh_keys` role (`ansible/roles/ssh_keys/`) applies it with
+  `ansible.posix.authorized_key`'s `exclusive: true` on the Pi, the k3s VMs
+  and `proxmox-01` — removing a key from the file and re-applying actually
+  revokes it, not just accumulates. Wired into `node/node.yml` (Pi,
+  `deploy`), `k3s/k3s.yml` (the two worker VMs + `k3s-vm-control-01`,
+  `deploy` — the Pi is excluded there, same reasoning as that file's glances
+  play: `node.yml` already owns it), and `proxmox/proxmox.yml` (`root`,
+  through the pmxcfs-backed `/etc/pve/priv/authorized_keys` symlink).
+- The router has no Python, so `ansible.posix.authorized_key` doesn't apply
+  there — `ansible/router/tasks/ssh-keys.yml` instead templates the same
+  file straight into `/etc/dropbear/authorized_keys`.
+- `ansible/proxmox/tasks/vm-provision.yml`'s cloud-init `--sshkeys` and
+  `bootstrap/router/build.sh`'s image bake also read this same file, so a
+  freshly cloned VM or freshly flashed router already trusts everything in
+  it from first boot — ongoing management (above) is what keeps a *running*
+  host in sync after the file changes.
+- A key that only belongs on one host (not the whole fleet) goes in that
+  host's `group_vars/<group>.yml` as `ssh_authorized_keys_extra` (a list),
+  not in the committed file — `group_vars/proxmox.yml` does this for
+  proxmox-01's own self-key (which Proxmox generates at install for its
+  internal SSH use — migrations, cluster-join checks). `exclusive: true`
+  would otherwise strip it on the next apply, since it isn't part of the
+  fleet-wide list and has no business being trusted on the Pi, the VMs, or
+  the router.
+- `panda`'s own interactive login to the Pi is deliberately **not** part of
+  this — manual, out of band, unrelated to the automation keys above.
 
 ## Node pattern
 
@@ -408,9 +443,9 @@ When comments are necessary:
   source of truth for ongoing config, applied by the `router` job in
   `deploy-infra.yaml`. The two need not stay in sync: bootstrap
   only has to get a bare router far enough for the playbook to take over.
-- The `router` job connects as `root` over SSH (reusing `NODE_SSH_KEY`, whose
-  public half `bootstrap/router/` bakes into the router's
-  `authorized_keys`) through the **same cloudflared tunnel as `node`** — the
+- The `router` job connects as `root` over SSH (`NODE_SSH_KEY`, one of the
+  keys trusted via `ansible/files/ssh-authorized-keys` — see "SSH keys")
+  through the **same cloudflared tunnel as `node`** — the
   Cloudflare Zero Trust private-network routes cover `192.168.1.0/24` and
   `192.168.10.0/24` (both configured in the dashboard, not this repo), so no
   separate route is needed — the IoT VLANs are deliberately *not* routed to CI.
@@ -435,11 +470,11 @@ When comments are necessary:
 - `ansible/proxmox/` is the Ansible layer for `proxmox-01` (`192.168.1.3`),
   the home hypervisor — Proxmox VE 9 on Debian 13. One layer of the shared
   `ansible/` project; its `root` login lives in `group_vars/proxmox.yml`.
-- It connects as `root` over SSH (reusing `NODE_SSH_KEY`)
+- It connects as `root` over SSH (`NODE_SSH_KEY`, one of the keys trusted via
+  `ansible/files/ssh-authorized-keys` — see "SSH keys"; no bootstrap
+  playbook needed, `root@/etc/pve/priv/authorized_keys` pre-existed)
   through the **same cloudflared tunnel as the node layer** — the Zero Trust routes
-  already cover `192.168.1.0/24`. The key's public half is already in the
-  host's `authorized_keys` (a symlink into `/etc/pve/priv/`); no bootstrap
-  playbook. The VM-lifecycle half instead hits the **Proxmox API** (port
+  already cover `192.168.1.0/24`. The VM-lifecycle half instead hits the **Proxmox API** (port
   8006) from the runner with a `root@pam` token (`PROXMOX_API_TOKEN_ID` is
   the token *name*, `PROXMOX_API_TOKEN_SECRET` its value; both in `prod`) — so
   the reachability check needs
@@ -465,9 +500,9 @@ When comments are necessary:
   upgrade. `ansible/proxmox/vars/main.yml` holds `proxmox_apt_suite`; bump it on a
   major PVE / Debian upgrade.
 - Deliberately not managed: the subscription key / nag, LXC containers,
-  non-k3s VMs and all VM/CT storage, the cluster config and `/etc/pve`,
-  `authorized_keys`, and **VM deletion** (never automated). k3s *on* the VMs
-  is `ansible/k3s/`'s job.
+  non-k3s VMs and all VM/CT storage, the cluster config and `/etc/pve`
+  (except `authorized_keys` — see "SSH keys"), and **VM deletion** (never
+  automated). k3s *on* the VMs is `ansible/k3s/`'s job.
 
 ## Storage
 

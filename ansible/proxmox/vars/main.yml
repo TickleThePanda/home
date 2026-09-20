@@ -37,11 +37,8 @@ proxmox_api_user: root@pam
 proxmox_api_token_id: "{{ lookup('ansible.builtin.env', 'PROXMOX_API_TOKEN_ID') }}"
 proxmox_api_token_secret: "{{ lookup('ansible.builtin.env', 'PROXMOX_API_TOKEN_SECRET') }}"
 
-# The CI key's public half, used as the k3s VMs' cloud-init `deploy` key.
-# From an env var, not -e: `ansible-playbook -e key=value` splits the value on
-# whitespace, which mangles an SSH key. CI sets K3S_VM_SSH_PUBKEY; for a
-# hand-run, `export K3S_VM_SSH_PUBKEY="$(ssh-keygen -y -f ./deploy_key)"`.
-k3s_vm_ssh_pubkey: "{{ lookup('ansible.builtin.env', 'K3S_VM_SSH_PUBKEY') }}"
+# The k3s VMs' cloud-init `deploy` key(s) come from ssh_authorized_keys
+# (group_vars/all.yml) -- see tasks/vm-provision.yml.
 
 # Debian 13 "genericcloud" image built into template VMID 9000.
 proxmox_template_vmid: 9000

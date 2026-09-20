@@ -21,8 +21,8 @@ set -a; . ./secrets.env; set +a
 : "${ROUTER_PPPOE_USERNAME:?}" "${ROUTER_PPPOE_PASSWORD:?}" "${ROUTER_WIFI_KEY:?}" \
   "${ROUTER_TS_AUTHKEY:?}"
 
-[ -s ../../deploy_key.pub ] || {
-  echo "deploy_key.pub not found in the repo root (from the node bootstrap)" >&2
+[ -s ../../ansible/files/ssh-authorized-keys ] || {
+  echo "ansible/files/ssh-authorized-keys not found" >&2
   exit 1
 }
 
@@ -45,11 +45,11 @@ export ROOT_HASH
 # templates/ -> build/files/ (Jinja2, see render.py)
 python3 render.py
 
-# authorized_keys: the existing CI key, plus any extra interactive keys.
-# 0644, not 0600: the Image Builder runs as an unprivileged container user
-# that must read it, and dropbear only rejects a *writable* file. Public
-# keys -- nothing to hide.
-cat ../../deploy_key.pub $([ -f authorized_keys.extra ] && echo authorized_keys.extra) \
+# authorized_keys: the repo's committed key set, plus any extra interactive
+# keys someone doesn't want committed. 0644, not 0600: the Image Builder
+# runs as an unprivileged container user that must read it, and dropbear
+# only rejects a *writable* file. Public keys -- nothing to hide.
+cat ../../ansible/files/ssh-authorized-keys $([ -f authorized_keys.extra ] && echo authorized_keys.extra) \
   > build/files/etc/dropbear/authorized_keys
 chmod 644 build/files/etc/dropbear/authorized_keys
 
