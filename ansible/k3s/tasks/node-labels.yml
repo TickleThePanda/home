@@ -25,7 +25,7 @@
       - kubectl
       - label
       - node
-      - k8s-manager-1
+      - k8s-storage-anchor-01
       - ticklethepanda.dev/lvm-vg=data
       - --overwrite
   register: lvm_vg_label
@@ -87,7 +87,7 @@
       - kubectl
       - get
       - node
-      - k8s-manager-1
+      - k8s-storage-anchor-01
       - -o
       - jsonpath={.spec.taints[?(@.key=="ticklethepanda.dev/prefer-no-schedule")]}
   register: pi_taint
@@ -100,7 +100,7 @@
       - kubectl
       - taint
       - node
-      - k8s-manager-1
+      - k8s-storage-anchor-01
       - ticklethepanda.dev/prefer-no-schedule=storage-anchor:PreferNoSchedule
       - --overwrite
   when: >-

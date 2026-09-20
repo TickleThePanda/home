@@ -1,5 +1,5 @@
 ---
-# Node-level state for k8s-manager-1 -- the layer *below* k3s.
+# Node-level state for k8s-storage-anchor-01 -- the layer *below* k3s.
 #
 # k3s itself (version, /etc/rancher/k3s/config.yaml, install) is owned by
 # ansible/k3s/, which manages the Pi and the Proxmox VM agents as one cluster
@@ -18,7 +18,7 @@
 # keep its DNS-only scope safe, and apply the same scrutiny before widening
 # it to anything else.
 
-- name: Manage k8s-manager-1 node state
+- name: Manage k8s-storage-anchor-01 node state
   hosts: pi
   gather_facts: true
   # Must match every other gathering play -- see ansible.cfg. Nothing here

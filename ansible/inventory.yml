@@ -3,11 +3,12 @@
 # Groups are layers, except `k3s_cluster > server / agent`, whose names are
 # mandatory -- the k3s.orchestration roles key off them.
 #
-# k8s-manager-1 is deliberately in TWO layers: `pi` owns what sits below k3s
-# on it (LVM, sudoers, resolver, swap, fan), `agent` owns k3s itself. Because
-# the host sets intersect, never scope a run with --limit alone -- limiting to
-# `pi` still matches the k3s agent play and would drag the Pi through a k3s
-# reinstall. Select whole layer playbooks instead (see site.yml).
+# k8s-storage-anchor-01 is deliberately in TWO layers: `pi` owns what sits
+# below k3s on it (LVM, sudoers, resolver, swap, fan), `agent` owns k3s
+# itself. Because the host sets intersect, never scope a run with --limit
+# alone -- limiting to `pi` still matches the k3s agent play and would drag
+# the Pi through a k3s reinstall. Select whole layer playbooks instead (see
+# site.yml).
 #
 # Connection settings live in group_vars/, not here.
 
@@ -25,7 +26,7 @@ all:
 
     pi:
       hosts:
-        k8s-manager-1:
+        k8s-storage-anchor-01:
           ansible_host: 192.168.1.2
 
     k3s_cluster:
@@ -39,7 +40,7 @@ all:
             # The storage anchor: every lvm-data volume lives on its SSD, and
             # the OpenEBS PVs' nodeAffinity keys off this node name. Listed
             # first for readability only.
-            k8s-manager-1:
+            k8s-storage-anchor-01:
               ansible_host: 192.168.1.2
             k3s-vm-worker-01:
               ansible_host: 192.168.1.33

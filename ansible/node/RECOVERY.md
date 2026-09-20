@@ -1,6 +1,6 @@
-# Recovering k8s-manager-1 without CI
+# Recovering k8s-storage-anchor-01 without CI
 
-`k8s-manager-1` is the Pi — a k3s **agent** and the storage anchor for every
+`k8s-storage-anchor-01` is the Pi — a k3s **agent** and the storage anchor for every
 `lvm-data` PV. The control-plane is `k3s-vm-control-01`; for a broken API or a
 lost datastore see [`../k3s/RECOVERY.md`](../k3s/RECOVERY.md).
 
@@ -72,7 +72,7 @@ sudo journalctl -u k3s-agent -n 200 --no-pager
 Most likely causes, in order:
 
 1. **A bad config.** `/etc/rancher/k3s/config.yaml` on the Pi is written by
-   `ansible/k3s/` from `host_vars/k8s-manager-1.yml` (`agent_config_yaml` —
+   `ansible/k3s/` from `host_vars/k8s-storage-anchor-01.yml` (`agent_config_yaml` —
    the `lvm-vg` label and storage-anchor taint). Move it aside and start the
    agent to confirm:
    ```sh
@@ -103,7 +103,7 @@ Most likely causes, in order:
 ## The Pi died
 
 Rebuild the layer below k3s (`ansible/node/` — see `STORAGE.md` for the SSD), then
-`ansible/k3s/k3s.yml` rejoins it as an agent named `k8s-manager-1`. The
+`ansible/k3s/k3s.yml` rejoins it as an agent named `k8s-storage-anchor-01`. The
 `lvm-data` PV data lives in VG `data` on the SSD: it survives a reinstall if
 the disk is intact, and is lost with the disk — there is no replication, so
 restore those apps from their own backups.
@@ -131,7 +131,7 @@ For anything k3s-level (version, `config.yaml`, a stuck agent), the playbook
 is `ansible/k3s/k3s.yml` instead — it manages every node as one cluster. It
 needs the `deploy` key (the VMs have no `panda` user).
 
-Don't scope this one with `--limit k8s-manager-1` to "just touch the Pi" — the
+Don't scope this one with `--limit k8s-storage-anchor-01` to "just touch the Pi" — the
 agent role reads a token fact that only the server play sets, and filtering
 the server host out of the run leaves it undefined (`'token' is undefined`,
 confirmed live). Run the whole playbook; it's idempotent, and every run

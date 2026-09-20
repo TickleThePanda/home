@@ -1,7 +1,7 @@
 # ansible/k3s
 
 k3s across every node: `k3s-vm-control-01` (sole server, embedded etcd with a
-single member) and `k8s-manager-1` (the Pi) plus `k3s-vm-worker-01/-02`
+single member) and `k8s-storage-anchor-01` (the Pi) plus `k3s-vm-worker-01/-02`
 (agents). One cluster.
 
 Owns the k3s version, `/etc/rancher/k3s/config.yaml`, the VMs' node resolver,
@@ -23,7 +23,7 @@ as `deploy` through the same cloudflared tunnel as `node` / `router` /
 | server config -- addons, tls-san, etcd snapshots | `group_vars/k3s_cluster.yml` (`server_config_yaml`) |
 | agent join (-> `192.168.1.32` API) | `k3s.orchestration.k3s_agent`, `api_endpoint` |
 | VM node resolver (Quad9) | `tasks/node-dns.yml` |
-| Pi lvm-vg label + storage-anchor taint at join | `host_vars/k8s-manager-1.yml` |
+| Pi lvm-vg label + storage-anchor taint at join | `host_vars/k8s-storage-anchor-01.yml` |
 | lvm-vg label, server taint, Pi taint (via API) | `tasks/node-labels.yml` |
 | docker.io pull auth (all nodes) | `k3s.yml` -> `/etc/rancher/k3s/registries.yaml` |
 

@@ -25,7 +25,7 @@ All four Ansible layers are applied by the single `infra` job in
 
 ### `ansible/node`
 
-Pi-level configuration for `k8s-manager-1` *below* k3s.
+Pi-level configuration for `k8s-storage-anchor-01` *below* k3s.
 
 See [`ansible/node/RECOVERY.md`](ansible/node/RECOVERY.md) and
 [`ansible/k3s/RECOVERY.md`](ansible/k3s/RECOVERY.md) before touching a broken
@@ -115,7 +115,7 @@ Assigned:
 | IP | Host |
 |---|---|
 | 192.168.1.1 | gateway |
-| 192.168.1.2 | `k8s-manager-1` — Pi, k3s agent (lvm-data storage anchor) / SSH |
+| 192.168.1.2 | `k8s-storage-anchor-01` — Pi, k3s agent (lvm-data storage anchor) / SSH |
 | 192.168.1.3 | Proxmox `proxmox-01` |
 | 192.168.1.5 | Home Assistant (Kea reservation) |
 | 192.168.1.10 | Pi-hole (MetalLB) |

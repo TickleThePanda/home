@@ -44,7 +44,7 @@ docker_pull_token: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_TOKEN') | defa
 # the single api_endpoint SAN the role would otherwise add (shallow combine).
 #
 # The Pi's storage-anchor taint and lvm-vg label are host-specific: set at
-# registration from host_vars/k8s-manager-1.yml and re-asserted through the
+# registration from host_vars/k8s-storage-anchor-01.yml and re-asserted through the
 # API by tasks/node-labels.yml. The control-plane taint on this server is
 # applied there too.
 #

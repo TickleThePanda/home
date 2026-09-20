@@ -49,7 +49,7 @@ When comments are necessary:
   `proxmox-01` — the sole k3s server (control-plane), embedded etcd with a
   single member. Tainted `ticklethepanda.dev/control-plane:NoSchedule` so it
   runs no portable workloads.
-- **Agents**: `k8s-manager-1` (`192.168.1.2`, the Raspberry Pi, arm64) plus
+- **Agents**: `k8s-storage-anchor-01` (`192.168.1.2`, the Raspberry Pi, arm64) plus
   `k3s-vm-worker-01` / `-02` (`192.168.1.33`–`.34`, amd64 VMs). The Pi is the
   storage anchor — every `lvm-data` volume lives on its SSD, and its
   `ticklethepanda.dev/prefer-no-schedule=storage-anchor:PreferNoSchedule`
@@ -320,7 +320,7 @@ treating the current groups/services as a spec to preserve exactly:
   `[defaults]` is silently ignored (there is no `DEFAULT_GATHER_SUBSET` in
   ansible-core), and dropping the per-play setting falls back to a full
   hardware scan on every host. It has to be repeated per play.
-- **Never scope a run with `--limit` alone.** `k8s-manager-1` is in both `pi`
+- **Never scope a run with `--limit` alone.** `k8s-storage-anchor-01` is in both `pi`
   and `agent` — limiting to `pi` still matches the k3s agent play and would
   drag the Pi through a k3s reinstall, then fail on an undefined `token` (the
   agent role interpolates it unconditionally but only defines it when the
@@ -447,9 +447,9 @@ treating the current groups/services as a spec to preserve exactly:
   server's root disk. Recover a bad run by reverting; recover a lost
   datastore from a snapshot — see `ansible/k3s/RECOVERY.md`.
 - **The Pi's node identity is load-bearing.** It rejoins as an agent named
-  `k8s-manager-1` with `ticklethepanda.dev/lvm-vg=data` — the OpenEBS PVs'
+  `k8s-storage-anchor-01` with `ticklethepanda.dev/lvm-vg=data` — the OpenEBS PVs'
   `nodeAffinity` and the `lvm-data` StorageClass topology both key off that
-  name and label. `host_vars/k8s-manager-1.yml` sets the label and the
+  name and label. `host_vars/k8s-storage-anchor-01.yml` sets the label and the
   storage-anchor taint at registration (the label gates PV binding, so it
   can't wait for `node-labels.yml`).
 - **`k3s.yml` writes `/etc/rancher/k3s/registries.yaml` on every node** to

@@ -18,7 +18,7 @@
 # (node.yml takes over ongoing management of this key from here).
 
 - name: Bootstrap the CI automation user
-  hosts: k8s-manager-1
+  hosts: k8s-storage-anchor-01
   gather_facts: true
   become: true
   vars:

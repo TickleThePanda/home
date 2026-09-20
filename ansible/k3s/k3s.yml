@@ -35,7 +35,7 @@
     # dependency of starting the cluster.
     - name: Pin the VM node resolvers to Quad9
       ansible.builtin.import_tasks: tasks/node-dns.yml
-      when: inventory_hostname != 'k8s-manager-1'
+      when: inventory_hostname != 'k8s-storage-anchor-01'
 
     # The k3s_server / k3s_agent roles run /usr/local/bin/k3s-install.sh
     # unconditionally, but only fetch it when a version change is needed. On a

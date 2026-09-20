@@ -42,8 +42,14 @@ volumeBindingMode: WaitForFirstConsumer
 #
 # The driver still stamps every PV it creates with an `openebs.io/nodename`
 # nodeAffinity keyed to the k3s node name, regardless of this block. On a node
-# rename that is the one thing that breaks, and the one accepted manual fix:
-# re-point existing PVs' nodeAffinity by hand.
+# rename that breaks every already-provisioned PV -- and the field is
+# immutable (confirmed live: the API server rejects a patch to it outright),
+# so the fix is to delete and recreate the PV object, reusing the same
+# `spec.csi.volumeHandle` (the real LV, untouched). The driver also keeps a
+# separate per-volume `LVMVolume` CR (namespace `openebs`) with its own
+# `spec.ownerNodeID`, independent of the PV -- that one *is* a plain mutable
+# field, fixable with `kubectl patch --type=merge`. Both need fixing after a
+# rename, or mounts fail with "volume is owned by different node".
 #
 # The node plugin only publishes this key as a CSI topology segment when it is
 # listed in `ALLOWED_TOPOLOGIES` -- see the patch in kustomization.yaml.

@@ -23,7 +23,7 @@
 #            before the `cluster` job, so a router change that gates a cluster
 #            change is applied first.
 #
-# Never scope a run with --limit alone: k8s-manager-1 is in both `pi` and
+# Never scope a run with --limit alone: k8s-storage-anchor-01 is in both `pi` and
 # `agent`, so limiting to `pi` still matches the k3s agent play. See
 # inventory.yml.
 
