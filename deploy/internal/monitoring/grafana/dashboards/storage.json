@@ -1,0 +1,89 @@
+{
+  "title": "Storage",
+  "uid": "storage-lvm",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "\"data\" VG free % (Pi)",
+      "type": "gauge",
+      "description": "The unallocated pool every PersistentVolume is carved from. See LvmVolumeGroupSpaceLow/Critical alerts.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 20, "color": "orange" },
+              { "value": 10, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "(node_volume_group_free{name=\"data\"} / node_volume_group_size{name=\"data\"}) * 100",
+          "legendFormat": "data VG free %",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "\"data\" VG size vs free",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "node_volume_group_size{name=\"data\"}", "legendFormat": "VG size", "refId": "A" },
+        { "expr": "node_volume_group_free{name=\"data\"}", "legendFormat": "VG free", "refId": "B" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Physical volume size vs free",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "node_physical_volume_size", "legendFormat": "{{name}} size", "refId": "A" },
+        { "expr": "node_physical_volume_free", "legendFormat": "{{name}} free", "refId": "B" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Disk space % by host + mount",
+      "type": "timeseries",
+      "description": "Every mounted filesystem on every host, from Glances. See HostDiskSpaceLow/Critical alerts.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
+      "targets": [
+        { "expr": "{__name__=~\"glances_fs.*_percent\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "PersistentVolumeClaim capacity vs used",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "kubelet_volume_stats_capacity_bytes", "format": "table", "instant": true, "refId": "A" },
+        { "expr": "kubelet_volume_stats_used_bytes", "format": "table", "instant": true, "refId": "B" }
+      ]
+    }
+  ]
+}

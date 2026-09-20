@@ -1,0 +1,17 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: prometheus-data
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lvm-data
+  resources:
+    requests:
+      # 30 days at a 1m scrape interval across ~5-8k active series
+      # (5 Glances hosts, cluster cadvisor scrape, kube-state-metrics,
+      # Traefik, CNPG, etcd) -- generous headroom over the low-single-digit
+      # GB this is expected to actually use. allowVolumeExpansion is true if
+      # it ever needs to grow.
+      storage: 15Gi

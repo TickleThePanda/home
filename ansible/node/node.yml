@@ -6,7 +6,9 @@
 # via the k3s.orchestration collection. Everything inside the cluster is owned
 # by kustomize (deploy/). This playbook owns what is left: the LVM volumes and
 # mounts behind the PVs, the deploy user's trusted SSH keys, the sudoers
-# entries, the node's DNS resolver, swap, and the Argon ONE fan.
+# entries, the node's DNS resolver, swap, the Argon ONE fan, and the
+# node_exporter/lvm-prom-collector pair that makes the `data` VG's free space
+# visible to Prometheus (deploy/internal/monitoring/).
 #
 # Deliberately NOT managed:
 #   /etc/rancher/k3s/config.yaml            -- owned by ansible/k3s/ (agent config)
@@ -56,6 +58,11 @@
       ansible.builtin.import_role:
         name: glances
       tags: [glances]
+
+    - name: LVM volume-group Prometheus metrics
+      ansible.builtin.import_role:
+        name: lvm_exporter
+      tags: [lvm-exporter]
 
     - name: Network
       ansible.builtin.import_tasks: tasks/network.yml

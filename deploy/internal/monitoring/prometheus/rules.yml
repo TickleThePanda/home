@@ -1,0 +1,114 @@
+groups:
+  - name: disk-space
+    rules:
+      # Glances' Prometheus exporter bakes the mount point into the metric
+      # *name* (e.g. glances_fs___percent for "/") rather than exposing it as
+      # a label -- https://github.com/nicolargo/glances/issues/3166. Matching
+      # on __name__ is the only way to cover every mount across every host in
+      # one rule.
+      - alert: HostDiskSpaceLow
+        expr: '{__name__=~"glances_fs.*_percent"} > 80'
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $labels.__name__ }} is {{ $value | printf \"%.1f\" }}% full"
+          description: >-
+            A filesystem on {{ $labels.instance }} has been over 80% full for
+            15 minutes.
+
+      - alert: HostDiskSpaceCritical
+        expr: '{__name__=~"glances_fs.*_percent"} > 90'
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $labels.__name__ }} is {{ $value | printf \"%.1f\" }}% full"
+          description: >-
+            A filesystem on {{ $labels.instance }} has been over 90% full for
+            5 minutes.
+
+  - name: lvm
+    rules:
+      # The Pi's `data` VG -- the unallocated pool every PersistentVolume is
+      # carved from (ansible/node/vars/storage.yml). Tighter thresholds than
+      # the general disk-space rules above: exhausting this blocks every new
+      # PV cluster-wide, not just one host's filesystem.
+      - alert: LvmVolumeGroupSpaceLow
+        expr: >-
+          (node_volume_group_free{name="data"} / node_volume_group_size{name="data"}) * 100 < 20
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LVM volume group \"data\" has less than 20% free"
+          description: >-
+            The Pi's `data` volume group has had under 20% free space for 15
+            minutes. Every PersistentVolume is carved from this pool.
+
+      - alert: LvmVolumeGroupSpaceCritical
+        expr: >-
+          (node_volume_group_free{name="data"} / node_volume_group_size{name="data"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LVM volume group \"data\" has less than 10% free"
+          description: >-
+            The Pi's `data` volume group has had under 10% free space for 5
+            minutes. New PersistentVolumeClaims will start failing soon.
+
+  - name: kubernetes
+    rules:
+      - alert: KubePodCrashLooping
+        expr: increase(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} is restarting"
+          description: >-
+            Container {{ $labels.container }} in pod
+            {{ $labels.namespace }}/{{ $labels.pod }} has restarted in the
+            last 15 minutes.
+
+      - alert: KubeNodeNotReady
+        expr: kube_node_status_condition{condition="Ready", status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node {{ $labels.node }} is not Ready"
+          description: "Node {{ $labels.node }} has been NotReady for 5 minutes."
+
+  - name: etcd
+    rules:
+      # k3s's embedded etcd is the cluster's entire datastore -- single
+      # member, no HA (see ansible/k3s/k3s.yml). Standard kube-prometheus
+      # shapes; thresholds are a starting point, tune once real numbers are
+      # visible.
+      - alert: EtcdDatabaseSizeHigh
+        expr: >-
+          (etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "etcd database size is over 80% of its quota"
+          description: >-
+            etcd's on-disk database has been over 80% of
+            etcd_server_quota_backend_bytes for 10 minutes.
+
+      - alert: EtcdHighCommitDuration
+        expr: >-
+          histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[5m])) > 0.25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "etcd backend commit latency is elevated"
+          description: >-
+            etcd's p99 backend commit duration has been over 250ms for 10
+            minutes (upstream's own SLO is 25ms on dedicated SSD-backed
+            clusters; loosened here for a home VM -- tune after a baseline is
+            visible).

@@ -11,6 +11,7 @@ resources:
 - ./auth/pocketid
 - ./auth/tinyauth
 - ./homepage
+- ./monitoring
 - ./network/bind
 - ./network/coredns
 - ./network/externaldns
@@ -20,3 +21,4 @@ resources:
 - ./network/unbound
 - ./services/mosquitto
 - ./services/postgres
+- ./services/smtp-relay

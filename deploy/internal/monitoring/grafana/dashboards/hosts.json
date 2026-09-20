@@ -1,0 +1,104 @@
+{
+  "title": "Hosts",
+  "uid": "hosts-glances",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "CPU %",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
+      "targets": [
+        { "expr": "glances_cpu_total", "legendFormat": "{{instance}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Memory %",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
+      "targets": [
+        { "expr": "glances_mem_percent", "legendFormat": "{{instance}} RAM", "refId": "A" },
+        { "expr": "glances_memswap_percent", "legendFormat": "{{instance}} swap", "refId": "B" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Load average",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "glances_load_min1", "legendFormat": "{{instance}} 1m", "refId": "A" },
+        { "expr": "glances_load_min5", "legendFormat": "{{instance}} 5m", "refId": "B" },
+        { "expr": "glances_load_min15", "legendFormat": "{{instance}} 15m", "refId": "C" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Disk space % (per mount)",
+      "type": "timeseries",
+      "description": "Glances bakes the mount point into the metric name rather than a label -- legend shows the raw metric name.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
+      "targets": [
+        { "expr": "{__name__=~\"glances_fs.*_percent\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Network I/O (bytes/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "targets": [
+        { "expr": "{__name__=~\"glances_network.*_bytes_(recv|sent)\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Disk I/O (bytes/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "targets": [
+        { "expr": "{__name__=~\"glances_diskio.*\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Temperature (Pi + proxmox-01 only)",
+      "type": "timeseries",
+      "description": "The 3 k3s VMs have no thermal sensor to read -- expect no data for them here.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "celsius" }, "overrides": [] },
+      "targets": [
+        { "expr": "{__name__=~\"glances_sensors.*\"}", "legendFormat": "{{instance}} {{__name__}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "glances_uptime_seconds", "legendFormat": "{{instance}}", "refId": "A" }
+      ]
+    }
+  ]
+}

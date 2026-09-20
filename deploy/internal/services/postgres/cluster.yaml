@@ -41,10 +41,16 @@ spec:
 
   # Annotates every object the operator generates for this cluster, including the
   # auto-generated postgres-app credentials Secret, so Reflector mirrors it into the
-  # `geopulse` namespace where the GeoPulse app runs.
+  # `geopulse` namespace where the GeoPulse app runs. Also picked up by every
+  # instance pod's template, which is what makes them scrapable: CNPG's
+  # instance manager always serves /metrics on 9187, but sets no
+  # prometheus.io annotations itself, so deploy/internal/monitoring's
+  # generic annotation-discovered scrape job needs these to find it.
   inheritedMetadata:
     annotations:
       reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
       reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "geopulse"
       reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
       reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: "geopulse"
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9187"

@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+resources:
+  - ./namespace.yaml
+  - ./rbac.yaml
+  - ./prometheus/volume.yaml
+  - ./prometheus/deployment.yaml
+  - ./prometheus/service.yaml
+  - ./alertmanager/deployment.yaml
+  - ./alertmanager/service.yaml
+  - ./kube-state-metrics/rbac.yaml
+  - ./kube-state-metrics/deployment.yaml
+  - ./kube-state-metrics/service.yaml
+  - ./grafana/volume.yaml
+  - ./grafana/deployment.yaml
+  - ./grafana/service.yaml
+  - ./grafana/ingress.yaml
+
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus.yml=prometheus/prometheus.yml
+  - name: prometheus-rules
+    files:
+      - rules.yml=prometheus/rules.yml
+  - name: alertmanager-config
+    files:
+      - alertmanager.yml=alertmanager/alertmanager.yml
+  - name: grafana-datasources
+    files:
+      - datasources.yaml=grafana/datasources.yaml
+  - name: grafana-dashboard-provider
+    files:
+      - dashboards.yaml=grafana/dashboard-provider.yaml
+  - name: grafana-dashboards
+    files:
+      - hosts.json=grafana/dashboards/hosts.json
+      - cluster.json=grafana/dashboards/cluster.json
+      - storage.json=grafana/dashboards/storage.json
+      - platform.json=grafana/dashboards/platform.json

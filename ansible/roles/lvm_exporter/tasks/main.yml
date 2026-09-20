@@ -1,0 +1,95 @@
+---
+# LVM volume-group free-space visibility for the `data` VG (see
+# ansible/node/vars/storage.yml) -- Glances has no VG/PV-level plugin, only
+# per-mount `df`-style usage via its [fs] plugin, so it can't see the
+# unallocated PV pool at all. This is the standard Prometheus pattern for
+# that gap: node_exporter's textfile collector, fed by the community
+# lvm-prom-collector script (vendored in files/, not fetched at apply time)
+# on a systemd timer. Pi-only -- it's the only host with this VG.
+
+- name: Install node_exporter
+  ansible.builtin.package:
+    name: prometheus-node-exporter
+    state: present
+
+- name: Create the textfile collector directory
+  ansible.builtin.file:
+    path: "{{ lvm_exporter_textfile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Scoped to just the textfile collector -- node_exporter's other collectors
+# (cpu/mem/disk/...) would duplicate what Glances' own Prometheus exporter
+# already reports for this host.
+- name: Configure node_exporter -- textfile collector only
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-node-exporter
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by the lvm_exporter role. Do not edit on the host.
+      ARGS="--collector.disable-defaults --collector.textfile --collector.textfile.directory={{ lvm_exporter_textfile_dir }} --web.listen-address={{ glances_bind_address }}:{{ lvm_exporter_node_exporter_port }}"
+  notify: restart prometheus-node-exporter
+
+- name: Enable and start node_exporter
+  ansible.builtin.systemd_service:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started
+  when: not ansible_check_mode
+
+- name: Install the lvm-prom-collector script
+  ansible.builtin.copy:
+    src: lvm-prom-collector
+    dest: /usr/local/bin/lvm-prom-collector
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the lvm-prom-collector systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/lvm-prom-collector.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by the lvm_exporter role. Do not edit on the host.
+      [Unit]
+      Description=Write LVM metrics for node_exporter's textfile collector
+
+      [Service]
+      Type=oneshot
+      User=root
+      # Atomic write -- node_exporter must never read a half-written file.
+      # vgs/lvs need root to read LVM metadata.
+      ExecStart=/bin/sh -c '/usr/local/bin/lvm-prom-collector -g -p > {{ lvm_exporter_textfile_dir }}/lvm.prom.tmp && mv {{ lvm_exporter_textfile_dir }}/lvm.prom.tmp {{ lvm_exporter_textfile_dir }}/lvm.prom'
+  notify: reload systemd for lvm-prom-collector
+
+- name: Install the lvm-prom-collector systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/lvm-prom-collector.timer
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by the lvm_exporter role. Do not edit on the host.
+      [Unit]
+      Description=Run lvm-prom-collector every minute
+
+      [Timer]
+      OnCalendar=*-*-* *:*:00
+      AccuracySec=1s
+
+      [Install]
+      WantedBy=timers.target
+  notify: reload systemd for lvm-prom-collector
+
+- name: Enable and start the lvm-prom-collector timer
+  ansible.builtin.systemd_service:
+    name: lvm-prom-collector.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode

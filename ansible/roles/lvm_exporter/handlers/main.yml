@@ -1,17 +1,16 @@
 ---
 # Self-contained: daemon_reload here rather than notifying a play-level
-# handler, so the role carries no dependency on its consumer's handler names.
-# Read-only monitoring, so a restart has no storage, VM or k3s impact.
-- name: restart glances
+# handler, matching the glances role's own handlers.
+- name: restart prometheus-node-exporter
   ansible.builtin.systemd_service:
-    name: glances
+    name: prometheus-node-exporter
     state: restarted
     daemon_reload: true
   when: not ansible_check_mode
 
-- name: restart glances-prometheus
+- name: reload systemd for lvm-prom-collector
   ansible.builtin.systemd_service:
-    name: glances-prometheus
+    name: lvm-prom-collector.timer
     state: restarted
     daemon_reload: true
   when: not ansible_check_mode

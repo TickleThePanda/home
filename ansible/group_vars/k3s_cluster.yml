@@ -63,3 +63,8 @@ server_config_yaml: |
     - 192.168.1.32
   etcd-snapshot-schedule-cron: "0 */6 * * *"
   etcd-snapshot-retention: 4
+  # The metrics-only listener defaults to 127.0.0.1, unreachable from an
+  # in-cluster Prometheus pod that may land on any node. This also binds it
+  # on the server's own address (192.168.1.32:2381) -- plain HTTP,
+  # unauthenticated by etcd's own design for this listener.
+  etcd-expose-metrics: true

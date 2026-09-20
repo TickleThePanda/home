@@ -1,0 +1,146 @@
+global:
+  scrape_interval: 1m
+  evaluation_interval: 1m
+
+rule_files:
+  - /etc/prometheus/rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager.monitoring.svc:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Host metrics: CPU, RAM, swap, load, disk space per mount, network I/O,
+  # disk I/O, uptime, and (Pi + proxmox-01 only) temperature.
+  - job_name: glances
+    static_configs:
+      - targets:
+          - 192.168.1.2:9091 # k8s-manager-1 (Pi)
+          - 192.168.1.3:9091 # proxmox-01
+          - 192.168.1.32:9091 # k3s-vm-control-01
+          - 192.168.1.33:9091 # k3s-vm-worker-01
+          - 192.168.1.34:9091 # k3s-vm-worker-02
+
+  # The `data` volume group's free/used space (the Pi's unallocated PV pool),
+  # which Glances cannot see -- its [fs] plugin only reports mounted
+  # filesystems.
+  - job_name: lvm-node-exporter
+    static_configs:
+      - targets:
+          - 192.168.1.2:9100 # k8s-manager-1 (Pi)
+
+  # k3s's embedded etcd -- the whole cluster's datastore, single member, no
+  # HA. Plain HTTP, unauthenticated by etcd's own design for this listener
+  # (ansible/group_vars/k3s_cluster.yml: etcd-expose-metrics).
+  - job_name: etcd
+    static_configs:
+      - targets:
+          - 192.168.1.32:2381 # k3s-vm-control-01
+
+  - job_name: kube-state-metrics
+    static_configs:
+      - targets: ["kube-state-metrics.monitoring.svc:8080"]
+
+  # kubelet's own /metrics (not cadvisor/resource) -- includes
+  # kubelet_volume_stats_capacity_bytes / _used_bytes, per-PVC usage from the
+  # consumer side (the LVM VG rows above cover the free-pool side).
+  - job_name: kubelet
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics
+
+  # Per-pod/per-node CPU and memory, routed through the API server's node
+  # proxy so the TLS trust anchor is the in-cluster CA rather than each
+  # kubelet's own serving cert.
+  - job_name: kubelet-cadvisor
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      # Every node target ends up with the same __address__ below (the
+      # apiserver's own proxy endpoint), which would otherwise collapse the
+      # auto-set `instance` label to one value across all nodes -- so pull
+      # the real node name out into its own label first.
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+  - job_name: kubelet-resource
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics/resource
+
+  # Generic annotation-discovered scraping: any pod carrying
+  # prometheus.io/scrape: "true" is picked up automatically. Traefik's Helm
+  # chart already sets these (deploy/setup/traefik/); CloudNativePG's Cluster
+  # (deploy/internal/services/postgres/cluster.yaml) has them added for the
+  # same reason. Any future app can opt in the same way, no Prometheus change
+  # needed.
+  - job_name: kubernetes-pods
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: "true"
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels:
+          [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod

@@ -202,8 +202,12 @@ way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`)
   `STORAGE.md`.
 - The out-of-band Secrets (`tunnel-token`, `cloudflare-api-token-secret`,
   `lldap-credentials`, `pocket-id-secret`, `tinyauth-secrets`,
-  `label-studio-admin`, `github-commit-status`). Nothing in this repo
-  records how to recreate them — a genuine gap, worth closing separately.
+  `label-studio-admin`, `github-commit-status`, `smtp-relay-credentials`).
+  Nothing in this repo records how to recreate most of them — a genuine gap,
+  worth closing separately; the last one is documented in
+  `deploy/internal/services/smtp-relay/README.md` (a manual copy of
+  `pocket-id-secret`'s own ProtonMail credentials — losing `pocket-id-secret`
+  does not also break this, they're independent copies).
   `github-commit-status` (namespace `flux-system`, key `token`) is a GitHub
   PAT with commit-status write on `ticklethepanda/home`; without it the
   Flux → GitHub commit-status Alert just logs auth errors and deploys are

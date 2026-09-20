@@ -1,0 +1,26 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: grafana
+  namespace: monitoring
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://grafana.internal.ticklethepanda.co.uk
+    gethomepage.dev/name: Grafana
+    gethomepage.dev/group: Tools
+    gethomepage.dev/icon: grafana
+    gethomepage.dev/description: Metrics and alerting
+    gethomepage.dev/pod-selector: app=grafana
+spec:
+  entryPoints:
+    - int-web-secure
+  tls: {}
+  routes:
+    - kind: Rule
+      match: Host(`grafana.internal.ticklethepanda.co.uk`)
+      middlewares:
+        - name: tinyauth
+          namespace: tinyauth
+      services:
+        - name: grafana
+          port: 80
