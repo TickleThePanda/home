@@ -540,6 +540,22 @@ When comments are necessary:
   and `/var/lib/rancher/k3s/storage` (~700M). They are the rollback — see the
   end of `ansible/node/STORAGE.md` for removing them.
 
+## SMTP relay
+
+`deploy/internal/services/smtp-relay/` is an in-cluster null relay (a
+`boky/postfix` container) forwarding to ProtonMail's SMTP. ClusterIP only —
+never exposed outside the cluster. Any in-cluster pod can send mail through
+it on port 587 with no credential of its own; the relay authenticates to
+ProtonMail itself. Current consumers: Alertmanager
+(`deploy/internal/monitoring/`) and pocket-id
+(`deploy/internal/auth/pocketid/`). A future app that needs to send mail
+should use this instead of talking to ProtonMail directly.
+
+Its own credential (`smtp-relay-credentials`, out-of-band) is a manual,
+one-time copy of pocket-id's former ProtonMail credentials — deliberately
+not a live Reflector mirror, so its lifecycle is independent of
+`pocket-id-secret`. See `deploy/internal/services/smtp-relay/README.md`.
+
 ## Administration notes
 
 - **k3s's own bundled addons can conflict with kustomize-managed
