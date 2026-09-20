@@ -297,12 +297,12 @@ When comments are necessary:
   `delegate_to: localhost`. No play uses `hosts: all` — that would run `become`
   tasks on the runner.
 - Anything genuinely shared between layers becomes a role under
-  `ansible/roles/`, parameterised by `group_vars`. `glances` is the current
-  example: identical on the Pi and proxmox-01 except the web-server package
-  (`python3-bottle` on Glances 3, `python3-uvicorn` on Glances 4), which is
-  `glances_web_package`. A naive merge there breaks a host at *runtime*, not at
-  apply time. `ssh_keys` is the same pattern for the fleet's trusted keys —
-  see "SSH keys" below.
+  `ansible/roles/`, parameterised by `group_vars`. `node_exporter` is the
+  current example: identical everywhere except the Pi, which also runs the
+  LVM textfile collector (`node_exporter_lvm_collector`, the only host with
+  the `data` VG) — a naive merge there would silently drop that on a host
+  that needs it. `ssh_keys` is the same pattern for the fleet's trusted keys
+  — see "SSH keys" below.
 
 ## SSH keys
 
@@ -316,8 +316,8 @@ When comments are necessary:
   and `proxmox-01` — removing a key from the file and re-applying actually
   revokes it, not just accumulates. Wired into `node/node.yml` (Pi,
   `deploy`), `k3s/k3s.yml` (the two worker VMs + `k3s-vm-control-01`,
-  `deploy` — the Pi is excluded there, same reasoning as that file's glances
-  play: `node.yml` already owns it), and `proxmox/proxmox.yml` (`root`,
+  `deploy` — the Pi is excluded there, same reasoning as that file's
+  node_exporter play: `node.yml` already owns it), and `proxmox/proxmox.yml` (`root`,
   through the pmxcfs-backed `/etc/pve/priv/authorized_keys` symlink).
 - The router has no Python, so `ansible.posix.authorized_key` doesn't apply
   there — `ansible/router/tasks/ssh-keys.yml` instead templates the same

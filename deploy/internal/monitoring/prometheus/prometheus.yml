@@ -15,8 +15,14 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Host metrics: CPU, RAM, swap, load, disk space per mount, network I/O,
-  # disk I/O, uptime, and (Pi + proxmox-01 only) temperature.
+  # Host metrics: CPU, memory, load, filesystem, disk I/O, network, and
+  # (Pi + proxmox-01 only) temperature -- node_exporter, with real
+  # device/mountpoint/interface labels (replaced Glances, whose
+  # metric-name-encodes-identity scheme couldn't support rate()/topk()/sum-by
+  # and used different metric names per Glances major version). The Pi's
+  # instance also carries the `data` volume-group's free space, via its
+  # textfile collector fed by lvm-prom-collector -- Glances had no
+  # VG/PV-level plugin, only per-mount usage.
   #
   # Targets stay IP:port -- these hostnames don't resolve from inside the
   # cluster (confirmed live: NXDOMAIN even for k8s-manager-1.home.arpa).
@@ -24,32 +30,23 @@ scrape_configs:
   # (ansible/k3s/k3s.yml), which has no knowledge of home.arpa, so a
   # hostname-based target would just fail to connect. The `hostname` label
   # below is for readable legends/alerts without that dependency.
-  - job_name: glances
-    static_configs:
-      - targets: ["192.168.1.2:9091"]
-        labels:
-          hostname: k8s-manager-1
-      - targets: ["192.168.1.3:9091"]
-        labels:
-          hostname: proxmox-01
-      - targets: ["192.168.1.32:9091"]
-        labels:
-          hostname: k3s-vm-control-01
-      - targets: ["192.168.1.33:9091"]
-        labels:
-          hostname: k3s-vm-worker-01
-      - targets: ["192.168.1.34:9091"]
-        labels:
-          hostname: k3s-vm-worker-02
-
-  # The `data` volume group's free/used space (the Pi's unallocated PV pool),
-  # which Glances cannot see -- its [fs] plugin only reports mounted
-  # filesystems.
-  - job_name: lvm-node-exporter
+  - job_name: node
     static_configs:
       - targets: ["192.168.1.2:9100"]
         labels:
           hostname: k8s-manager-1
+      - targets: ["192.168.1.3:9100"]
+        labels:
+          hostname: proxmox-01
+      - targets: ["192.168.1.32:9100"]
+        labels:
+          hostname: k3s-vm-control-01
+      - targets: ["192.168.1.33:9100"]
+        labels:
+          hostname: k3s-vm-worker-01
+      - targets: ["192.168.1.34:9100"]
+        labels:
+          hostname: k3s-vm-worker-02
 
   # k3s's embedded etcd -- the whole cluster's datastore, single member, no
   # HA. Plain HTTP, unauthenticated by etcd's own design for this listener

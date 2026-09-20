@@ -1,6 +1,6 @@
 ---
 # Self-contained: daemon_reload here rather than notifying a play-level
-# handler, matching the glances role's own handlers.
+# handler, matching the rest of this repo's exporter roles.
 - name: restart prometheus-node-exporter
   ansible.builtin.systemd_service:
     name: prometheus-node-exporter

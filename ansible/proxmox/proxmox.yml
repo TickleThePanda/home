@@ -68,10 +68,10 @@
       ansible.builtin.import_tasks: tasks/host-watchdog.yml
       tags: [host, watchdog]
 
-    - name: Glances web server
+    - name: node_exporter (host metrics)
       ansible.builtin.import_role:
-        name: glances
-      tags: [host, glances]
+        name: node_exporter
+      tags: [host, node-exporter]
 
     - name: Debian 13 cloud template
       ansible.builtin.import_tasks: tasks/vm-template.yml

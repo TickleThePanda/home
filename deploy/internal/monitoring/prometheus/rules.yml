@@ -1,32 +1,39 @@
 groups:
   - name: disk-space
     rules:
-      # Glances' Prometheus exporter bakes the mount point into the metric
-      # *name* (e.g. glances_fs___percent for "/") rather than exposing it as
-      # a label -- https://github.com/nicolargo/glances/issues/3166. Matching
-      # on __name__ is the only way to cover every mount across every host in
-      # one rule.
+      # node_exporter labels mountpoint/fstype/device properly (Glances baked
+      # the mount point into the metric *name* instead), so this is a normal
+      # label-filtered expression -- no __name__ regex needed. Scoped to real
+      # read-write filesystems: excludes tmpfs/overlay/squashfs/ramfs/fuse
+      # (squashfs in particular -- snap mounts are permanently 100% full by
+      # design, they'd alert forever) and anything mounted read-only.
       - alert: HostDiskSpaceLow
-        expr: '{__name__=~"glances_fs.*_percent"} > 80'
+        expr: >-
+          100 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|fuse.*"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|fuse.*"} * 100) > 80
+          and node_filesystem_readonly == 0
         for: 15m
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.hostname }}: {{ $labels.__name__ }} is {{ $value | printf \"%.1f\" }}% full"
+          summary: "{{ $labels.hostname }}: {{ $labels.mountpoint }} is {{ $value | printf \"%.1f\" }}% full"
           description: >-
-            A filesystem on {{ $labels.hostname }} has been over 80% full for
-            15 minutes.
+            {{ $labels.mountpoint }} on {{ $labels.hostname }} has been over
+            80% full for 15 minutes.
 
       - alert: HostDiskSpaceCritical
-        expr: '{__name__=~"glances_fs.*_percent"} > 90'
+        expr: >-
+          100 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|fuse.*"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|fuse.*"} * 100) > 90
+          and node_filesystem_readonly == 0
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "{{ $labels.hostname }}: {{ $labels.__name__ }} is {{ $value | printf \"%.1f\" }}% full"
+          summary: "{{ $labels.hostname }}: {{ $labels.mountpoint }} is {{ $value | printf \"%.1f\" }}% full"
           description: >-
-            A filesystem on {{ $labels.hostname }} has been over 90% full for
-            5 minutes.
+            {{ $labels.mountpoint }} on {{ $labels.hostname }} has been over
+            90% full for 5 minutes.
 
   - name: lvm
     rules:

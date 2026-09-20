@@ -39,4 +39,6 @@ configMapGenerator:
       - hosts.json=grafana/dashboards/hosts.json
       - cluster.json=grafana/dashboards/cluster.json
       - storage.json=grafana/dashboards/storage.json
-      - platform.json=grafana/dashboards/platform.json
+      - traefik.json=grafana/dashboards/traefik.json
+      - postgres.json=grafana/dashboards/postgres.json
+      - etcd.json=grafana/dashboards/etcd.json

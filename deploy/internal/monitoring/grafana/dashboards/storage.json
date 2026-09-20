@@ -66,23 +66,48 @@
       "id": 4,
       "title": "Disk space % by host + mount",
       "type": "timeseries",
-      "description": "Every mounted filesystem on every host, from Glances. See HostDiskSpaceLow/Critical alerts.",
+      "description": "Every real (non-tmpfs/overlay/squashfs) mounted filesystem on every host. See HostDiskSpaceLow/Critical alerts.",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
       "targets": [
-        { "expr": "{__name__=~\"glances_fs.*_percent\"}", "legendFormat": "{{hostname}} {{__name__}}", "refId": "A" }
+        {
+          "expr": "100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|fuse.*\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|fuse.*\"} * 100)",
+          "legendFormat": "{{hostname}} {{mountpoint}}",
+          "refId": "A"
+        }
       ]
     },
     {
       "id": 5,
-      "title": "PersistentVolumeClaim capacity vs used",
-      "type": "table",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "title": "PersistentVolumeClaim usage %",
+      "type": "bargauge",
+      "description": "One bar per PVC (namespace/claim), not per node -- summed across the kubelet job's own node labels, which would otherwise make every row's legend unreadable.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 80, "color": "orange" },
+              { "value": 90, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "orientation": "horizontal", "displayMode": "gradient" },
       "targets": [
-        { "expr": "kubelet_volume_stats_capacity_bytes", "format": "table", "instant": true, "refId": "A" },
-        { "expr": "kubelet_volume_stats_used_bytes", "format": "table", "instant": true, "refId": "B" }
+        {
+          "expr": "100 * sum by (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes) / sum by (namespace, persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes)",
+          "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
+          "refId": "A",
+          "instant": true
+        }
       ]
     }
   ]

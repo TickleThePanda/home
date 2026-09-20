@@ -1,0 +1,100 @@
+{
+  "title": "etcd",
+  "uid": "etcd",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Leader",
+      "type": "stat",
+      "description": "Single-member embedded etcd (ansible/k3s/k3s.yml) -- this should always read 1.",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "not leader", "color": "red" }, "1": { "text": "leader", "color": "green" } } }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [{ "expr": "etcd_server_is_leader", "refId": "A" }]
+    },
+    {
+      "id": 2,
+      "title": "Database size vs quota",
+      "type": "gauge",
+      "description": "See EtcdDatabaseSizeHigh alert.",
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 80, "color": "orange" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "(etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) * 100",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Database size (bytes)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "etcd_mvcc_db_total_size_in_bytes", "legendFormat": "db size", "refId": "A" },
+        { "expr": "etcd_server_quota_backend_bytes", "legendFormat": "quota", "refId": "B" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Backend commit duration (p99)",
+      "type": "timeseries",
+      "description": "See EtcdHighCommitDuration alert.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[5m]))",
+          "legendFormat": "p99 commit duration",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "WAL fsync duration (p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m]))",
+          "legendFormat": "p99 fsync duration",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

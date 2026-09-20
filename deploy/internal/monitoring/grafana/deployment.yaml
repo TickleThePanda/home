@@ -109,8 +109,14 @@ spec:
               mountPath: /var/lib/grafana/dashboards/storage.json
               subPath: storage.json
             - name: dashboards
-              mountPath: /var/lib/grafana/dashboards/platform.json
-              subPath: platform.json
+              mountPath: /var/lib/grafana/dashboards/traefik.json
+              subPath: traefik.json
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/postgres.json
+              subPath: postgres.json
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/etcd.json
+              subPath: etcd.json
       volumes:
         - name: data
           emptyDir: {}

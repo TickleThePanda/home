@@ -1,106 +1,242 @@
 {
   "title": "Hosts",
-  "uid": "hosts-glances",
+  "uid": "hosts",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
   "timezone": "browser",
   "time": { "from": "now-6h", "to": "now" },
   "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "type": "query",
+        "label": "Host",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(up{job=\"node\"}, hostname)",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
   "panels": [
     {
       "id": 1,
-      "title": "CPU %",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
-      "targets": [
-        { "expr": "glances_cpu_total", "legendFormat": "{{hostname}}", "refId": "A" }
-      ]
+      "type": "row",
+      "title": "Overview -- all 5 hosts",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
     },
     {
       "id": 2,
-      "title": "Memory %",
+      "title": "CPU %",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
       "targets": [
-        { "expr": "glances_mem_percent", "legendFormat": "{{hostname}} RAM", "refId": "A" },
-        { "expr": "glances_memswap_percent", "legendFormat": "{{hostname}} swap", "refId": "B" }
+        {
+          "expr": "100 - (avg by (hostname) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "{{hostname}}",
+          "refId": "A"
+        }
       ]
     },
     {
       "id": 3,
-      "title": "Load average",
+      "title": "Memory %",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
       "targets": [
-        { "expr": "glances_load_min1", "legendFormat": "{{hostname}} 1m", "refId": "A" },
-        { "expr": "glances_load_min5", "legendFormat": "{{hostname}} 5m", "refId": "B" },
-        { "expr": "glances_load_min15", "legendFormat": "{{hostname}} 15m", "refId": "C" }
+        {
+          "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100",
+          "legendFormat": "{{hostname}}",
+          "refId": "A"
+        }
       ]
     },
     {
       "id": 4,
-      "title": "Disk space % (per mount)",
+      "title": "Load average (1m)",
       "type": "timeseries",
-      "description": "Glances bakes the mount point into the metric name rather than a label -- legend shows the raw metric name.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
       "targets": [
-        { "expr": "{__name__=~\"glances_fs.*_percent\"}", "legendFormat": "{{hostname}} {{__name__}}", "refId": "A" }
+        { "expr": "node_load1", "legendFormat": "{{hostname}}", "refId": "A" }
       ]
     },
     {
       "id": 5,
-      "title": "Network I/O (bytes/s)",
+      "title": "Max temperature (Pi + proxmox-01 only)",
       "type": "timeseries",
-      "description": "Glances exposes these as ever-increasing totals (as Prometheus Gauges, not Counters, but the values still only go up) -- rate() over the _cumulative_rx/_tx series turns them into a per-second rate. The plain _rx/_tx series (no rate()) are Glances' own since-last-poll delta and would double-count against these.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "description": "The 3 k3s VMs have no thermal sensor to read -- expect no data for them here. Hottest sensor per host; see the Detail section below for a per-sensor breakdown.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "celsius" }, "overrides": [] },
       "targets": [
-        { "expr": "rate({__name__=~\"glances_network.*_cumulative_rx\"}[5m])", "legendFormat": "{{hostname}} {{__name__}}", "refId": "A" },
-        { "expr": "rate({__name__=~\"glances_network.*_cumulative_tx\"}[5m])", "legendFormat": "{{hostname}} {{__name__}}", "refId": "B" }
+        {
+          "expr": "max by (hostname) (node_hwmon_temp_celsius)",
+          "legendFormat": "{{hostname}}",
+          "refId": "A"
+        }
       ]
     },
     {
       "id": 6,
-      "title": "Disk I/O (bytes/s)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "title": "Disk space % (every real mount, every host)",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 17 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 80, "color": "orange" },
+              { "value": 90, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "orientation": "horizontal", "displayMode": "gradient" },
       "targets": [
-        { "expr": "rate({__name__=~\"glances_diskio.*_read_bytes\"}[5m])", "legendFormat": "{{hostname}} {{__name__}}", "refId": "A" },
-        { "expr": "rate({__name__=~\"glances_diskio.*_write_bytes\"}[5m])", "legendFormat": "{{hostname}} {{__name__}}", "refId": "B" }
+        {
+          "expr": "100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|fuse.*\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|fuse.*\"} * 100)",
+          "legendFormat": "{{hostname}} {{mountpoint}}",
+          "refId": "A",
+          "instant": true
+        }
       ]
     },
     {
       "id": 7,
-      "title": "Temperature (Pi + proxmox-01 only)",
-      "type": "timeseries",
-      "description": "The 3 k3s VMs have no thermal sensor to read -- expect no data for them here.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 25 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "celsius" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "expr": "{__name__=~\"glances_sensors.*_value\"}", "legendFormat": "{{hostname}} {{__name__}}", "refId": "A" }
+        {
+          "expr": "time() - node_boot_time_seconds",
+          "legendFormat": "{{hostname}}",
+          "refId": "A",
+          "instant": true
+        }
       ]
     },
     {
       "id": 8,
-      "title": "Uptime",
-      "type": "stat",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "type": "row",
+      "title": "Detail -- $host",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 },
+      "panels": []
+    },
+    {
+      "id": 9,
+      "title": "Per-core CPU % -- $host",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
       "targets": [
-        { "expr": "glances_uptime_seconds", "legendFormat": "{{hostname}}", "refId": "A" }
+        {
+          "expr": "100 - (avg by (cpu) (rate(node_cpu_seconds_total{hostname=\"$host\", mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "cpu {{cpu}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Memory -- $host",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "node_memory_MemTotal_bytes{hostname=\"$host\"}", "legendFormat": "total", "refId": "A" },
+        { "expr": "node_memory_MemAvailable_bytes{hostname=\"$host\"}", "legendFormat": "available", "refId": "B" },
+        { "expr": "node_memory_Cached_bytes{hostname=\"$host\"}", "legendFormat": "cached", "refId": "C" }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Load average -- $host",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "node_load1{hostname=\"$host\"}", "legendFormat": "1m", "refId": "A" },
+        { "expr": "node_load5{hostname=\"$host\"}", "legendFormat": "5m", "refId": "B" },
+        { "expr": "node_load15{hostname=\"$host\"}", "legendFormat": "15m", "refId": "C" }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Temperature -- $host",
+      "type": "timeseries",
+      "description": "No data for the 3 k3s VMs -- no thermal sensor.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "celsius" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "node_hwmon_temp_celsius{hostname=\"$host\"}",
+          "legendFormat": "{{chip}} {{sensor}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Disk I/O (bytes/s) -- $host",
+      "description": "Excludes device-mapper (dm-*) and loop devices -- LVM's own logical volumes, redundant with the real block device (sda/nvme0n1) underneath.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 46 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "rate(node_disk_read_bytes_total{hostname=\"$host\", device!~\"dm-.*|loop.*\"}[5m])",
+          "legendFormat": "{{device}} read",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(node_disk_written_bytes_total{hostname=\"$host\", device!~\"dm-.*|loop.*\"}[5m])",
+          "legendFormat": "{{device}} write",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Network I/O (bytes/s) -- $host",
+      "description": "Excludes veth/cni0/flannel/lo/tap -- container and bridge-internal interfaces, not real network traffic.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 46 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "rate(node_network_receive_bytes_total{hostname=\"$host\", device!~\"veth.*|lo|cni0|flannel.*|tap.*\"}[5m])",
+          "legendFormat": "{{device}} rx",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(node_network_transmit_bytes_total{hostname=\"$host\", device!~\"veth.*|lo|cni0|flannel.*|tap.*\"}[5m])",
+          "legendFormat": "{{device}} tx",
+          "refId": "B"
+        }
       ]
     }
   ]

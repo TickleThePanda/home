@@ -1,9 +1,0 @@
----
-# Where node_exporter's textfile collector reads from, and where the timer
-# writes to.
-lvm_exporter_textfile_dir: /var/lib/prometheus-node-exporter/textfile_collector
-
-# node_exporter's own listen port. Only the textfile collector is enabled --
-# see tasks/main.yml -- since Glances' own Prometheus exporter already
-# covers this host's general metrics.
-lvm_exporter_node_exporter_port: 9100

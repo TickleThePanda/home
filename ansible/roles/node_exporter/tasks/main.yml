@@ -1,11 +1,14 @@
 ---
-# LVM volume-group free-space visibility for the `data` VG (see
-# ansible/node/vars/storage.yml) -- Glances has no VG/PV-level plugin, only
-# per-mount `df`-style usage via its [fs] plugin, so it can't see the
-# unallocated PV pool at all. This is the standard Prometheus pattern for
-# that gap: node_exporter's textfile collector, fed by the community
-# lvm-prom-collector script (vendored in files/, not fetched at apply time)
-# on a systemd timer. Pi-only -- it's the only host with this VG.
+# Host metrics for Prometheus (deploy/internal/monitoring/): CPU, memory,
+# load, filesystem, disk I/O, network, temperature -- every default
+# collector, with real device/mountpoint/interface labels instead of
+# Glances' name-encodes-identity scheme. Replaces the glances role.
+#
+# On the Pi only (node_exporter_lvm_collector), also feeds the textfile
+# collector from the community lvm-prom-collector script (vendored in
+# files/, not fetched at apply time) on a systemd timer -- the `data` VG's
+# free space (ansible/node/vars/storage.yml), which no default node_exporter
+# collector covers.
 
 - name: Install node_exporter
   ansible.builtin.package:
@@ -14,24 +17,22 @@
 
 - name: Create the textfile collector directory
   ansible.builtin.file:
-    path: "{{ lvm_exporter_textfile_dir }}"
+    path: "{{ node_exporter_textfile_dir }}"
     state: directory
     owner: root
     group: root
     mode: "0755"
+  when: node_exporter_lvm_collector
 
-# Scoped to just the textfile collector -- node_exporter's other collectors
-# (cpu/mem/disk/...) would duplicate what Glances' own Prometheus exporter
-# already reports for this host.
-- name: Configure node_exporter -- textfile collector only
+- name: Configure node_exporter
   ansible.builtin.copy:
     dest: /etc/default/prometheus-node-exporter
     owner: root
     group: root
     mode: "0644"
     content: |
-      # Managed by the lvm_exporter role. Do not edit on the host.
-      ARGS="--collector.disable-defaults --collector.textfile --collector.textfile.directory={{ lvm_exporter_textfile_dir }} --web.listen-address={{ glances_bind_address }}:{{ lvm_exporter_node_exporter_port }}"
+      # Managed by the node_exporter role. Do not edit on the host.
+      ARGS="--web.listen-address={{ node_exporter_bind_address }}:{{ node_exporter_port }}{% if node_exporter_lvm_collector %} --collector.textfile --collector.textfile.directory={{ node_exporter_textfile_dir }}{% endif %}"
   notify: restart prometheus-node-exporter
 
 - name: Enable and start node_exporter
@@ -48,6 +49,7 @@
     owner: root
     group: root
     mode: "0755"
+  when: node_exporter_lvm_collector
 
 - name: Install the lvm-prom-collector systemd service
   ansible.builtin.copy:
@@ -56,7 +58,7 @@
     group: root
     mode: "0644"
     content: |
-      # Managed by the lvm_exporter role. Do not edit on the host.
+      # Managed by the node_exporter role. Do not edit on the host.
       [Unit]
       Description=Write LVM metrics for node_exporter's textfile collector
 
@@ -65,8 +67,9 @@
       User=root
       # Atomic write -- node_exporter must never read a half-written file.
       # vgs/lvs need root to read LVM metadata.
-      ExecStart=/bin/sh -c '/usr/local/bin/lvm-prom-collector -g -p > {{ lvm_exporter_textfile_dir }}/lvm.prom.tmp && mv {{ lvm_exporter_textfile_dir }}/lvm.prom.tmp {{ lvm_exporter_textfile_dir }}/lvm.prom'
+      ExecStart=/bin/sh -c '/usr/local/bin/lvm-prom-collector -g -p > {{ node_exporter_textfile_dir }}/lvm.prom.tmp && mv {{ node_exporter_textfile_dir }}/lvm.prom.tmp {{ node_exporter_textfile_dir }}/lvm.prom'
   notify: reload systemd for lvm-prom-collector
+  when: node_exporter_lvm_collector
 
 - name: Install the lvm-prom-collector systemd timer
   ansible.builtin.copy:
@@ -75,7 +78,7 @@
     group: root
     mode: "0644"
     content: |
-      # Managed by the lvm_exporter role. Do not edit on the host.
+      # Managed by the node_exporter role. Do not edit on the host.
       [Unit]
       Description=Run lvm-prom-collector every minute
 
@@ -86,10 +89,11 @@
       [Install]
       WantedBy=timers.target
   notify: reload systemd for lvm-prom-collector
+  when: node_exporter_lvm_collector
 
 - name: Enable and start the lvm-prom-collector timer
   ansible.builtin.systemd_service:
     name: lvm-prom-collector.timer
     enabled: true
     state: started
-  when: not ansible_check_mode
+  when: node_exporter_lvm_collector and not ansible_check_mode

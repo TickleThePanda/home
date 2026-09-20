@@ -1,0 +1,95 @@
+{
+  "title": "Postgres",
+  "uid": "postgres-cnpg",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "cnpg_collector up",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "down", "color": "red" }, "1": { "text": "up", "color": "green" } } }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [{ "expr": "cnpg_collector_up", "legendFormat": "{{datname}}", "refId": "A" }]
+    },
+    {
+      "id": 2,
+      "title": "Database size",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [{ "expr": "cnpg_pg_database_size_bytes", "legendFormat": "{{datname}}", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "title": "Backends by state",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (state) (cnpg_backends_total)", "legendFormat": "{{state}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Transaction rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_commit[5m]))",
+          "legendFormat": "{{datname}} commit",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_rollback[5m]))",
+          "legendFormat": "{{datname}} rollback",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Tuple operations rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_fetched[5m]))",
+          "legendFormat": "{{datname}} fetched",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_inserted[5m]))",
+          "legendFormat": "{{datname}} inserted",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_updated[5m]))",
+          "legendFormat": "{{datname}} updated",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_deleted[5m]))",
+          "legendFormat": "{{datname}} deleted",
+          "refId": "D"
+        }
+      ]
+    }
+  ]
+}

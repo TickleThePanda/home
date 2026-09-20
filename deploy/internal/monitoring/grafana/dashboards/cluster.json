@@ -7,17 +7,32 @@
   "timezone": "browser",
   "time": { "from": "now-6h", "to": "now" },
   "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "label": "Namespace",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(kube_pod_info, namespace)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": false,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
   "panels": [
     {
       "id": 1,
-      "title": "Pod CPU usage",
+      "title": "Top 10 pods by CPU usage",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
         {
-          "expr": "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\", container!=\"POD\"}[5m]))",
+          "expr": "topk(10, sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\", container!=\"POD\", namespace=~\"$namespace\"}[5m])))",
           "legendFormat": "{{namespace}}/{{pod}}",
           "refId": "A"
         }
@@ -25,14 +40,14 @@
     },
     {
       "id": 2,
-      "title": "Pod memory usage",
+      "title": "Top 10 pods by memory usage",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
       "targets": [
         {
-          "expr": "sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\", container!=\"POD\"})",
+          "expr": "topk(10, sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\", container!=\"POD\", namespace=~\"$namespace\"}))",
           "legendFormat": "{{namespace}}/{{pod}}",
           "refId": "A"
         }
@@ -46,7 +61,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "increase(kube_pod_container_status_restarts_total[1h]) > 0",
+          "expr": "increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h]) > 0",
           "legendFormat": "{{namespace}}/{{pod}}/{{container}}",
           "refId": "A"
         }
@@ -82,7 +97,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "kube_persistentvolumeclaim_status_phase == 1",
+          "expr": "kube_persistentvolumeclaim_status_phase{namespace=~\"$namespace\"} == 1",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -91,13 +106,18 @@
     },
     {
       "id": 6,
-      "title": "Deployment replicas (available / desired)",
-      "type": "timeseries",
+      "title": "Deployments not at desired replica count",
+      "type": "table",
+      "description": "Empty when everything is healthy -- that's the point. Available replicas != desired replicas.",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "expr": "kube_deployment_status_replicas_available", "legendFormat": "{{namespace}}/{{deployment}} available", "refId": "A" },
-        { "expr": "kube_deployment_spec_replicas", "legendFormat": "{{namespace}}/{{deployment}} desired", "refId": "B" }
+        {
+          "expr": "kube_deployment_status_replicas_available{namespace=~\"$namespace\"} != on(namespace, deployment) kube_deployment_spec_replicas{namespace=~\"$namespace\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
       ]
     }
   ]

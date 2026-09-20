@@ -1,0 +1,15 @@
+---
+# node_exporter's own listen port.
+node_exporter_port: 9100
+
+# node_exporter_bind_address has no default on purpose: it's host-specific,
+# set in group_vars for each host that runs this role -- same pattern the
+# glances role used to follow.
+
+# Only the Pi has the `data` VG (ansible/node/vars/storage.yml) -- set true
+# there, nowhere else. Everything LVM-specific below is gated on this.
+node_exporter_lvm_collector: false
+
+# Where the textfile collector reads from, and where the LVM timer writes
+# to. Only created/used when node_exporter_lvm_collector is true.
+node_exporter_textfile_dir: /var/lib/prometheus-node-exporter/textfile_collector
