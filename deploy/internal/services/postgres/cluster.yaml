@@ -19,9 +19,9 @@ spec:
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
-    limits:
       memory: 512Mi
+    limits:
+      memory: 1Gi
 
   # Conservative settings for the Pi's limited memory, mirroring GeoPulse's own
   # docker-compose defaults for this workload.
@@ -33,6 +33,11 @@ spec:
       effective_cache_size: "384MB"
       max_wal_size: "256MB"
       wal_buffers: "8MB"
+      # The Pi's SSD is a USB-attached enclosure with poor fsync latency under
+      # load, which turns every commit's WAL flush into a stall. Accepting up
+      # to wal_writer_delay of data loss on a hard crash in exchange for not
+      # blocking on that fsync.
+      synchronous_commit: "off"
 
   bootstrap:
     initdb:
