@@ -40,6 +40,8 @@ spec:
               subPath: metadata
             - mountPath: /audiobooks
               name: media
+            - mountPath: /podcasts
+              name: podcasts
         - name: libation
           image: ticklethepanda/libation-sync:latest
           imagePullPolicy: Always
@@ -102,3 +104,6 @@ spec:
         - name: libation-config
           persistentVolumeClaim:
             claimName: audiobookshelf-libation-config
+        - name: podcasts
+          persistentVolumeClaim:
+            claimName: audiobookshelf-podcasts
