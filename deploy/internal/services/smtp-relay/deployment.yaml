@@ -25,7 +25,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: smtp-relay
-          image: boky/postfix:v5.1.0
+          image: boky/postfix:v5.1.0 # {"$imagepolicy": "flux-system:smtp-relay"}
           imagePullPolicy: IfNotPresent
           env:
             - name: RELAYHOST

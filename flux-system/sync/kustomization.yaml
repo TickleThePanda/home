@@ -5,6 +5,8 @@ resources:
   - ./self.yaml
   - ./oci-repository.yaml
   - ./notifications.yaml
+  - ./images.yaml
+  - ./image-automation.yaml
   - ./kustomization-setup.yaml
   - ./kustomization-setup-config.yaml
   - ./kustomization-home.yaml

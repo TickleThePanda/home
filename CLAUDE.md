@@ -221,6 +221,20 @@ When comments are necessary:
   actually changed something.** A no-op apply is idempotent by definition, so
   re-running the whole playbook over the tunnel to confirm it is pure
   wall-clock cost.
+- **Third-party image tags bump automatically** (Flux image automation, config
+  in `flux-system/sync/images.yaml` and `image-automation.yaml`). Each image
+  line in `deploy/` carries a `# {"$imagepolicy": "flux-system:<name>"}` marker;
+  Flux commits new minor/patch tags straight to `main`, and that push runs
+  `deploy.yaml` like any other. Majors are manual: edit the manifest tag and
+  the policy's `range` together. To add an image, add an `ImageRepository` +
+  `ImagePolicy` and the marker. Not covered: `ticklethepanda/*:latest`, images
+  tied to a vendored manifest or the k3s version (Traefik, cert-manager,
+  MetalLB, ...), the postgres `imageName`, and lldap (runs an unreleased build).
+  Failures email via Alertmanager. A bad bump shows as a red commit status
+  after the 5m `wait`; `Recreate` apps go down meanwhile. Roll back by
+  reverting the commit **and** excluding the bad version in its policy,
+  otherwise Flux re-bumps it. Apps that migrate their DB on start may not
+  survive a tag rollback.
 - The `cluster` job applies everything under `deploy/` via kustomize:
   `kubectl apply -k deploy --prune -l ticklethepanda.dev/managed-by=kustomize`
 - Layout: `deploy/setup/` (cluster infra — cert-manager, metallb, traefik,

@@ -24,7 +24,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: label-studio
-          image: heartexlabs/label-studio:latest
+          image: heartexlabs/label-studio:1.23.2 # {"$imagepolicy": "flux-system:label-studio"}
           resources:
             requests:
               cpu: 50m

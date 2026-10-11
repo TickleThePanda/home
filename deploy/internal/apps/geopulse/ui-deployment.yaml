@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: geopulse-ui
-          image: tess1o/geopulse-ui:1.39.0
+          image: tess1o/geopulse-ui:1.39.0 # {"$imagepolicy": "flux-system:geopulse-ui"}
           resources:
             requests:
               cpu: 10m

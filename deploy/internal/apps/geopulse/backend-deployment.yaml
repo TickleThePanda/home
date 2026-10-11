@@ -23,7 +23,7 @@ spec:
       # AI-encrypted fields already stored.
       initContainers:
         - name: keygen
-          image: alpine:latest
+          image: alpine:3.24.2 # {"$imagepolicy": "flux-system:alpine"}
           command:
             - sh
             - -ec
@@ -44,7 +44,7 @@ spec:
               subPath: keys
       containers:
         - name: geopulse-backend
-          image: tess1o/geopulse-backend:1.39.0-native-compat
+          image: tess1o/geopulse-backend:1.39.0-native-compat # {"$imagepolicy": "flux-system:geopulse-backend"}
           resources:
             requests:
               cpu: 50m

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: tinyauth
-          image: ghcr.io/steveiliop56/tinyauth:v4
+          image: ghcr.io/steveiliop56/tinyauth:v4.1.0 # {"$imagepolicy": "flux-system:tinyauth"}
           ports:
             - containerPort: 3000
           env:

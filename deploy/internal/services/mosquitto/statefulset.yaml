@@ -17,7 +17,7 @@ spec:
       securityContext:
         fsGroup: 33
       containers:
-      - image: eclipse-mosquitto:latest
+      - image: eclipse-mosquitto:2.1.2-alpine # {"$imagepolicy": "flux-system:mosquitto"}
         name: mosquitto
         resources:
           requests:

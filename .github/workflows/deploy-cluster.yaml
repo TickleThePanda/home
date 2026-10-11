@@ -45,7 +45,10 @@ jobs:
           kubectl wait --for=condition=Established --timeout=60s \
             crd/gitrepositories.source.toolkit.fluxcd.io \
             crd/ocirepositories.source.toolkit.fluxcd.io \
-            crd/kustomizations.kustomize.toolkit.fluxcd.io
+            crd/kustomizations.kustomize.toolkit.fluxcd.io \
+            crd/imagerepositories.image.toolkit.fluxcd.io \
+            crd/imagepolicies.image.toolkit.fluxcd.io \
+            crd/imageupdateautomations.image.toolkit.fluxcd.io
           kubectl apply -k flux-system/sync
 
       - name: Login to DockerHub
