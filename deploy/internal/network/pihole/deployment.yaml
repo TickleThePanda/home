@@ -1,4 +1,3 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,7 +20,7 @@ spec:
     spec:
       containers:
         - name: pihole
-          image: pihole/pihole:2026.07.2 # {"$imagepolicy": "flux-system:pihole"}
+          image: pihole/pihole:2026.09.0 # {"$imagepolicy": "flux-system:pihole"}
           imagePullPolicy: IfNotPresent
           resources:
             requests:

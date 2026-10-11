@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: unbound
-          image: klutchell/unbound:1.26.0 # {"$imagepolicy": "flux-system:unbound"}
+          image: klutchell/unbound:1.26.1 # {"$imagepolicy": "flux-system:unbound"}
           imagePullPolicy: IfNotPresent
           resources:
             requests:
