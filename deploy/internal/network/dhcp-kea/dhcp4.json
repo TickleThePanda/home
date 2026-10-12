@@ -27,10 +27,12 @@
 
     // Unix control channel for kea-dhcp4 (lease queries, lease4-resend-ddns,
     // stats). The image only permits sockets under /kea/sockets.
-    "control-socket": {
-      "socket-type": "unix",
-      "socket-name": "/kea/sockets/kea4-ctrl-socket"
-    },
+    "control-sockets": [
+      {
+        "socket-type": "unix",
+        "socket-name": "/kea/sockets/kea4-ctrl-socket"
+      }
+    ],
 
     // lease_cmds adds lease4-get-* and lease4-resend-ddns over the socket.
     "hooks-libraries": [
