@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: kea-dhcp4
-          image: jonasal/kea-dhcp4:3.3.2 # {"$imagepolicy": "flux-system:kea-dhcp4"}
+          image: jonasal/kea-dhcp4:3.2.1 # {"$imagepolicy": "flux-system:kea-dhcp4"}
           imagePullPolicy: IfNotPresent
           args:
             - "-c"
