@@ -434,10 +434,10 @@ spec:
   imageRepositoryRef:
     name: kea-dhcp4
   filterTags:
-    pattern: '^\d+\.\d+\.\d+$'
+    pattern: '^3\.\d*[02468]\.\d+$'
   policy:
     semver:
-      range: '>=3.2.0 <3.3.0 || >=3.4.0 <4.0.0'
+      range: '>=3.2.0 <4.0.0'
 ---
 apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
@@ -459,10 +459,10 @@ spec:
   imageRepositoryRef:
     name: kea-dhcp-ddns
   filterTags:
-    pattern: '^\d+\.\d+\.\d+$'
+    pattern: '^3\.\d*[02468]\.\d+$'
   policy:
     semver:
-      range: '>=3.2.0 <3.3.0 || >=3.4.0 <4.0.0'
+      range: '>=3.2.0 <4.0.0'
 ---
 apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
