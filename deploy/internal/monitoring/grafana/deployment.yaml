@@ -23,7 +23,7 @@ spec:
         fsGroup: 472
       containers:
         - name: grafana
-          image: grafana/grafana:13.2.3 # {"$imagepolicy": "flux-system:grafana"}
+          image: grafana/grafana:13.2.4 # {"$imagepolicy": "flux-system:grafana"}
           imagePullPolicy: IfNotPresent
           env:
             - name: GF_USERS_ALLOW_SIGN_UP
