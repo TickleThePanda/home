@@ -105,12 +105,13 @@ jobs:
           revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
           echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
 
-      # Fails the job when any Kustomization does not reconcile, so a broken
-      # revision shows as a red run. The artifact is already promoted and Flux
-      # keeps reconciling on its own 10m interval regardless. The loop does
-      # not abort on the first bad Kustomization, so every commit status still
-      # gets posted.
+      # Does not block later jobs: the artifact is already promoted and Flux
+      # keeps reconciling on its own 10m interval regardless. A failure is
+      # surfaced as error annotations and a run summary instead (the step
+      # itself also shows red). The loop does not abort on the first bad
+      # Kustomization, so every one is reported.
       - name: Confirm the promoted revision reconciles
+        continue-on-error: true
         timeout-minutes: 10
         run: |
           set -uo pipefail
@@ -119,12 +120,15 @@ jobs:
           flux reconcile source oci deploy -n flux-system --timeout=2m || rc=1
           for ks in flux-system setup setup-config home internal; do
             if ! flux reconcile kustomization "$ks" -n flux-system --timeout=3m; then
-              echo "::warning::kustomization/$ks did not reconcile cleanly"
+              msg=$(kubectl -n flux-system get kustomization "$ks" \
+                -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || true)
+              echo "::error title=Flux kustomization/$ks failed::${msg:-did not reconcile cleanly}"
+              echo "- :x: \`$ks\`: ${msg:-did not reconcile cleanly}" >> "$GITHUB_STEP_SUMMARY"
               rc=1
             fi
             applied=$(kubectl -n flux-system get kustomization "$ks" \
               -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)
             [[ "$applied" == *"$expected"* ]] \
-              || echo "::warning::kustomization/$ks applied ${applied:-<none>}, expected $expected"
+              || echo "::error title=Flux kustomization/$ks behind::applied ${applied:-<none>}, expected $expected"
           done
           exit $rc
