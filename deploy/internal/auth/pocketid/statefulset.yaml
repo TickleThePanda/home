@@ -86,7 +86,7 @@ spec:
             - name: SMTP_TLS
               value: "none"
             - name: SMTP_FROM
-              value: "hello@ticklethepanda.dev"
+              value: "noreply@ticklethepanda.dev"
           volumeMounts:
             - name: data
               mountPath: /app/data
