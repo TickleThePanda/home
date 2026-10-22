@@ -105,21 +105,12 @@ jobs:
           revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
           echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
 
-      # Fast feedback on an obviously-broken revision (bad manifest, a
-      # dangling reference) -- not an authoritative gate. The artifact is
-      # already promoted and Flux keeps reconciling on its own 10m interval
-      # regardless. A failure here, or one that only surfaces after this
-      # step's short budget, lands as a red commit status via the Flux
-      # GitHub Alert (flux-system/sync/notifications.yaml).
-      #
-      # continue-on-error plus the tight timeout-minutes keep a cancel or a
-      # stuck run down to seconds -- the old poll loop could hold the
-      # `cluster` concurrency lock for ~50 minutes and swallowed SIGTERM.
-      # `flux reconcile` is a single interruptible process; the loop does
-      # not abort on one bad Kustomization so every commit status still
+      # Fails the job when any Kustomization does not reconcile, so a broken
+      # revision shows as a red run. The artifact is already promoted and Flux
+      # keeps reconciling on its own 10m interval regardless. The loop does
+      # not abort on the first bad Kustomization, so every commit status still
       # gets posted.
       - name: Confirm the promoted revision reconciles
-        continue-on-error: true
         timeout-minutes: 10
         run: |
           set -uo pipefail

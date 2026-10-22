@@ -40,7 +40,7 @@ spec:
             - name: POSTFIX_smtp_tls_security_level
               value: "encrypt"
             - name: ALLOWED_SENDER_DOMAINS
-              value: "ticklethepanda.co.uk"
+              value: "ticklethepanda.dev"
           ports:
             - name: smtp
               containerPort: 587

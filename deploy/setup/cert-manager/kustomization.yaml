@@ -3,3 +3,18 @@ kind: Kustomization
 
 resources:
   - https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml
+
+# internal.ticklethepanda.co.uk is stub-zoned to CoreDNS inside the cluster, so
+# the in-cluster resolver can never see the Cloudflare DNS-01 TXT record.
+patches:
+  - target:
+      kind: Deployment
+      name: cert-manager
+      namespace: cert-manager
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --dns01-recursive-nameservers-only
