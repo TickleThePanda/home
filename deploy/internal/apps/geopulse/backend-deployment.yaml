@@ -23,7 +23,7 @@ spec:
       # AI-encrypted fields already stored.
       initContainers:
         - name: keygen
-          image: alpine:3.24.2 # {"$imagepolicy": "flux-system:alpine"}
+          image: alpine:3.24.3 # {"$imagepolicy": "flux-system:alpine"}
           command:
             - sh
             - -ec
