@@ -597,6 +597,12 @@ ProtonMail itself. Current consumers: Alertmanager
 (`deploy/internal/auth/pocketid/`). A future app that needs to send mail
 should use this instead of talking to ProtonMail directly.
 
+Send as `hello@ticklethepanda.dev`. A Proton SMTP token can only send as the
+address it was created for, and the relay's token belongs to `hello@`, so any
+other `From` (even another address on the same account) bounces with `553
+Sender address rejected: not owned by user`. The relay's
+`ALLOWED_SENDER_DOMAINS` must match.
+
 Its own credential (`smtp-relay-credentials`, out-of-band) is a manual,
 one-time copy of pocket-id's former ProtonMail credentials — deliberately
 not a live Reflector mirror, so its lifecycle is independent of
