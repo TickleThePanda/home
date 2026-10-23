@@ -7,7 +7,7 @@ hideVersion: true
 # annotations on the discovered IngressRoutes and the group keys in
 # services.yaml, or a stray group appears. Applications comes first and
 # renders large/spacious via custom.css; Administration comes second and
-# renders compact -- see CLAUDE.md's Homepage section.
+# renders compact -- see .claude/rules/homepage.md.
 layout:
   Applications:
     style: row

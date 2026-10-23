@@ -4,6 +4,7 @@ global:
   # POSTFIX_mynetworks already trusts anything in-cluster, and TLS happens
   # on the relay's upstream leg, not this one.
   smtp_smarthost: "smtp-relay.smtp-relay.svc:587"
+  # The only sender the relay's credential allows -- see its README.
   smtp_from: "hello@ticklethepanda.dev"
   smtp_require_tls: false
 

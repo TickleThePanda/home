@@ -11,6 +11,9 @@ $TTL 300
 @           IN NS internal-ns.internal.ticklethepanda.co.uk.
 internal-ns IN A  10.43.53.53
 @           IN A  192.168.1.19
+; Any undefined name resolves to the internal ingress, so a new IngressRoute
+; needs no record here. Add one above only for a name that must resolve
+; elsewhere, and bump the serial.
 *           IN A  192.168.1.19
 gateway     IN A  192.168.1.1
 k8s-control IN A  192.168.1.32

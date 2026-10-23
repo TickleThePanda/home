@@ -85,6 +85,7 @@ spec:
               value: "587"
             - name: SMTP_TLS
               value: "none"
+            # The only sender smtp-relay's credential allows -- see its README.
             - name: SMTP_FROM
               value: "hello@ticklethepanda.dev"
           volumeMounts:

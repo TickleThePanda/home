@@ -12,6 +12,9 @@ spec:
   postgresUID: 70
   postgresGID: 70
 
+  # The operator finds its PVCs only by their controller ownerReference to
+  # this Cluster. A postgres-1 PVC recreated by hand must carry it over, or
+  # the operator silently stops reconciling and the Cluster never goes Ready.
   storage:
     storageClass: lvm-data
     size: 20Gi

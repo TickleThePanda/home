@@ -12,6 +12,12 @@ resources:
   - ./service.yaml
   - ./ingress.yaml
 
+# Pi-hole's settings live here only: pihole.env sets FTLCONF_misc_readOnly,
+# which rejects every pihole.toml change from the UI, API or CLI. The UI greys
+# out only fields forced below; others look editable but fail to save. A new
+# scalar setting is a line in pihole.env, a new array its own .txt file in
+# this list. dns-hosts.txt is for names outside internal.ticklethepanda.co.uk,
+# which belong in the CoreDNS zone.
 configMapGenerator:
   - name: pihole-config
     envs:

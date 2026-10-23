@@ -2,6 +2,10 @@
 # image-automation.yaml). Ranges stay within the manifest's current major;
 # a 0.x image stays below 1.0.0. Each ImagePolicy filters out variant and
 # pre-release tags.
+#
+# A major bump is manual: change the manifest tag and the policy's range
+# together. To roll back a bad bump, revert its commit and exclude that version
+# here, or Flux bumps it again.
 apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
 metadata:
