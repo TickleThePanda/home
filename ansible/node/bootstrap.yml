@@ -19,7 +19,7 @@
 
 - name: Bootstrap the CI automation user
   hosts: k8s-storage-anchor-01
-  gather_facts: true
+  gather_facts: false
   become: true
   vars:
     deploy_user: deploy

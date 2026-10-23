@@ -50,6 +50,7 @@ on:
       - ansible/**
       - terraform/cloudflare-zero-trust/**
       - scripts/check-traefik-pin.sh
+      - scripts/check-gather-subset.py
       - .github/workflows/deploy*.yaml
       - .github/actions/**
   workflow_dispatch: {}
@@ -112,6 +113,7 @@ jobs:
               - 'ansible/router/**'
             infra:
               - 'ansible/**'
+              - 'scripts/check-gather-subset.py'
               - '.github/workflows/deploy-infra.yaml'
             cluster:
               - 'deploy/**'

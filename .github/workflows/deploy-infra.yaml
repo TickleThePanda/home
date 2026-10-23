@@ -110,6 +110,9 @@ jobs:
             fi
           done
 
+      - name: Check every gathering play uses the shared gather_subset
+        run: ./scripts/check-gather-subset.py ansible
+
       # One parse covers all four layers. Syntax only, not state -- Apply below
       # is the first SSH-based run, so a partial failure there can still leave
       # real changes applied. Acceptable for idempotent hosts.
