@@ -95,6 +95,9 @@ Documentation and comments: simple, concise, practical.
 
 ## Administration
 
+- Run Ansible by whole layer playbook (`ansible/site.yml` lists them), never
+  with `--limit` alone. The Pi is in both `pi` and `agent`, so `--limit pi`
+  still runs the k3s agent play on it.
 - k3s re-applies its bundled addons from
   `/var/lib/rancher/k3s/server/manifests/` on every restart. If the repo
   owns a resource k3s also bundles, disable the addon in `server_config_yaml`
