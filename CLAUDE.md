@@ -13,15 +13,18 @@ Commit straight to `main`; don't branch.
 
 Documentation and comments: simple, concise, practical.
 
-- Short sentences and paragraphs. Assume a competent developer.
-- Explain only what the reader needs. Skip the obvious, don't repeat
-  yourself, no intro or outro filler, no "This allows you to...".
-- Prefer a concrete example over a long explanation. Bullets only when they
-  help scanning.
-- Prefer self-explanatory code to comments. When a comment is needed, it
-  describes the current code: non-obvious behaviour, constraints, invariants.
-  Never history, rejected approaches, or anything from the conversation that
-  produced it.
+- Use short sentences and paragraphs. Assume a competent developer.
+- Explain only what the reader needs. Skip the obvious, avoid repetition and
+  filler.
+- Prefer concrete examples over long explanations. Use bullets when they
+  improve scanning.
+- Prefer self-explanatory code to comments. Comments should explain
+  non-obvious behaviour, constraints, invariants, or rationale.
+- Document the current code for developers without the chat context. Explain
+  relevant behaviour, constraints, and rationale, not implementation history,
+  rejected approaches, or the conversation that produced it.
+- Use active voice. Make the actor clear.
+- Prioritise clarity and completeness over brevity when they conflict.
 
 ## Cluster
 
@@ -33,8 +36,8 @@ Documentation and comments: simple, concise, practical.
   every `lvm-data` volume on its SSD; its `PreferNoSchedule` taint steers
   portable pods to the workers.
 - Every image must be multi-arch (`linux/amd64` + `linux/arm64`), since a
-  stateless pod can land on either. Pi-bound workloads are held there by
-  their `lvm-data` PVC, not a `nodeSelector`.
+  stateless pod can land on either. Their `lvm-data` PVC, not a
+  `nodeSelector`, pins Pi-bound workloads to the Pi.
 - SSH by IP, no host aliases. `panda@192.168.1.2` for the Pi; every node
   takes the `deploy` CI key, and control-plane work goes through
   `deploy@192.168.1.32`. `panda`'s sudo on the Pi is deliberately narrow
@@ -90,8 +93,8 @@ Documentation and comments: simple, concise, practical.
 - For an out-of-band fix to one component, use
   `./apply-subset.sh <deploy-subdir> [kubectl apply args...]`, never
   `kubectl apply -f` or `kubectl apply -k deploy/<subdir>`.
-- Third-party image tags bump automatically through Flux image automation,
-  which commits to `main`. Majors are manual.
+- Flux image automation bumps third-party image tags and commits them to
+  `main`. Majors are manual.
 
 ## Administration
 
