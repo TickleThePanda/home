@@ -6,6 +6,7 @@ namespace: mosquitto
 resources:
   - ./namespace.yaml
   - ./volume.yaml
+  - ./secret.sops.yaml
   - ./statefulset.yaml
   - ./service.yaml
   - ./ingress.yaml
