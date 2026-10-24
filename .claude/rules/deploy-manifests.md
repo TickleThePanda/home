@@ -26,21 +26,7 @@ paths:
 
 ## Adding a service
 
-- Own directory with `namespace.yaml` and a `kustomization.yaml`, listed in
-  its parent's `resources:` (`deploy/internal/kustomization.yaml`).
-- Web UI: an IngressRoute on `int-web-secure` with `tls: {}`,
-  ``Host(`<app>.internal.ticklethepanda.co.uk`)`` and the `tinyauth`
-  middleware (`namespace: tinyauth`). No DNS change. Copy
-  `deploy/internal/apps/headlamp/ingress.yaml`.
-- Homepage card: `gethomepage.dev/*` annotations on that IngressRoute
-  (`enabled`, `href`, `name`, `group`, `icon`, `description`,
-  `pod-selector`). `group` is `Applications` or `Administration`, per
-  `.claude/rules/homepage.md`. `icon` is a dashboard-icons name or `mdi-*`.
-- If the app builds absolute links (emails, redirects), set its
-  external/base URL to the internal hostname.
-- Credentials owned by another app: mirror that Secret with Reflector, don't
-  copy it.
-- Metrics: `prometheus.io/scrape: "true"` (plus `port` / `path` if needed)
-  on the pod template. Prometheus picks it up with no config change.
-- Internet-facing: an `ext-web` route, plus a tunnel hostname in
-  `terraform/cloudflare-zero-trust/tunnel.tf`.
+- List it in its parent `kustomization.yaml`.
+- Web UI: IngressRoute behind tinyauth with `gethomepage.dev/*` annotations.
+  Copy `deploy/internal/apps/headlamp/ingress.yaml`.
+- Metrics: `prometheus.io/scrape: "true"` on the pod.
