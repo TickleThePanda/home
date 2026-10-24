@@ -70,6 +70,17 @@ jobs:
       - name: Vendor upstream manifests
         run: ./scripts/vendor.sh
 
+      # Builds every path Flux reconciles and checks it against schemas, so a
+      # broken manifest fails here instead of after promotion.
+      - name: Validate manifests
+        env:
+          KUBECONFORM_VERSION: v0.7.0
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin kubeconform
+          ./scripts/validate-manifests.sh
+
       # Push as one sha-tagged OCI artifact, then move the moving `deploy`
       # tag to point at it -- the promotion boundary flux-system/sync/
       # oci-repository.yaml's OCIRepository follows for both deploy/ and
