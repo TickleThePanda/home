@@ -179,7 +179,7 @@ jobs:
       # confirm it's healthy, not just that the API responds.
       - name: Confirm cloudflared is Ready
         run: |
-          kubectl wait --namespace default --for=condition=Ready pod \
+          kubectl wait --all-namespaces --for=condition=Ready pod \
             --selector pod=cloudflared --timeout=30s
 
   infra:

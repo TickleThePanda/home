@@ -55,7 +55,7 @@ The Pi has no API — check it against the server:
 ```sh
 sudo systemctl status k3s-agent
 KUBECONFIG=~/.kube/config kubectl get nodes            # or run from control-01
-KUBECONFIG=~/.kube/config kubectl get pods -n default -l pod=cloudflared -o wide
+KUBECONFIG=~/.kube/config kubectl get pods -n cloudflared -l pod=cloudflared -o wide
 ```
 
 - **k3s-agent down** → see "k3s-agent will not start".
