@@ -8,6 +8,7 @@ resources:
   - ./volume.yaml
   - ./service.yaml
   - ./deployment.yaml
+  - ./secret.sops.yaml
 
 configMapGenerator:
   - name: bind-config

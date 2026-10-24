@@ -11,6 +11,7 @@ resources:
   - ./ui-deployment.yaml
   - ./ui-service.yaml
   - ./ingress.yaml
+  - ./secret.sops.yaml
 
 configMapGenerator:
   - name: geopulse-config

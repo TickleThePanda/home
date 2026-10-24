@@ -8,6 +8,7 @@ resources:
   - ./network-attachment.yaml
   - ./volume.yaml
   - ./deployment.yaml
+  - ./secret.sops.yaml
 
 configMapGenerator:
   - name: kea-config

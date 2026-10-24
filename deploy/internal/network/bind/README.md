@@ -23,32 +23,26 @@ deploy: the configMap hash rolls the pod, the entrypoint copies just the new
 file, existing zones and their live records are untouched. There is nothing
 to "re-seed" for a record change — that goes through one of the writers above.
 
-## TSIG keys (out-of-band, like `tunnel-token`)
+## TSIG keys
 
-Each writer authenticates with its own hmac-sha256 key. Generate once and
-create the Secrets:
+Each writer authenticates with its own hmac-sha256 key. The Secrets are
+SOPS-encrypted in git (see `.claude/rules/secrets.md`):
+
+- `bind-tsig` (`secret.sops.yaml` here): both `key {}` blocks, for
+  `named.conf`'s include.
+- `kea-ddns-tsig` (`../dhcp-kea/`): Kea's base64 secret only.
+- `externaldns-tsig` (`../externaldns/`): key name plus base64 secret, also
+  used by `../dns-static/`.
+
+To rotate, generate new keys, then update all three with `sops`:
 
 ```sh
 tsig-keygen -a hmac-sha256 kea         > kea.conf
 tsig-keygen -a hmac-sha256 externaldns > externaldns.conf
-cat kea.conf externaldns.conf          > keys.conf
-
-# BIND: both key {} blocks, for named.conf's include
-kubectl -n bind create secret generic bind-tsig --from-file=keys.conf
-
-# Kea D2: just kea's base64 (tsig-keys secret-file)
-sed -n 's/.*secret "\(.*\)";/\1/p' kea.conf | tr -d '\n' > kea.secret
-kubectl -n kea create secret generic kea-ddns-tsig --from-file=ddns-secret=kea.secret
-
-# ExternalDNS: name + base64 as env (see that dir's manifests)
-sed -n 's/.*secret "\(.*\)";/\1/p' externaldns.conf | tr -d '\n' > externaldns.secret
-kubectl -n externaldns create secret generic externaldns-tsig \
-  --from-literal=key-name=externaldns \
-  --from-file=key-secret=externaldns.secret
+cat kea.conf externaldns.conf          > keys.conf       # bind-tsig: keys.conf
+sed -n 's/.*secret "\(.*\)";/\1/p' kea.conf | tr -d '\n'         # kea-ddns-tsig: ddns-secret
+sed -n 's/.*secret "\(.*\)";/\1/p' externaldns.conf | tr -d '\n' # externaldns-tsig: key-secret
 ```
 
 `named.conf`'s `update-policy` grants each key `zonesub` on the relevant
 types. Tighten later (e.g. ExternalDNS to a `k8s.` sublabel).
-
-The live cluster secrets are the source of truth for the key material —
-back them up (`kubectl get secret -n bind bind-tsig -o yaml`), don't commit.

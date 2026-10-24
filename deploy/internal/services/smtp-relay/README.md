@@ -28,22 +28,11 @@ kubectl -n monitoring exec deploy/alertmanager -- \
   amtool --alertmanager.url=http://localhost:9093 alert add TestAlert severity=warning
 ```
 
-## `smtp-relay-credentials` (out-of-band)
+## `smtp-relay-credentials`
 
-A **manual, one-time copy** of pocket-id's own former ProtonMail credentials
-(still in `pocket-id-secret`, just no longer referenced by pocket-id's own
-manifest) — deliberately not a live Reflector mirror, so this relay's
-credential lifecycle is independent of pocket-id's:
-
-```sh
-kubectl -n pocket-id get secret pocket-id-secret -o jsonpath='{.data.SMTP_USER}' | base64 -d; echo
-kubectl -n pocket-id get secret pocket-id-secret -o jsonpath='{.data.SMTP_PASSWORD}' | base64 -d; echo
-
-kubectl -n smtp-relay create secret generic smtp-relay-credentials \
-  --from-literal=RELAYHOST_USERNAME='<value above>' \
-  --from-literal=RELAYHOST_PASSWORD='<value above>'
-```
-
-Not in this repo — see `ansible/node/RECOVERY.md`'s out-of-band-secrets
-list. If pocket-id's ProtonMail credentials are ever rotated, this needs
-re-copying by hand; it will not pick the change up on its own.
+SOPS-encrypted in `secret.sops.yaml` (see `.claude/rules/secrets.md`). It is a
+**manual, one-time copy** of pocket-id's own former ProtonMail credentials,
+deliberately not a live Reflector mirror, so this relay's credential
+lifecycle is independent of pocket-id's. If pocket-id's ProtonMail
+credentials are rotated, update this with `sops`; it will not pick the change
+up on its own.

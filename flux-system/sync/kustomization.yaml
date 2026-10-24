@@ -11,3 +11,5 @@ resources:
   - ./kustomization-setup-config.yaml
   - ./kustomization-home.yaml
   - ./kustomization-internal.yaml
+  - ./flux-git-write.sops.yaml
+  - ./github-commit-status.sops.yaml

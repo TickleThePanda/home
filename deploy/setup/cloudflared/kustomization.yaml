@@ -5,3 +5,4 @@ namespace: default
 
 resources:
   - ./tunnel.yaml
+  - ./secret.sops.yaml

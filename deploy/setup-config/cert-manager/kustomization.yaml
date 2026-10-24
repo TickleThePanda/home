@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - ./cluster-issuer.yaml
   - ./internal--cert.yaml
+  - ./secret.sops.yaml

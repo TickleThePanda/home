@@ -15,8 +15,9 @@ the public key and encrypts only `data` / `stringData`.
 - **Private key:** `~/.config/sops/age/keys.txt` on the owner's machine. Keep a
   backup outside the cluster. Without it, every committed Secret is
   unrecoverable.
-- **Out-of-band bootstrap Secrets:** `sops-age` and `tunnel-token`. Everything
-  else comes from git.
+- **Out-of-band bootstrap Secret:** `sops-age` only. Everything else comes
+  from git. Secrets created by operators or CI (cert-manager TLS,
+  CNPG, `dockerhub-deploy-pull`) stay out of git.
 - **Never commit plaintext.** Don't `git add` a decrypted file, and strip
   `kubectl.kubernetes.io/last-applied-configuration` from anything exported
   from the cluster.

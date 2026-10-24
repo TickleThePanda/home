@@ -12,3 +12,4 @@ resources:
   - ./sync-orchestrator-deployment.yaml
   - ./sync-orchestrator-service.yaml
   - ./sync-orchestrator-ingress.yaml
+  - ./secret.sops.yaml

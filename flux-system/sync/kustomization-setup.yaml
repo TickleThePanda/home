@@ -15,3 +15,9 @@ spec:
   prune: true
   wait: true
   timeout: 5m
+  # Decrypts committed *.sops.yaml Secrets; the key is the out-of-band
+  # `sops-age` Secret (.claude/rules/secrets.md).
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age

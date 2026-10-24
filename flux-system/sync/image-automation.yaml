@@ -2,8 +2,9 @@
 # push triggers deploy.yaml like any other commit to deploy/**, so a bump goes
 # through the normal OCI promotion. Nothing reconciles from this GitRepository.
 #
-# Needs an out-of-band Secret `flux-git-write` (identity, identity.pub,
-# known_hosts): an SSH deploy key with write access. See ansible/node/RECOVERY.md.
+# Needs the Secret `flux-git-write` (identity, identity.pub, known_hosts): an
+# SSH deploy key with write access. SOPS-encrypted in flux-git-write.sops.yaml;
+# rotation is in ansible/node/RECOVERY.md.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:

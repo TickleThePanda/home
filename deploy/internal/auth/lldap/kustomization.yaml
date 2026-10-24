@@ -9,4 +9,5 @@ resources:
   - ./service.yaml
   - ./volume.yaml
   - ./ingress.yaml
+  - ./secret.sops.yaml
 

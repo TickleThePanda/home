@@ -61,7 +61,9 @@ KUBECONFIG=~/.kube/config kubectl get pods -n default -l pod=cloudflared -o wide
 - **k3s-agent down** → see "k3s-agent will not start".
 - **agent up, cloudflared not Ready** → the cluster is fine and only remote
   access is broken. cloudflared runs on the worker VMs; check the
-  `tunnel-token` Secret still exists (created out-of-band, *not* in this repo).
+  `tunnel-token` Secret exists (SOPS-encrypted in
+  `deploy/setup/cloudflared/secret.sops.yaml`; if Flux can't decrypt it, see
+  `sops-age` under "out-of-band Secrets" below).
 
 ## k3s-agent will not start
 
@@ -200,28 +202,29 @@ way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`)
 - The partition table and the `data` volume group. The playbook manages logical
   volumes *on top of* them but will not create them, for the same reason — see
   `STORAGE.md`.
-- The out-of-band Secrets (`tunnel-token`, `cloudflare-api-token-secret`,
-  `lldap-credentials`, `pocket-id-secret`, `tinyauth-secrets`,
-  `label-studio-admin`, `github-commit-status`, `flux-git-write`,
-  `smtp-relay-credentials`).
-  Nothing in this repo records how to recreate most of them — a genuine gap,
-  worth closing separately; the last one is documented in
-  `deploy/internal/services/smtp-relay/README.md` (a manual copy of
-  `pocket-id-secret`'s own ProtonMail credentials — losing `pocket-id-secret`
-  does not also break this, they're independent copies).
-  `github-commit-status` (namespace `flux-system`, key `token`) is a GitHub
-  PAT with commit-status write on `ticklethepanda/home`; without it the
-  Flux → GitHub commit-status Alert just logs auth errors and deploys are
-  unaffected.
-  `flux-git-write` (namespace `flux-system`, keys `identity`, `identity.pub`,
-  `known_hosts`) is a read-write GitHub deploy key on `TickleThePanda/home`
-  for image automation; without it image tags just stop bumping. Recreate:
-  ```sh
-  ssh-keygen -t ed25519 -N "" -C flux-image-automation -f flux-deploy-key
-  gh repo deploy-key add flux-deploy-key.pub --repo TickleThePanda/home \
-    --allow-write --title flux-image-automation
-  ssh-keyscan github.com > known_hosts
-  kubectl -n flux-system create secret generic flux-git-write \
-    --from-file=identity=flux-deploy-key \
-    --from-file=identity.pub=flux-deploy-key.pub --from-file=known_hosts=known_hosts
-  ```
+- The one out-of-band Secret, `sops-age` (namespace `flux-system`), the age
+  private key Flux decrypts with. Every other Secret is SOPS-encrypted in
+  git and Flux recreates it, so a rebuilt cluster needs only this one. See
+  `.claude/rules/secrets.md`.
+  - `sops-age`: restore the private key from the owner's backup (the same key
+    is `~/.config/sops/age/keys.txt` on their machine), then
+    `kubectl -n flux-system create secret generic sops-age
+    --from-file=age.agekey=keys.txt`. Without the key, no committed Secret can
+    be decrypted and they must all be re-created and re-encrypted.
+  - `tunnel-token` is in git (`deploy/setup/cloudflared/secret.sops.yaml`).
+    A bad edit can cut CI off from the LAN, since it reaches the cluster only
+    through this tunnel. Recover from a human path (Tailscale, then
+    `kubectl`), not CI.
+  - Rotating `flux-git-write` (read-write deploy key for image automation;
+    without it image tags stop bumping):
+    ```sh
+    ssh-keygen -t ed25519 -N "" -C flux-image-automation -f flux-deploy-key
+    gh repo deploy-key add flux-deploy-key.pub --repo TickleThePanda/home \
+      --allow-write --title flux-image-automation
+    ssh-keyscan github.com > known_hosts
+    ```
+    Then put the three files into `flux-system/sync/flux-git-write.sops.yaml`
+    (`identity`, `identity.pub`, `known_hosts`) with `sops`.
+  - `github-commit-status` (key `token`) is a GitHub PAT with commit-status
+    write on `ticklethepanda/home`. Without it the Flux → GitHub
+    commit-status Alert logs auth errors and deploys are unaffected.
