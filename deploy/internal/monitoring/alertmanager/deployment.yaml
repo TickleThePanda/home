@@ -8,6 +8,8 @@ metadata:
     app: alertmanager
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: alertmanager
@@ -16,6 +18,8 @@ spec:
       labels:
         app: alertmanager
     spec:
+      securityContext:
+        fsGroup: 65534 # the image runs as nobody; the LV root is root-owned
       containers:
         - name: alertmanager
           image: prom/alertmanager:v0.34.1 # {"$imagepolicy": "flux-system:alertmanager"}
@@ -59,4 +63,5 @@ spec:
           configMap:
             name: alertmanager-config
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: alertmanager-data
