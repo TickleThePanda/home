@@ -23,6 +23,7 @@ spec:
           args:
             - --config.file=/etc/alertmanager/alertmanager.yml
             - --storage.path=/alertmanager
+            - --web.external-url=https://alertmanager.internal.ticklethepanda.co.uk
           ports:
             - name: http
               containerPort: 9093

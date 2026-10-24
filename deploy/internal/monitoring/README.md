@@ -26,13 +26,13 @@ broke `rate()`/`topk()`/`sum by`, forced per-Glances-version query variants
 15-140-line dashboard panels with no way to filter. node_exporter's labels
 fix all of that.
 
-Only Grafana has an IngressRoute
-(`grafana.internal.ticklethepanda.co.uk`). Prometheus and Alertmanager stay
+Grafana and Alertmanager have IngressRoutes
+(`grafana.internal.ticklethepanda.co.uk`,
+`alertmanager.internal.ticklethepanda.co.uk`). Prometheus stays
 ClusterIP-only:
 
 ```sh
 kubectl -n monitoring port-forward svc/prometheus 9090:9090
-kubectl -n monitoring port-forward svc/alertmanager 9093:9093
 ```
 
 ## Auth
@@ -49,8 +49,11 @@ create or rotate.
   past a restart anyway (`grafana/deployment.yaml`'s `data` volume is an
   emptyDir -- dropped so Grafana isn't pinned to the Pi, the only node with
   `lvm-data`, alongside Prometheus).
-- **Prometheus and Alertmanager** are ClusterIP-only (no IngressRoute), same
-  trust model as the rest of this namespace.
+- **Alertmanager** has no auth of its own; its IngressRoute is gated by
+  tinyauth. Anyone who gets through can create and expire silences.
+  `--web.external-url` makes notification links point at that hostname.
+- **Prometheus** is ClusterIP-only (no IngressRoute), same trust model as
+  the rest of this namespace.
 
 ## Email
 
