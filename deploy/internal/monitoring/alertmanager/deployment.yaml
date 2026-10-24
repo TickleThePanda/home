@@ -10,9 +10,6 @@ spec:
   replicas: 1
   strategy:
     type: Recreate
-    # Server-side apply doesn't drop the API-server-defaulted rollingUpdate
-    # when the type changes, and Recreate forbids it.
-    rollingUpdate: null
   selector:
     matchLabels:
       app: alertmanager
