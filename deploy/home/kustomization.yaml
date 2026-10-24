@@ -9,15 +9,5 @@ namespace: home
 resources:
   - ./namespace.yaml
   - ./home--cert.yaml
-  - ./auth-middleware.yaml
   - ./root
   - ./geopulse-ingest
-
-secretGenerator:
-  - name: ingress-auth
-    type: "kubernetes.io/basic-auth"
-    envs:
-      - .env
-
-generatorOptions:
-  disableNameSuffixHash: true

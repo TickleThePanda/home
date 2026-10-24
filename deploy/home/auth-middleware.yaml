@@ -1,8 +1,0 @@
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: auth
-spec:
-  basicAuth:
-    secret: ingress-auth
-    realm: home.ticklethepanda.dev
