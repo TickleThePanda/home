@@ -3,6 +3,14 @@ kind: IngressRoute
 metadata:
   name: alertmanager
   namespace: monitoring
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://alertmanager.internal.ticklethepanda.co.uk
+    gethomepage.dev/name: Alertmanager
+    gethomepage.dev/group: Administration
+    gethomepage.dev/icon: alertmanager
+    gethomepage.dev/description: Alerts and silences
+    gethomepage.dev/pod-selector: app=alertmanager
 spec:
   entryPoints:
     - int-web-secure

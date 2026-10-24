@@ -3,7 +3,7 @@
 # on that route instead.
 #
 # Group is either "Applications" (user-facing, primary) or "Administration"
-# (infrastructure/admin, secondary) -- see CLAUDE.md's Homepage section.
+# (infrastructure/admin, secondary) -- see .claude/rules/homepage.md.
 
 - Applications:
     - Home Assistant:
