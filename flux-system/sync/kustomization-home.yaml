@@ -16,3 +16,4 @@ spec:
   prune: true
   wait: true
   timeout: 5m
+  retryInterval: 2m
