@@ -7,14 +7,21 @@ set -euo pipefail
 #
 # Usage: ./apply-subset.sh deploy/internal/network/dhcp-kea [kubectl apply args...]
 #
-# Skips SOPS-encrypted Secrets: plain kubectl can't decrypt them, and only Flux
-# does (see .claude/rules/secrets.md). Edit those with `sops` and push.
+# Decrypts SOPS Secrets with the local age key (~/.config/sops/age/keys.txt,
+# or SOPS_AGE_KEY_FILE), like Flux does: the *.sops.yaml files are decrypted in
+# a private temporary copy of deploy/ before `kustomize build`, so the MAC is
+# checked against the file as committed, not after kustomize rewrites it.
+#
+# Applies server-side as `kustomize-controller`, Flux's own field manager, so
+# Flux adopts the objects cleanly on its next reconcile. Server-side apply also
+# keeps decrypted values out of the last-applied-configuration annotation.
 
 if [[ $# -lt 1 ]]; then
   echo "usage: $(basename "$0") <deploy-subdirectory> [kubectl apply args...]" >&2
   exit 1
 fi
 
+repo_root="$(cd "$(dirname "$0")" && pwd)"
 target="$(cd "$1" && pwd)"
 shift
 
@@ -22,10 +29,17 @@ if [[ ! -f "$target/kustomization.yaml" ]]; then
   echo "error: $target has no kustomization.yaml" >&2
   exit 1
 fi
+if [[ $target != "$repo_root/deploy" && $target != "$repo_root/deploy/"* ]]; then
+  echo "error: $target is not under $repo_root/deploy" >&2
+  exit 1
+fi
 
-"$(dirname "$0")/scripts/vendor.sh"
+"$repo_root/scripts/vendor.sh"
 
-# kustomize keeps each Secret's top-level `sops:` key, which marks it encrypted.
-kustomize build "$target" \
-  | awk 'BEGIN { RS = "\n---\n"; ORS = "\n---\n" } !/(^|\n)sops:/' \
-  | kubectl apply -f - "$@"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+cp -r "$repo_root/deploy" "$tmp/"
+find "$tmp/deploy" -name '*.sops.yaml' -exec sops --decrypt --in-place {} \;
+
+kustomize build "$tmp/${target#"$repo_root/"}" \
+  | kubectl apply --server-side --field-manager=kustomize-controller -f - "$@"
