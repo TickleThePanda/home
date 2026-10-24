@@ -65,6 +65,11 @@ jobs:
             --namespace flux-system \
             --dry-run=client --validate=false -o yaml | kubectl apply -f -
 
+      # Downloads the upstream manifests in vendor.txt into the tree, so the
+      # artifact is self-contained and Flux never fetches them from GitHub.
+      - name: Vendor upstream manifests
+        run: ./scripts/vendor.sh
+
       # Push as one sha-tagged OCI artifact, then move the moving `deploy`
       # tag to point at it -- the promotion boundary flux-system/sync/
       # oci-repository.yaml's OCIRepository follows for both deploy/ and

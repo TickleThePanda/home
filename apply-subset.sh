@@ -23,6 +23,8 @@ if [[ ! -f "$target/kustomization.yaml" ]]; then
   exit 1
 fi
 
+"$(dirname "$0")/scripts/vendor.sh"
+
 # kustomize keeps each Secret's top-level `sops:` key, which marks it encrypted.
 kustomize build "$target" \
   | awk 'BEGIN { RS = "\n---\n"; ORS = "\n---\n" } !/(^|\n)sops:/' \

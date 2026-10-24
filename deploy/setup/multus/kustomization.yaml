@@ -3,4 +3,5 @@ kind: Kustomization
 
 resources:
   - ./helmchart.yaml
-  - https://raw.githubusercontent.com/k8snetworkplumbingwg/network-attachment-definition-client/v1.7.7/artifacts/networks-crd.yaml
+  # From vendor.txt; downloaded by scripts/vendor.sh.
+  - ./networks-crd.vendored.yaml

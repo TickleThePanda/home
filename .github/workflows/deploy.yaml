@@ -51,6 +51,9 @@ on:
       - terraform/cloudflare-zero-trust/**
       - scripts/check-traefik-pin.sh
       - scripts/check-gather-subset.py
+      - scripts/vendor.sh
+      - scripts/validate-manifests.sh
+      - vendor.txt
       - .github/workflows/deploy*.yaml
       - .github/actions/**
   workflow_dispatch: {}
@@ -118,6 +121,9 @@ jobs:
             cluster:
               - 'deploy/**'
               - 'flux-system/**'
+              - 'vendor.txt'
+              - 'scripts/vendor.sh'
+              - 'scripts/validate-manifests.sh'
               - '.github/workflows/deploy-cluster.yaml'
             terraform:
               - 'terraform/cloudflare-zero-trust/**'
@@ -125,6 +131,19 @@ jobs:
 
       - name: Check the Traefik chart pin
         run: ./scripts/check-traefik-pin.sh --online
+
+      # Catches broken manifests before infra runs and before the cluster job
+      # promotes them.
+      - name: Validate manifests
+        if: steps.changes.outputs.cluster == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          KUBECONFORM_VERSION: v0.7.0
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin kubeconform
+          ./scripts/vendor.sh
+          ./scripts/validate-manifests.sh
 
       - name: Connect to Cloudflare Warp
         uses: Boostport/setup-cloudflare-warp@v1

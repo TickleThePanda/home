@@ -32,6 +32,8 @@ fi
 
 echo "Context: $(kubectl config current-context)"
 
+../scripts/vendor.sh
+
 # Two applies with a wait between them: a single apply races the CRDs, and
 # kubectl gives up on the custom resources before the CRDs are Established.
 kubectl apply -k install
