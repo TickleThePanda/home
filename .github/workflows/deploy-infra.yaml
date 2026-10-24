@@ -45,10 +45,13 @@ jobs:
       #   roles/ssh_keys, roles/node_exporter, files/   proxmox, node, k3s
       #   group_vars/pi.yml, host_vars/                 node and k3s (the Pi
       #                                                 is in both layers)
+      # Markdown never triggers a deploy: `some-with-excludes` drops any file a
+      # `!` pattern matches.
       - name: Detect which layers changed
         uses: dorny/paths-filter@v4
         id: changes
         with:
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             shared:
               - 'ansible/group_vars/all.yml'
@@ -57,12 +60,14 @@ jobs:
               - 'ansible/ansible.cfg'
               - 'ansible/requirements.yml'
               - '.github/actions/ansible-*/**'
+              - '!**/*.md'
             proxmox:
               - 'ansible/proxmox/**'
               - 'ansible/roles/ssh_keys/**'
               - 'ansible/roles/node_exporter/**'
               - 'ansible/files/**'
               - 'ansible/group_vars/proxmox.yml'
+              - '!**/*.md'
             node:
               - 'ansible/node/**'
               - 'ansible/roles/ssh_keys/**'
@@ -70,6 +75,7 @@ jobs:
               - 'ansible/files/**'
               - 'ansible/group_vars/pi.yml'
               - 'ansible/host_vars/**'
+              - '!**/*.md'
             k3s:
               - 'ansible/k3s/**'
               - 'ansible/roles/ssh_keys/**'
@@ -78,9 +84,11 @@ jobs:
               - 'ansible/group_vars/k3s_cluster.yml'
               - 'ansible/group_vars/pi.yml'
               - 'ansible/host_vars/**'
+              - '!**/*.md'
             router:
               - 'ansible/router/**'
               - 'ansible/group_vars/router.yml'
+              - '!**/*.md'
 
       # paths-filter finds nothing on a workflow_dispatch (it diffs HEAD
       # against its own merge-base), so a manual run selects every layer here. A

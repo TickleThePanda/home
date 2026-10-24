@@ -56,6 +56,7 @@ on:
       - vendor.txt
       - .github/workflows/deploy*.yaml
       - .github/actions/ansible-*/**
+      - '!**/*.md'
   workflow_dispatch: {}
 
 # Never let two runs touch the cluster at once -- the infra job restarts k3s,
@@ -81,16 +82,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Markdown never triggers a deploy: `some-with-excludes` drops any file a
+      # `!` pattern matches.
       - name: Detect which layers changed
         uses: dorny/paths-filter@v4
         id: changes
         with:
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             infra:
               - 'ansible/**'
               - 'scripts/check-gather-subset.py'
               - '.github/workflows/deploy-infra.yaml'
               - '.github/actions/ansible-*/**'
+              - '!**/*.md'
             cluster:
               - 'deploy/**'
               - 'flux-system/**'
@@ -98,9 +103,11 @@ jobs:
               - 'scripts/vendor.sh'
               - 'scripts/validate-manifests.sh'
               - '.github/workflows/deploy-cluster.yaml'
+              - '!**/*.md'
             terraform:
               - 'terraform/cloudflare-zero-trust/**'
               - '.github/workflows/deploy-terraform.yaml'
+              - '!**/*.md'
 
       - name: Check the Traefik chart pin
         run: ./scripts/check-traefik-pin.sh --online
