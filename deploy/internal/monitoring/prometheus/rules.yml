@@ -41,28 +41,32 @@ groups:
       # carved from (ansible/node/vars/storage.yml). Tighter thresholds than
       # the general disk-space rules above: exhausting this blocks every new
       # PV cluster-wide, not just one host's filesystem.
+      #
+      # Thresholds are absolute, not percentages. PVC requests are thick, so
+      # the pool is mostly allocated by design (~15% free is normal) and a
+      # percentage alert would fire permanently.
       - alert: LvmVolumeGroupSpaceLow
         expr: >-
-          (node_volume_group_free{name="data"} / node_volume_group_size{name="data"}) * 100 < 20
+          node_volume_group_free{name="data"} < 30 * 1024^3
         for: 15m
         labels:
           severity: warning
         annotations:
-          summary: "LVM volume group \"data\" has less than 20% free"
+          summary: "LVM volume group \"data\" has less than 30 GiB free"
           description: >-
-            The Pi's `data` volume group has had under 20% free space for 15
+            The Pi's `data` volume group has had under 30 GiB free for 15
             minutes. Every PersistentVolume is carved from this pool.
 
       - alert: LvmVolumeGroupSpaceCritical
         expr: >-
-          (node_volume_group_free{name="data"} / node_volume_group_size{name="data"}) * 100 < 10
+          node_volume_group_free{name="data"} < 10 * 1024^3
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "LVM volume group \"data\" has less than 10% free"
+          summary: "LVM volume group \"data\" has less than 10 GiB free"
           description: >-
-            The Pi's `data` volume group has had under 10% free space for 5
+            The Pi's `data` volume group has had under 10 GiB free for 5
             minutes. New PersistentVolumeClaims will start failing soon.
 
   - name: kubernetes
