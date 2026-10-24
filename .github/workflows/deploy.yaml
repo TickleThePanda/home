@@ -22,8 +22,8 @@ name: Deploy
 # pays that once. See deploy-infra.yaml for layer ordering within it.
 #
 # Each layer is skipped when the push changed nothing under its own tree
-# (including its own workflow file), and every layer runs when anything
-# shared changes (see the `shared` filter) or on a manual workflow_dispatch.
+# (including its own workflow file), and runs on a manual workflow_dispatch.
+# Which Ansible layers run is decided inside deploy-infra.yaml.
 #
 # preflight exists because CI's only path to any of this is through the cluster
 # itself (cloudflared runs in-cluster) -- checking reachability first gives a
@@ -55,7 +55,7 @@ on:
       - scripts/validate-manifests.sh
       - vendor.txt
       - .github/workflows/deploy*.yaml
-      - .github/actions/**
+      - .github/actions/ansible-*/**
   workflow_dispatch: {}
 
 # Never let two runs touch the cluster at once -- the infra job restarts k3s,
@@ -69,55 +69,28 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     outputs:
-      # Each layer runs on its own tree, on anything shared, or on a manual
-      # dispatch. Folding the dispatch case in here keeps every downstream
-      # `if:` to a single expression. paths-filter finds nothing on a
+      # Each layer runs when its filter matches, or on a manual dispatch.
+      # Folding the dispatch case in here keeps every downstream `if:` to a
+      # single expression. paths-filter finds nothing on a
       # workflow_dispatch (it diffs HEAD against its own merge-base), which is
       # why that case has to be handled explicitly.
-      proxmox: ${{ steps.changes.outputs.proxmox == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
-      node: ${{ steps.changes.outputs.node == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
-      k3s: ${{ steps.changes.outputs.k3s == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
-      router: ${{ steps.changes.outputs.router == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
-      infra: ${{ steps.changes.outputs.infra == 'true' || steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' }}
+      infra: ${{ steps.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' }}
       cluster: ${{ steps.changes.outputs.cluster == 'true' || github.event_name == 'workflow_dispatch' }}
       terraform: ${{ steps.changes.outputs.terraform == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # `shared` is the catch-all: anything not owned by exactly one layer --
-      # the merged inventory, group_vars, the shared roles/, this file itself
-      # -- has to apply everywhere, or a change to it would silently apply
-      # nowhere. Each other layer's own workflow file lives in that layer's
-      # own filter instead, so it doesn't drag the rest along.
       - name: Detect which layers changed
         uses: dorny/paths-filter@v4
         id: changes
         with:
           filters: |
-            shared:
-              - 'ansible/ansible.cfg'
-              - 'ansible/inventory.yml'
-              - 'ansible/known_hosts'
-              - 'ansible/requirements.yml'
-              - 'ansible/site.yml'
-              - 'ansible/group_vars/**'
-              - 'ansible/host_vars/**'
-              - 'ansible/roles/**'
-              - '.github/workflows/deploy.yaml'
-              - '.github/actions/**'
-            proxmox:
-              - 'ansible/proxmox/**'
-            node:
-              - 'ansible/node/**'
-            k3s:
-              - 'ansible/k3s/**'
-            router:
-              - 'ansible/router/**'
             infra:
               - 'ansible/**'
               - 'scripts/check-gather-subset.py'
               - '.github/workflows/deploy-infra.yaml'
+              - '.github/actions/ansible-*/**'
             cluster:
               - 'deploy/**'
               - 'flux-system/**'
@@ -173,11 +146,6 @@ jobs:
     needs: preflight
     if: needs.preflight.outputs.infra == 'true'
     uses: ./.github/workflows/deploy-infra.yaml
-    with:
-      run-proxmox: ${{ needs.preflight.outputs.proxmox }}
-      run-node: ${{ needs.preflight.outputs.node }}
-      run-k3s: ${{ needs.preflight.outputs.k3s }}
-      run-router: ${{ needs.preflight.outputs.router }}
     secrets: inherit
 
   cluster:

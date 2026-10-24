@@ -7,22 +7,14 @@ name: Deploy - infra
 # nothing depends on it (it serves no DNS and no DHCP), and it is the one
 # layer that can drop CI's own egress, so a WAN blip there cannot strand a
 # layer that had yet to run.
+#
+# Each layer runs when the push changed a file its playbook reads, or on a
+# manual workflow_dispatch. The filters below list every role, vars file and
+# shared file per layer. A file a layer reads but doesn't list is a deploy that
+# silently never happens, so keep them in step with the playbooks.
 
 on:
   workflow_call:
-    inputs:
-      run-proxmox:
-        type: string
-        default: "false"
-      run-node:
-        type: string
-        default: "false"
-      run-k3s:
-        type: string
-        default: "false"
-      run-router:
-        type: string
-        default: "false"
 
 jobs:
   infra:
@@ -47,6 +39,75 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # `shared` is what every layer reads; a change to it runs them all. The
+      # layer lists add what only some layers read:
+      #
+      #   roles/ssh_keys, roles/node_exporter, files/   proxmox, node, k3s
+      #   group_vars/pi.yml, host_vars/                 node and k3s (the Pi
+      #                                                 is in both layers)
+      - name: Detect which layers changed
+        uses: dorny/paths-filter@v4
+        id: changes
+        with:
+          filters: |
+            shared:
+              - 'ansible/group_vars/all.yml'
+              - 'ansible/inventory.yml'
+              - 'ansible/known_hosts'
+              - 'ansible/ansible.cfg'
+              - 'ansible/requirements.yml'
+              - '.github/actions/ansible-*/**'
+            proxmox:
+              - 'ansible/proxmox/**'
+              - 'ansible/roles/ssh_keys/**'
+              - 'ansible/roles/node_exporter/**'
+              - 'ansible/files/**'
+              - 'ansible/group_vars/proxmox.yml'
+            node:
+              - 'ansible/node/**'
+              - 'ansible/roles/ssh_keys/**'
+              - 'ansible/roles/node_exporter/**'
+              - 'ansible/files/**'
+              - 'ansible/group_vars/pi.yml'
+              - 'ansible/host_vars/**'
+            k3s:
+              - 'ansible/k3s/**'
+              - 'ansible/roles/ssh_keys/**'
+              - 'ansible/roles/node_exporter/**'
+              - 'ansible/files/**'
+              - 'ansible/group_vars/k3s_cluster.yml'
+              - 'ansible/group_vars/pi.yml'
+              - 'ansible/host_vars/**'
+            router:
+              - 'ansible/router/**'
+              - 'ansible/group_vars/router.yml'
+
+      # paths-filter finds nothing on a workflow_dispatch (it diffs HEAD
+      # against its own merge-base), so a manual run selects every layer here. A
+      # change to `shared` selects every layer too.
+      - name: Select the layers to run
+        id: layers
+        env:
+          DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+          SHARED: ${{ steps.changes.outputs.shared }}
+          PROXMOX: ${{ steps.changes.outputs.proxmox }}
+          NODE: ${{ steps.changes.outputs.node }}
+          K3S: ${{ steps.changes.outputs.k3s }}
+          ROUTER: ${{ steps.changes.outputs.router }}
+        run: |
+          set -euo pipefail
+          pick() {
+            if [ "$DISPATCH" = "true" ] || [ "$SHARED" = "true" ] || [ "$2" = "true" ]; then
+              echo "$1=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$1=false" >> "$GITHUB_OUTPUT"
+            fi
+          }
+          pick proxmox "$PROXMOX"
+          pick node "$NODE"
+          pick k3s "$K3S"
+          pick router "$ROUTER"
+
       - name: Connect to Cloudflare Warp
         uses: Boostport/setup-cloudflare-warp@v1
         with:
@@ -56,7 +117,7 @@ jobs:
 
       # Only the k3s layer's end-state assertion needs kubectl.
       - name: Setup k8s context
-        if: inputs.run-k3s == 'true'
+        if: steps.layers.outputs.k3s == 'true'
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
@@ -86,10 +147,10 @@ jobs:
       # policy is gating this host", then probe only the hosts in scope.
       - name: Check the hosts in scope are reachable
         env:
-          RUN_PROXMOX: ${{ inputs.run-proxmox }}
-          RUN_NODE: ${{ inputs.run-node }}
-          RUN_K3S: ${{ inputs.run-k3s }}
-          RUN_ROUTER: ${{ inputs.run-router }}
+          RUN_PROXMOX: ${{ steps.layers.outputs.proxmox }}
+          RUN_NODE: ${{ steps.layers.outputs.node }}
+          RUN_K3S: ${{ steps.layers.outputs.k3s }}
+          RUN_ROUTER: ${{ steps.layers.outputs.router }}
         run: |
           set -euo pipefail
           if ! nc -zv -w 10 192.168.1.32 6443; then
@@ -121,13 +182,13 @@ jobs:
         run: ansible-playbook site.yml --syntax-check
 
       - name: Proxmox host and k3s VMs
-        if: inputs.run-proxmox == 'true'
+        if: steps.layers.outputs.proxmox == 'true'
         uses: ./.github/actions/ansible-apply
         with:
           playbook: proxmox/proxmox.yml
 
       - name: Pi node state
-        if: inputs.run-node == 'true'
+        if: steps.layers.outputs.node == 'true'
         uses: ./.github/actions/ansible-apply
         with:
           playbook: node/node.yml
@@ -136,14 +197,14 @@ jobs:
       # --check, so a drift gate would be meaningless. Assert the real end
       # state below instead.
       - name: K3s on every node
-        if: inputs.run-k3s == 'true'
+        if: steps.layers.outputs.k3s == 'true'
         uses: ./.github/actions/ansible-apply
         with:
           playbook: k3s/k3s.yml
           check-idempotence: "false"
 
       - name: Confirm the cluster is whole
-        if: inputs.run-k3s == 'true'
+        if: steps.layers.outputs.k3s == 'true'
         run: |
           set -euo pipefail
           nodes=$(kubectl get nodes -o json)
@@ -162,7 +223,7 @@ jobs:
 
       # Last: this is CI's own egress path. See the header.
       - name: Router
-        if: inputs.run-router == 'true'
+        if: steps.layers.outputs.router == 'true'
         uses: ./.github/actions/ansible-apply
         with:
           playbook: router/router.yml
