@@ -29,4 +29,5 @@ spec:
     - source-watcher
   cluster:
     type: kubernetes
+    size: small
     networkPolicy: true
