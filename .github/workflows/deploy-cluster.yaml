@@ -105,13 +105,12 @@ jobs:
           revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
           echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
 
-      # Does not block later jobs: the artifact is already promoted and Flux
-      # keeps reconciling on its own 10m interval regardless. A failure is
-      # surfaced as error annotations and a run summary instead (the step
-      # itself also shows red). The loop does not abort on the first bad
-      # Kustomization, so every one is reported.
+      # Fails the job when any Kustomization doesn't reconcile, which also
+      # holds back the terraform job. The artifact is already promoted, so
+      # Flux keeps retrying on its own 10m interval regardless. The loop
+      # does not abort on the first bad Kustomization, so every one is
+      # reported as an error annotation and in the run summary.
       - name: Confirm the promoted revision reconciles
-        continue-on-error: true
         timeout-minutes: 10
         run: |
           set -uo pipefail
