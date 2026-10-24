@@ -4,6 +4,7 @@ kind: Kustomization
 
 resources:
 - ./apps/audiobookshelf
+- ./apps/flux-operator
 - ./apps/geopulse
 - ./apps/headlamp
 - ./apps/label-studio

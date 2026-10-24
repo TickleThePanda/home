@@ -1,0 +1,29 @@
+# The operator runs no --web-config, so the UI is read-only: it browses Flux
+# objects as the operator's ServiceAccount and offers no actions (reconcile,
+# suspend, restart). tinyauth gates who can see it.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: flux-operator
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://flux.internal.ticklethepanda.co.uk
+    gethomepage.dev/name: Flux
+    gethomepage.dev/group: Administration
+    gethomepage.dev/icon: flux-cd
+    gethomepage.dev/description: GitOps status
+    gethomepage.dev/pod-selector: app.kubernetes.io/name=flux-operator
+spec:
+  entryPoints:
+    - int-web-secure
+  tls: {}
+  routes:
+    - kind: Rule
+      match: Host(`flux.internal.ticklethepanda.co.uk`)
+      middlewares:
+        - name: tinyauth
+          namespace: tinyauth
+      services:
+        - name: flux-operator
+          namespace: flux-system
+          port: 9080
