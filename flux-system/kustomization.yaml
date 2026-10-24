@@ -1,13 +1,12 @@
-# The combined view of Flux's own definition, for Flux's self-management
-# Kustomization (./sync/self.yaml, path: ./flux-system) to reconcile once
-# Flux is running, and for a human to read top to bottom. NOT what the
-# CI bootstrap step applies directly -- see .github/workflows/deploy-cluster.yaml's
-# "Apply flux-system" step, which applies ./install and ./sync as two
-# separate kubectl invocations with a CRD-Established wait in between.
-# Flux's own kustomize-controller handles the CRD-then-CR ordering within
-# one apply more gracefully than plain kubectl does (this is the same
-# combined shape `flux bootstrap` itself wires up), so only the one-time
-# bootstrap via plain kubectl needs the split.
+# Flux's own definition, reconciled by Flux itself (./sync/self.yaml, path:
+# ./flux-system) with SOPS decryption. Nothing else applies this directory in
+# normal operation.
+#
+# ./bootstrap.sh is the emergency path. It applies ./install and ./sync with
+# plain kubectl, as two passes with a CRD-Established wait between them, and
+# never ./secrets, which only Flux can decrypt. kustomize-controller handles
+# the CRD-then-CR ordering within one apply, so only that bootstrap needs the
+# split.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 

@@ -207,10 +207,17 @@ way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`)
   git and Flux recreates it, so a rebuilt cluster needs only this one. See
   `.claude/rules/secrets.md`.
   - `sops-age`: restore the private key from the owner's backup (the same key
-    is `~/.config/sops/age/keys.txt` on their machine), then
-    `kubectl -n flux-system create secret generic sops-age
-    --from-file=age.agekey=keys.txt`. Without the key, no committed Secret can
-    be decrypted and they must all be re-created and re-encrypted.
+    is `~/.config/sops/age/keys.txt` on their machine), then run
+    `flux-system/bootstrap.sh` (set `SOPS_AGE_KEY_FILE` if the key is
+    elsewhere). Without the key, no committed Secret can be decrypted and
+    they must all be re-created and re-encrypted.
+- Flux itself. CI doesn't install or repair Flux. If Flux's CRDs,
+  controllers or `sops-age` are missing, the `cluster` job fails with "Flux
+  not bootstrapped". A bad change under `flux-system/` can also break Flux's
+  own reconciliation. Either way, run `flux-system/bootstrap.sh` from a
+  machine with cluster access. It's idempotent, uses the already-promoted
+  `deploy` artifact, and needs `DOCKER_USERNAME` / `DOCKER_PASSWORD` only if
+  `dockerhub-deploy-pull` is gone.
   - `tunnel-token` is in git (`deploy/setup/cloudflared/secret.sops.yaml`).
     A bad edit can cut CI off from the LAN, since it reaches the cluster only
     through this tunnel. Recover from a human path (Tailscale, then

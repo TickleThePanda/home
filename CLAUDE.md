@@ -86,6 +86,9 @@ Documentation and comments: simple, concise, practical.
   Flux reconciles only that tag, never `main`, through Kustomizations
   `setup` → `setup-config` → `home` / `internal` (plus `flux-system`), with
   `prune` and `wait`, every 10m.
+- Flux manages `flux-system/` itself; CI never applies it.
+  `flux-system/bootstrap.sh` is the manual path for a cold start or a Flux
+  too broken to fix itself.
 - **Flux reverts manual changes.** `kubectl edit`/`patch` or
   `./apply-subset.sh` on anything under `deploy/` is undone within 10
   minutes unless committed and pushed. Objects Flux doesn't own (PVCs
