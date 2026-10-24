@@ -6,6 +6,9 @@ set -euo pipefail
 # the rest of the tree Flux also manages from deploy/.
 #
 # Usage: ./apply-subset.sh deploy/internal/network/dhcp-kea [kubectl apply args...]
+#
+# Skips SOPS-encrypted Secrets: plain kubectl can't decrypt them, and only Flux
+# does (see .claude/rules/secrets.md). Edit those with `sops` and push.
 
 if [[ $# -lt 1 ]]; then
   echo "usage: $(basename "$0") <deploy-subdirectory> [kubectl apply args...]" >&2
@@ -20,4 +23,7 @@ if [[ ! -f "$target/kustomization.yaml" ]]; then
   exit 1
 fi
 
-kustomize build "$target" | kubectl apply -f - "$@"
+# kustomize keeps each Secret's top-level `sops:` key, which marks it encrypted.
+kustomize build "$target" \
+  | awk 'BEGIN { RS = "\n---\n"; ORS = "\n---\n" } !/(^|\n)sops:/' \
+  | kubectl apply -f - "$@"

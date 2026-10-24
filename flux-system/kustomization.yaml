@@ -14,3 +14,4 @@ kind: Kustomization
 resources:
   - ./install
   - ./sync
+  - ./secrets

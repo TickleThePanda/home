@@ -223,7 +223,7 @@ way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`)
       --allow-write --title flux-image-automation
     ssh-keyscan github.com > known_hosts
     ```
-    Then put the three files into `flux-system/sync/flux-git-write.sops.yaml`
+    Then put the three files into `flux-system/secrets/flux-git-write.sops.yaml`
     (`identity`, `identity.pub`, `known_hosts`) with `sops`.
   - `github-commit-status` (key `token`) is a GitHub PAT with commit-status
     write on `ticklethepanda/home`. Without it the Flux → GitHub
