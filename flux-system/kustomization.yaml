@@ -2,8 +2,11 @@
 # ./flux-system) with SOPS decryption. Nothing else applies this directory in
 # normal operation.
 #
-# ./bootstrap.sh is the emergency path. It applies ./install and ./sync with
-# plain kubectl, as two passes with a CRD-Established wait between them, and
+# ./operator is Flux Operator; ./instance is the FluxInstance it installs the
+# Flux controllers from. ./sync points Flux at the `deploy` artifact.
+#
+# ./bootstrap.sh is the emergency path. It applies ./operator, ./instance and
+# ./sync with plain kubectl, waiting for each pass's CRDs and controllers, and
 # never ./secrets, which only Flux can decrypt. kustomize-controller handles
 # the CRD-then-CR ordering within one apply, so only that bootstrap needs the
 # split.
@@ -11,7 +14,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ./install
   - ./operator
+  - ./instance
   - ./sync
   - ./secrets

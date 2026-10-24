@@ -54,6 +54,10 @@ spec:
       kind: Deployment
       name: flux-operator
       namespace: flux-system
+    - apiVersion: fluxcd.controlplane.io/v1
+      kind: FluxInstance
+      name: flux
+      namespace: flux-system
   # Decrypts committed *.sops.yaml Secrets; the key is the out-of-band
   # `sops-age` Secret (.claude/rules/secrets.md).
   decryption:

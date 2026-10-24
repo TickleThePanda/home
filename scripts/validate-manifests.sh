@@ -48,3 +48,10 @@ for p in "${paths[@]}"; do
             -schema-location "$crd_schemas" \
         || fail "$p does not validate"
 done
+
+# A missing schema fails here, unlike above: the FluxInstance controls the
+# whole Flux install.
+echo "== flux-system/instance"
+kubeconform -strict -summary -schema-location "$operator_schemas" \
+        "$repo_root/flux-system/instance/flux-instance.yaml" \
+    || fail "flux-system/instance does not validate"

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Installs Flux and points it at the promoted `deploy` OCI artifact. Flux then
-# manages flux-system/ itself (sync/self.yaml), so CI never applies it. Run
-# this by hand when Flux can't recover on its own:
+# Installs Flux Operator, has it install Flux, and points Flux at the
+# promoted `deploy` OCI artifact. Flux then manages flux-system/ itself
+# (sync/self.yaml), so CI never applies it. Run this by hand when Flux can't
+# recover on its own:
 #
 # - a fresh or rebuilt cluster
-# - Flux's CRDs, controllers or `sops-age` are gone
+# - Flux's CRDs, controllers, the operator or `sops-age` are gone
 # - a bad change under flux-system/ broke Flux's own reconciliation
 #
 # Idempotent: on a healthy cluster it changes nothing. It uses the `deploy` tag
@@ -34,16 +35,16 @@ echo "Context: $(kubectl config current-context)"
 
 ../scripts/vendor.sh
 
-# Two applies with a wait between them: a single apply races the CRDs, and
+# The operator manifests leave out the Namespace (the FluxInstance creates
+# it), but need it to exist.
+kubectl get namespace flux-system >/dev/null 2>&1 || kubectl create namespace flux-system
+
+# Separate applies with waits between them: a single apply races the CRDs, and
 # kubectl gives up on the custom resources before the CRDs are Established.
-kubectl apply -k install
+kubectl apply -k operator
 kubectl wait --for=condition=Established --timeout=60s \
-  crd/gitrepositories.source.toolkit.fluxcd.io \
-  crd/ocirepositories.source.toolkit.fluxcd.io \
-  crd/kustomizations.kustomize.toolkit.fluxcd.io \
-  crd/imagerepositories.image.toolkit.fluxcd.io \
-  crd/imagepolicies.image.toolkit.fluxcd.io \
-  crd/imageupdateautomations.image.toolkit.fluxcd.io
+  crd/fluxinstances.fluxcd.controlplane.io
+kubectl -n flux-system rollout status deployment/flux-operator --timeout=120s
 
 # Server-side apply: client-side apply would copy the key into the
 # last-applied-configuration annotation.
@@ -64,6 +65,17 @@ elif ! kubectl -n flux-system get secret dockerhub-deploy-pull >/dev/null 2>&1; 
   echo "error: dockerhub-deploy-pull is missing; set DOCKER_USERNAME and DOCKER_PASSWORD" >&2
   exit 1
 fi
+
+# Flux Operator installs the controllers and Flux's CRDs from the FluxInstance.
+kubectl apply -k instance
+kubectl -n flux-system wait --for=condition=Ready --timeout=5m fluxinstance/flux
+kubectl wait --for=condition=Established --timeout=60s \
+  crd/gitrepositories.source.toolkit.fluxcd.io \
+  crd/ocirepositories.source.toolkit.fluxcd.io \
+  crd/kustomizations.kustomize.toolkit.fluxcd.io \
+  crd/imagerepositories.image.toolkit.fluxcd.io \
+  crd/imagepolicies.image.toolkit.fluxcd.io \
+  crd/imageupdateautomations.image.toolkit.fluxcd.io
 
 # sync/ holds no Secrets: plain kubectl can't decrypt SOPS. Flux's own Secrets
 # live in secrets/, which only the flux-system Kustomization applies.
