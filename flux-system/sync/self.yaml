@@ -13,7 +13,10 @@ spec:
     kind: OCIRepository
     name: deploy
   path: ./flux-system
-  prune: true
+  # Off while Flux Operator takes over the controllers: removing ./install
+  # with prune on would delete the controllers and CRDs before the operator
+  # adopts them.
+  prune: false
   timeout: 5m
   retryInterval: 2m
   # The controllers only, not `wait: true`: that would also gate on every
@@ -46,6 +49,10 @@ spec:
     - apiVersion: apps/v1
       kind: Deployment
       name: source-watcher
+      namespace: flux-system
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: flux-operator
       namespace: flux-system
   # Decrypts committed *.sops.yaml Secrets; the key is the out-of-band
   # `sops-age` Secret (.claude/rules/secrets.md).

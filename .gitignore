@@ -46,3 +46,4 @@ terraform/cloudflare-zero-trust/.cf-terraform-token
 
 # Upstream manifests downloaded by scripts/vendor.sh from vendor.txt.
 *.vendored.yaml
+*.vendored.tar.gz

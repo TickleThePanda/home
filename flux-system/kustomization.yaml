@@ -12,5 +12,6 @@ kind: Kustomization
 
 resources:
   - ./install
+  - ./operator
   - ./sync
   - ./secrets

@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # From vendor.txt; downloaded by scripts/vendor.sh.
+  - ./flux-operator.vendored.yaml
+
+# Flux's own install.yaml already declares the flux-system Namespace, and
+# kustomize rejects the duplicate.
+patches:
+  - patch: |
+      $patch: delete
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: flux-system
+
+# Pruning the operator or its CRDs would delete every FluxInstance, and deleting
+# a FluxInstance uninstalls Flux. Removing these from the tree must never do that.
+commonAnnotations:
+  kustomize.toolkit.fluxcd.io/prune: disabled

@@ -10,3 +10,7 @@ deploy/setup/lvm-localpv/lvm-operator.vendored.yaml    https://raw.githubusercon
 deploy/setup/multus/networks-crd.vendored.yaml         https://raw.githubusercontent.com/k8snetworkplumbingwg/network-attachment-definition-client/v1.7.7/artifacts/networks-crd.yaml
 deploy/setup/reflector/reflector.vendored.yaml         https://github.com/emberstack/kubernetes-reflector/releases/download/v10.0.65/reflector.yaml
 flux-system/install/install.vendored.yaml              https://github.com/fluxcd/flux2/releases/download/v2.9.4/install.yaml
+# Flux Operator and its CRD schemas (used by scripts/validate-manifests.sh).
+# Keep both on the same release; validate-manifests.sh checks they match.
+flux-system/operator/flux-operator.vendored.yaml       https://github.com/controlplaneio-fluxcd/flux-operator/releases/download/v0.61.0/install.yaml
+scripts/flux-operator-crd-schemas.vendored.tar.gz      https://github.com/controlplaneio-fluxcd/flux-operator/releases/download/v0.61.0/crd-schemas.tar.gz
