@@ -4,12 +4,18 @@ name: Deploy - cluster
 # via Flux once infra has landed.
 
 on:
-  workflow_call: {}
+  workflow_call:
+    outputs:
+      promoted:
+        description: Revision Flux was pointed at; empty if the push never completed.
+        value: ${{ jobs.cluster.outputs.promoted }}
 
 jobs:
   cluster:
     runs-on: ubuntu-latest
     environment: prod
+    outputs:
+      promoted: ${{ steps.revision.outputs.promoted }}
     steps:
       - name: Connect to Cloudflare Warp
         uses: Boostport/setup-cloudflare-warp@v1
@@ -101,13 +107,16 @@ jobs:
       # straight from the source rather than constructing a sha1-based
       # string that could never match.
       - name: Read the promoted revision
+        id: revision
         run: |
           revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
           echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
+          echo "promoted=${revision}" >> "$GITHUB_OUTPUT"
 
-      # Fails the job when any Kustomization doesn't reconcile, which also
-      # holds back the terraform job. The artifact is already promoted, so
-      # Flux keeps retrying on its own 10m interval regardless. The loop
+      # Fails the job when any Kustomization doesn't reconcile. This is the
+      # job's last step, and the `promoted` output lets deploy.yaml still run
+      # terraform: the artifact is already promoted, and Flux keeps retrying
+      # on its own 10m interval regardless. The loop
       # does not abort on the first bad Kustomization, so every one is
       # reported as an error annotation and in the run summary.
       - name: Confirm the promoted revision reconciles

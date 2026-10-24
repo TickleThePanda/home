@@ -192,12 +192,14 @@ jobs:
   terraform:
     needs: [preflight, infra, cluster]
     # Same gate as cluster, plus cluster itself: see the header for why this
-    # runs last.
+    # runs last. A cluster failure after the artifact was promoted (Flux
+    # didn't reconcile cleanly) doesn't hold it back; an earlier failure does.
     if: >-
       always() &&
       needs.preflight.result == 'success' &&
       (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
-      (needs.cluster.result == 'success' || needs.cluster.result == 'skipped') &&
+      (needs.cluster.result == 'success' || needs.cluster.result == 'skipped' ||
+        (needs.cluster.result == 'failure' && needs.cluster.outputs.promoted != '')) &&
       needs.preflight.outputs.terraform == 'true'
     permissions:
       contents: read
