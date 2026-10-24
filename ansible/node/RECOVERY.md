@@ -212,12 +212,20 @@ way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`)
     elsewhere). Without the key, no committed Secret can be decrypted and
     they must all be re-created and re-encrypted.
 - Flux itself. CI doesn't install or repair Flux. If Flux's CRDs,
-  controllers or `sops-age` are missing, the `cluster` job fails with "Flux
-  not bootstrapped". A bad change under `flux-system/` can also break Flux's
+  `sops-age` or a Ready FluxInstance are missing, the `cluster` job fails
+  with "Flux not bootstrapped". A bad change under `flux-system/` can also break Flux's
   own reconciliation. Either way, run `flux-system/bootstrap.sh` from a
   machine with cluster access. It's idempotent, uses the already-promoted
   `deploy` artifact, and needs `DOCKER_USERNAME` / `DOCKER_PASSWORD` only if
   `dockerhub-deploy-pull` is gone.
+  - Flux Operator installs the controllers from `fluxinstance/flux`
+    (`flux-system/instance/`). Deleting it uninstalls Flux. To stop the
+    operator touching the controllers while you fix them by hand:
+    ```sh
+    kubectl -n flux-system annotate fluxinstance flux fluxcd.controlplane.io/reconcile=disabled
+    ```
+    Remove the annotation (`...reconcile-`) afterwards. To upgrade, bump the
+    operator's release in `vendor.txt` first, then `distribution.version`.
   - `tunnel-token` is in git (`deploy/setup/cloudflared/secret.sops.yaml`).
     A bad edit can cut CI off from the LAN, since it reaches the cluster only
     through this tunnel. Recover from a human path (Tailscale, then

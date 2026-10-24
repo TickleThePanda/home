@@ -1,7 +1,7 @@
-# Flux managing its own upgrade: bumping the pinned install.yaml URL in
-# vendor.txt is a normal git commit, promoted through
-# oci-repository.yaml like the rest of this repo -- not tracked straight
-# off `main`.
+# Flux managing its own definition: bumping the FluxInstance's version (or
+# the operator's release in vendor.txt) is a normal git commit, promoted
+# through oci-repository.yaml like the rest of this repo -- not tracked
+# straight off `main`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -13,10 +13,7 @@ spec:
     kind: OCIRepository
     name: deploy
   path: ./flux-system
-  # Off while Flux Operator takes over the controllers: removing ./install
-  # with prune on would delete the controllers and CRDs before the operator
-  # adopts them.
-  prune: false
+  prune: true
   timeout: 5m
   retryInterval: 2m
   # The controllers only, not `wait: true`: that would also gate on every

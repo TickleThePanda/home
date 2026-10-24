@@ -19,8 +19,9 @@ the public key and encrypts only `data` / `stringData`.
   from git. Secrets created by operators or CI (cert-manager TLS,
   CNPG, `dockerhub-deploy-pull`) stay out of git.
 - **Flux's own Secrets** live in `flux-system/secrets/`, never under
-  `flux-system/install` or `flux-system/sync`. `flux-system/bootstrap.sh`
-  applies those two with plain `kubectl apply -k`, which can't decrypt.
+  `flux-system/operator`, `flux-system/instance` or `flux-system/sync`.
+  `flux-system/bootstrap.sh` applies those with plain `kubectl apply -k`,
+  which can't decrypt.
 - **Never commit plaintext.** Don't `git add` a decrypted file, and strip
   `kubectl.kubernetes.io/last-applied-configuration` from anything exported
   from the cluster.

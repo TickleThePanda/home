@@ -86,7 +86,9 @@ Documentation and comments: simple, concise, practical.
   Flux reconciles only that tag, never `main`, through Kustomizations
   `setup` → `setup-config` → `home` / `internal` (plus `flux-system`), with
   `prune` and `wait`, every 10m.
-- Flux manages `flux-system/` itself; CI never applies it.
+- Flux manages `flux-system/` itself; CI never applies it. Flux Operator
+  installs the controllers from the FluxInstance in
+  `flux-system/instance/`. Never delete it: that uninstalls Flux.
   `flux-system/bootstrap.sh` is the manual path for a cold start or a Flux
   too broken to fix itself.
 - **Flux reverts manual changes.** `kubectl edit`/`patch` or

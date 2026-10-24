@@ -42,8 +42,9 @@ jobs:
       - name: Check Flux is bootstrapped
         run: |
           if ! kubectl get crd kustomizations.kustomize.toolkit.fluxcd.io >/dev/null 2>&1 \
-            || ! kubectl -n flux-system get secret sops-age >/dev/null 2>&1; then
-            echo "::error title=Flux not bootstrapped::Flux CRDs or the sops-age Secret are missing; run flux-system/bootstrap.sh"
+            || ! kubectl -n flux-system get secret sops-age >/dev/null 2>&1 \
+            || ! kubectl -n flux-system wait --for=condition=Ready --timeout=10s fluxinstance/flux >/dev/null 2>&1; then
+            echo "::error title=Flux not bootstrapped::Flux CRDs, the sops-age Secret or a Ready FluxInstance are missing; run flux-system/bootstrap.sh"
             exit 1
           fi
 
