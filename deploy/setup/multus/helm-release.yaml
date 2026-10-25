@@ -1,16 +1,30 @@
-apiVersion: helm.cattle.io/v1
-kind: HelmChart
+# Multus publishes no chart of its own; RKE2's packaging is the maintained
+# one. Upgrade by changing `version`.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
 metadata:
   name: multus
   namespace: kube-system
 spec:
-  repo: https://rke2-charts.rancher.io
-  chart: rke2-multus
-  # Without a version, every re-install pulls the newest chart. Upgrade by
-  # changing it here.
-  version: v4.3.014
-  targetNamespace: kube-system
-  valuesContent: |-
+  interval: 10m
+  releaseName: multus
+  chart:
+    spec:
+      chart: rke2-multus
+      version: "v4.3.014"
+      sourceRef:
+        kind: HelmRepository
+        name: rke2-charts
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  driftDetection:
+    mode: enabled
+  values:
     config:
       fullnameOverride: multus
       cni_conf:

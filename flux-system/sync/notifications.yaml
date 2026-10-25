@@ -80,6 +80,16 @@ spec:
       name: "*"
     - kind: FluxInstance
       name: "*"
+    # Every HelmRelease is in kube-system (deploy/setup/README.md).
+    - kind: HelmRelease
+      name: "*"
+      namespace: kube-system
+    - kind: HelmRepository
+      name: "*"
+      namespace: kube-system
+    - kind: HelmChart
+      name: "*"
+      namespace: kube-system
     - kind: GitRepository
       name: "*"
     - kind: ImageRepository

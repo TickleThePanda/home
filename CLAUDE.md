@@ -120,6 +120,10 @@ Documentation and comments: simple, concise, practical.
   can cascade (Traefik's took its CRDs, and every IngressRoute/TLSStore with
   them). Afterwards, reapply affected apps and re-check TLS, since a missing
   `TLSStore` silently falls back to a self-signed cert.
+- k3s's helm-controller is disabled, so a `helm.cattle.io` HelmChart does
+  nothing. Third-party charts are Flux `HelmRelease`s in `kube-system`,
+  under `deploy/setup/`, with exact chart versions. See
+  `deploy/setup/README.md` before deleting or renaming one.
 - Objects stuck `Terminating` drift invisibly while `apply` keeps
   "succeeding". Spot check:
   `kubectl get svc -A -o json | jq -r '.items[] | select(.metadata.deletionTimestamp != null) | "\(.metadata.namespace)/\(.metadata.name)"'`

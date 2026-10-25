@@ -8,7 +8,6 @@
 #
 # Skipped kinds:
 # - Secret: SOPS files carry a top-level `sops:` key that strict mode rejects.
-# - HelmChart: the catalog's schema predates k3s's `failurePolicy: retry`.
 # - Any kind with no published schema.
 
 set -Eeuo pipefail
@@ -46,7 +45,7 @@ fi
 
 validate() {
     kustomize build "$1" \
-        | kubeconform -strict -summary -skip Secret,HelmChart -ignore-missing-schemas \
+        | kubeconform -strict -summary -skip Secret -ignore-missing-schemas \
             -schema-location default -schema-location "$operator_schemas" \
             -schema-location "$crd_schemas"
 }

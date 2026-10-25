@@ -1,0 +1,147 @@
+# Upstream Traefik chart. Upgrade by changing `version`; a new major needs its
+# release notes checked against the values below.
+#
+# The image tag is set separately so Flux image automation can bump patches
+# (flux-system/sync/images.yaml). The chart warns, but doesn't fail, when the
+# tag is newer than its own Traefik version. A new Traefik minor goes with a
+# chart bump.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  interval: 10m
+  releaseName: traefik
+  chart:
+    spec:
+      chart: traefik
+      version: "41.1.1"
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+  dependsOn:
+    - name: traefik-crds
+  install:
+    # helm-release-crds.yaml owns the CRDs.
+    crds: Skip
+    remediation:
+      retries: 3
+  upgrade:
+    crds: Skip
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  driftDetection:
+    mode: enabled
+  values:
+    image:
+      registry: docker.io
+      repository: traefik
+      tag: v3.7.8 # {"$imagepolicy": "flux-system:traefik:tag"}
+
+    deployment:
+      podAnnotations:
+        prometheus.io/port: "8082"
+        prometheus.io/scrape: "true"
+
+    priorityClassName: "system-cluster-critical"
+    tolerations:
+      - key: "CriticalAddonsOnly"
+        operator: "Exists"
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
+
+    service:
+      enabled: false
+      # The chart renders only `.spec` into a Service spec, so a top-level
+      # `type` or `ipFamilyPolicy` is silently dropped -- these would come
+      # back as ClusterIP and MetalLB would never assign .20/.19.
+      spec:
+        ipFamilyPolicy: "PreferDualStack"
+      additionalServices:
+        external:
+          enabled: true
+          spec:
+            type: LoadBalancer
+          annotations:
+            metallb.io/address-pool: external
+
+        internal:
+          enabled: true
+          spec:
+            type: LoadBalancer
+          annotations:
+            metallb.io/address-pool: internal
+
+    ingressRoute:
+      dashboard:
+        enabled: true
+        matchRule: Host(`traefik.internal.ticklethepanda.co.uk`)
+        entryPoints:
+          - "int-web-secure"
+        middlewares:
+          - name: tinyauth
+            namespace: tinyauth
+
+    accessLog:
+      enabled: true
+
+    providers:
+      kubernetesCRD:
+        allowCrossNamespace: true
+      kubernetesIngress:
+        publishedService:
+          enabled: true
+
+    ports:
+      # Per-entrypoint HTTP settings (`redirections`, `tls`, `middlewares`)
+      # live under `http`.
+      int-web:
+        exposedPort: 80
+        port: 7080
+        expose:
+          default: false
+          internal: true
+        protocol: TCP
+        http:
+          redirections:
+            entryPoint:
+              to: int-web-secure
+              scheme: https
+      int-web-secure:
+        exposedPort: 443
+        port: 7443
+        expose:
+          default: false
+          internal: true
+        protocol: TCP
+        http:
+          tls:
+            enabled: true
+
+      ext-web:
+        exposedPort: 80
+        port: 8080
+        expose:
+          default: false
+          external: true
+        protocol: TCP
+
+      int-mqtt:
+        exposedPort: 1883
+        port: 1883
+        expose:
+          default: false
+          internal: true
+        protocol: TCP
+
+      traefik:
+        port: 9000
+        exposedPort: 9000
+        expose:
+          default: false
