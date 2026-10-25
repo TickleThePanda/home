@@ -21,6 +21,18 @@ pve=https://192.168.1.3:8006/api2/json/nodes/proxmox-01
 ca=/config/pve-root-ca.pem
 
 log() { echo "$(date -u +%FT%TZ) $*"; }
+
+# kubectl falls back to the in-cluster config only when no flag changes the
+# default config, and k() needs --request-timeout. So write the service
+# account's config out. tokenFile makes kubectl re-read the rotating token.
+sa=/var/run/secrets/kubernetes.io/serviceaccount
+export KUBECONFIG=/tmp/kubeconfig
+kubectl config set-cluster in-cluster --server="https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT" \
+    --certificate-authority="$sa/ca.crt" >/dev/null
+kubectl config set-credentials sa --token="" >/dev/null
+kubectl config set "users.sa.tokenFile" "$sa/token" >/dev/null
+kubectl config set-context in-cluster --cluster=in-cluster --user=sa >/dev/null
+kubectl config use-context in-cluster >/dev/null
 k() { kubectl --request-timeout=15s "$@"; }
 
 # Prometheus by ClusterIP: CoreDNS runs on the workers and goes down with
