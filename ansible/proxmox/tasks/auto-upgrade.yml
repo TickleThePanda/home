@@ -1,0 +1,106 @@
+---
+# Weekly unattended upgrades for proxmox-01, and the narrow API identity the
+# proxmox-reboot CronJob (deploy/setup/kured/proxmox-reboot/) reboots it
+# with. The upgrade runs Sunday 01:30 and never reboots; the CronJob reboots
+# at 03:00 if /run/reboot-required exists.
+
+- name: Install the pve-auto-upgrade script
+  ansible.builtin.template:
+    src: pve-auto-upgrade.sh.j2
+    dest: /usr/local/sbin/pve-auto-upgrade
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the pve-auto-upgrade systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/pve-auto-upgrade.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ansible/proxmox/tasks/auto-upgrade.yml. Do not edit on the host.
+      [Unit]
+      Description=Upgrade Debian and PVE packages
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      TimeoutStartSec=1h
+      ExecStart=/usr/local/sbin/pve-auto-upgrade
+  notify: reload systemd
+
+- name: Install the pve-auto-upgrade timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/pve-auto-upgrade.timer
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ansible/proxmox/tasks/auto-upgrade.yml. Do not edit on the host.
+      [Unit]
+      Description=Upgrade Debian and PVE packages weekly, before the Sunday reboot window
+
+      [Timer]
+      OnCalendar=Sun 01:30 Europe/London
+      Persistent=false
+
+      [Install]
+      WantedBy=timers.target
+  notify: reload systemd
+
+- name: Enable the pve-auto-upgrade timer
+  ansible.builtin.systemd_service:
+    name: pve-auto-upgrade.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode
+
+# kured@pve may only reboot (and read the status of) this node. Its API token
+# kured@pve!reboot is privilege-separated, so it needs its own ACL as well.
+# The token's secret is shown only once, so it is created by hand (README.md)
+# and its ACL is applied once it exists.
+# `user list --full 1` includes each user's tokens.
+- name: Read the PVE users, roles and ACLs
+  ansible.builtin.command: "pveum {{ item }} --output-format json"
+  register: proxmox_access
+  changed_when: false
+  check_mode: false
+  loop: ["user list --full 1", "role list", "acl list"]
+
+- name: Note the reboot identity's current state
+  ansible.builtin.set_fact:
+    proxmox_kured_user_exists: "{{ 'kured@pve' in (proxmox_access.results[0].stdout | from_json | map(attribute='userid')) }}"
+    proxmox_kured_token_exists: "{{ 'reboot' in (proxmox_access.results[0].stdout | from_json | selectattr('userid', '==', 'kured@pve') | map(attribute='tokens', default=[]) | flatten | map(attribute='tokenid')) }}"
+    proxmox_kured_role_privs: "{{ proxmox_access.results[1].stdout | from_json | selectattr('roleid', '==', 'KuredReboot') | map(attribute='privs') | first | default('') }}"
+    proxmox_kured_acls: "{{ proxmox_access.results[2].stdout | from_json | selectattr('path', '==', '/nodes/' ~ proxmox_node_name) | selectattr('roleid', '==', 'KuredReboot') | map(attribute='ugid') | list }}"
+
+- name: Create the kured@pve user
+  ansible.builtin.command: pveum user add kured@pve --comment "Reboots proxmox-01 for deploy/setup/kured/proxmox-reboot"
+  when: not proxmox_kured_user_exists
+  changed_when: true
+
+- name: Create the KuredReboot role
+  ansible.builtin.command: pveum role add KuredReboot --privs Sys.Audit,Sys.PowerMgmt
+  when: proxmox_kured_role_privs == ''
+  changed_when: true
+
+- name: Set the KuredReboot role's privileges
+  ansible.builtin.command: pveum role modify KuredReboot --privs Sys.Audit,Sys.PowerMgmt
+  when:
+    - proxmox_kured_role_privs != ''
+    - (proxmox_kured_role_privs.split(',') | sort) != ['Sys.Audit', 'Sys.PowerMgmt']
+  changed_when: true
+
+- name: Grant kured@pve the KuredReboot role on this node
+  ansible.builtin.command: "pveum acl modify /nodes/{{ proxmox_node_name }} --users kured@pve --roles KuredReboot"
+  when: "'kured@pve' not in proxmox_kured_acls"
+  changed_when: true
+
+- name: Grant the kured@pve!reboot token the KuredReboot role on this node
+  ansible.builtin.command: "pveum acl modify /nodes/{{ proxmox_node_name }} --tokens kured@pve!reboot --roles KuredReboot"
+  when:
+    - proxmox_kured_token_exists
+    - "'kured@pve!reboot' not in proxmox_kured_acls"
+  changed_when: true

@@ -72,17 +72,18 @@ groups:
   - name: os-updates
     rules:
       # From the apt textfile collector on every Debian host (the
-      # node_exporter Ansible role). A week's grace covers the normal gap
-      # between a package landing and the next upgrade or reboot window.
+      # node_exporter Ansible role). The k3s nodes upgrade daily and
+      # proxmox-01 weekly (Sunday), so 8 days covers a package that lands just
+      # after Sunday's run.
       - alert: HostUpgradesPending
         expr: sum by (hostname) (apt_upgrades_pending) > 0
-        for: 7d
+        for: 8d
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.hostname }}: {{ $value }} apt upgrades pending for a week"
+          summary: "{{ $labels.hostname }}: {{ $value }} apt upgrades pending for over a week"
           description: >-
-            {{ $labels.hostname }} has had apt upgrades waiting for 7 days.
+            {{ $labels.hostname }} has had apt upgrades waiting for 8 days.
 
       - alert: HostRebootRequired
         expr: node_reboot_required > 0

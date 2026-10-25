@@ -1,0 +1,28 @@
+#!/bin/bash
+# Managed by ansible/proxmox/tasks/auto-upgrade.yml -- do not edit on the host.
+#
+# Weekly full upgrade of Debian and PVE packages. Proxmox needs full-upgrade,
+# not upgrade: new kernels and PVE components arrive as new packages. Nothing
+# here reboots. When a reboot is due it writes /run/reboot-required, and the
+# proxmox-reboot CronJob (deploy/setup/kured/proxmox-reboot/) reboots the
+# host in the Sunday window, under kured's lock.
+
+set -Eeuo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -q
+# --force-confold keeps any locally edited config file instead of prompting.
+apt-get full-upgrade -q -y -o Dpkg::Options::=--force-confold
+
+# PVE kernel packages don't write /run/reboot-required themselves, so compare
+# the running kernel with the newest one installed (which boots by default).
+newest=$(find /boot -maxdepth 1 -name 'vmlinuz-*-pve' -printf '%f\n' \
+    | sed 's/^vmlinuz-//' | sort -V | tail -n 1)
+if [[ -n $newest && $newest != "$(uname -r)" ]]; then
+    echo "kernel $newest is installed but $(uname -r) is running"
+    echo "*** System restart required ***" > /run/reboot-required
+fi
+
+if [[ -e /run/reboot-required ]]; then
+    echo "reboot required"
+fi
