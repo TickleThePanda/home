@@ -17,15 +17,15 @@ jobs:
     outputs:
       promoted: ${{ steps.revision.outputs.promoted }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
       - name: Connect to Cloudflare Warp
-        uses: Boostport/setup-cloudflare-warp@v1.19.0
+        uses: ./.github/actions/cloudflare-warp
         with:
           organization: ticklethepanda
           auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
-
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
 
       - name: Setup k8s context
         uses: azure/k8s-set-context@v5.0.1

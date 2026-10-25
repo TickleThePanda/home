@@ -117,7 +117,7 @@ jobs:
           pick router "$ROUTER"
 
       - name: Connect to Cloudflare Warp
-        uses: Boostport/setup-cloudflare-warp@v1.19.0
+        uses: ./.github/actions/cloudflare-warp
         with:
           organization: ticklethepanda
           auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
