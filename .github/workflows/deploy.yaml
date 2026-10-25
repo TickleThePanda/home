@@ -82,12 +82,12 @@ jobs:
       terraform: ${{ steps.changes.outputs.terraform == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       # Markdown never triggers a deploy: `some-with-excludes` drops any file a
       # `!` pattern matches.
       - name: Detect which layers changed
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@v4.0.3
         id: changes
         with:
           predicate-quantifier: 'some-with-excludes'
@@ -115,14 +115,14 @@ jobs:
               - '!**/*.md'
 
       - name: Connect to Cloudflare Warp
-        uses: Boostport/setup-cloudflare-warp@v1
+        uses: Boostport/setup-cloudflare-warp@v1.19.0
         with:
           organization: ticklethepanda
           auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
 
       - name: Setup k8s context
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v5.0.1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}

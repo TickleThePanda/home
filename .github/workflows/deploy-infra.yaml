@@ -37,7 +37,7 @@ jobs:
       ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       # `shared` is what every layer reads; a change to it runs them all. The
       # layer lists add what only some layers read:
@@ -48,7 +48,7 @@ jobs:
       # Markdown never triggers a deploy: `some-with-excludes` drops any file a
       # `!` pattern matches.
       - name: Detect which layers changed
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@v4.0.3
         id: changes
         with:
           predicate-quantifier: 'some-with-excludes'
@@ -117,7 +117,7 @@ jobs:
           pick router "$ROUTER"
 
       - name: Connect to Cloudflare Warp
-        uses: Boostport/setup-cloudflare-warp@v1
+        uses: Boostport/setup-cloudflare-warp@v1.19.0
         with:
           organization: ticklethepanda
           auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
@@ -126,7 +126,7 @@ jobs:
       # Only the k3s layer's end-state assertion needs kubectl.
       - name: Setup k8s context
         if: steps.layers.outputs.k3s == 'true'
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v5.0.1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}

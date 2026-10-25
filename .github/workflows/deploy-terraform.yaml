@@ -19,17 +19,17 @@ jobs:
         working-directory: terraform/cloudflare-zero-trust
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3.0.0
         with:
           project_id: ticklethepanda-web
           workload_identity_provider: projects/388566333789/locations/global/workloadIdentityPools/pool/providers/github
           service_account: tf-home-manager@ticklethepanda-web.iam.gserviceaccount.com
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4.0.1
         with:
           terraform_version: "1.15.9"
 

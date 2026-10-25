@@ -16,7 +16,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v7.1.0
       with:
         python-version: "3.12"
         cache: pip
@@ -24,13 +24,13 @@ runs:
 
     - name: Restore the collection cache
       id: collections-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6.1.0
       with:
         path: ~/.ansible/collections
         key: ansible-collections-${{ runner.os }}-${{ hashFiles(format('{0}/requirements.yml', inputs.working-directory)) }}
 
     - name: Restore the fact cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6.1.0
       with:
         path: ${{ inputs.working-directory }}/.ansible_fact_cache
         key: ansible-facts-${{ inputs.working-directory }}-${{ github.run_id }}
