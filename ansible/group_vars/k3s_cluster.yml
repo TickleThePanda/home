@@ -37,6 +37,10 @@ docker_pull_token: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_TOKEN') | defa
 # vendored into deploy/setup/ instead (see CLAUDE.md); MetalLB replaces
 # servicelb and every volume is on the lvm-data StorageClass.
 #
+# disable-helm-controller turns off k3s's embedded helm.cattle.io controller.
+# Flux HelmReleases in deploy/setup/ own every chart; a k3s HelmChart does
+# nothing.
+#
 # cluster-init keeps the embedded-etcd datastore (a single member) selected;
 # it must stay set for the life of the server. tls-san still lists the Pi's
 # old address alongside the current one so a kubeconfig or client that has
@@ -58,6 +62,7 @@ server_config_yaml: |
     - servicelb
     - traefik
     - local-storage
+  disable-helm-controller: true
   tls-san:
     - 192.168.1.2
     - 192.168.1.32

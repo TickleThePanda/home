@@ -2,8 +2,8 @@ name: Deploy - infra
 
 # Called by deploy.yaml's `infra` job. Layer order matches ansible/site.yml:
 # proxmox creates the VMs k3s joins; node lands the Pi's storage mounts that
-# k3s-agent requires; a k3s bump changes which Traefik chart tarball is
-# served, so it precedes the cluster manifests. The router runs last --
+# k3s-agent requires; k3s precedes the cluster manifests, which run on it.
+# The router runs last --
 # nothing depends on it (it serves no DNS and no DHCP), and it is the one
 # layer that can drop CI's own egress, so a WAN blip there cannot strand a
 # layer that had yet to run.

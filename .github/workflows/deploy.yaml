@@ -2,7 +2,7 @@ name: Deploy
 
 # Applied in order by sequential jobs:
 #
-#   preflight   the k3s/Traefik pin agrees, and the cluster is reachable
+#   preflight   the cluster is reachable
 #   infra       deploy-infra.yaml -- ansible/, every layer: proxmox, node, k3s, router
 #   cluster     deploy-cluster.yaml -- deploy/, applied with kustomize
 #   terraform   deploy-terraform.yaml -- terraform/cloudflare-zero-trust/, applied last
@@ -49,7 +49,6 @@ on:
       - flux-system/**
       - ansible/**
       - terraform/cloudflare-zero-trust/**
-      - scripts/check-traefik-pin.sh
       - scripts/check-gather-subset.py
       - scripts/vendor.sh
       - scripts/validate-manifests.sh
@@ -110,9 +109,6 @@ jobs:
               - 'terraform/cloudflare-zero-trust/**'
               - '.github/workflows/deploy-terraform.yaml'
               - '!**/*.md'
-
-      - name: Check the Traefik chart pin
-        run: ./scripts/check-traefik-pin.sh --online
 
       - name: Connect to Cloudflare Warp
         uses: Boostport/setup-cloudflare-warp@v1

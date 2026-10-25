@@ -14,8 +14,7 @@
 #   proxmox  creates the VMs that k3s joins.
 #   node     lands the Pi's LVM mounts; a RequiresMountsFor drop-in makes
 #            k3s-agent depend on them.
-#   k3s      needs both of the above. A k3s bump also changes which Traefik
-#            chart tarball is served, so it precedes the cluster manifests.
+#   k3s      needs both of the above, and precedes the cluster manifests.
 #   router   last. Nothing depends on it -- it serves no DNS and no DHCP -- and
 #            it is the one layer that can drop CI's own egress (the cloudflared
 #            tunnel leaves through its WAN). Running it last means a WAN blip
