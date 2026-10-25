@@ -1,0 +1,93 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Updates image tags, Helm chart versions and vendor.txt. Non-major updates merge into main once .github/workflows/validate.yaml passes; majors wait for approval on the Dependency Dashboard.",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitsDisabled"
+  ],
+  "enabledManagers": [
+    "kubernetes",
+    "flux",
+    "kustomize",
+    "custom.regex"
+  ],
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^deploy/.+\\.ya?ml$/"
+    ]
+  },
+  "flux": {
+    "managerFilePatterns": [
+      "/^deploy/.+\\.ya?ml$/"
+    ]
+  },
+  "automerge": true,
+  "automergeType": "branch",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "vendor.txt: the version column, located by the `# renovate:` comment above each entry",
+      "managerFilePatterns": [
+        "/^vendor\\.txt$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\S+\\s+(?<currentValue>\\S+)"
+      ],
+      "extractVersionTemplate": "^v?(?<version>\\d+\\.\\d+\\.\\d+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "The Renovate CLI that scripts/check-renovate.sh runs in CI",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/validate\\.yaml$/"
+      ],
+      "matchStrings": [
+        "RENOVATE_VERSION: (?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "renovate",
+      "datasourceTemplate": "npm"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The kubernetes manager also reports each manifest's apiVersion. Leave API migrations to humans.",
+      "matchDatasources": [
+        "kubernetes-api"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Majors are manual: approve them on the Dependency Dashboard, then review and merge the PR. For pihole and cloudflared, the year rollover counts as a major.",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "description": "ISC's stable Kea releases have even minor versions; odd minors are development releases. The two daemons release together (scripts/check-versions.sh).",
+      "matchPackageNames": [
+        "jonasal/kea-dhcp4",
+        "jonasal/kea-dhcp-ddns"
+      ],
+      "allowedVersions": "/^3\\.\\d*[02468]\\.\\d+$/",
+      "groupName": "kea"
+    },
+    {
+      "description": "GeoPulse's UI and backend release together (scripts/check-versions.sh).",
+      "matchPackageNames": [
+        "tess1o/geopulse-backend",
+        "tess1o/geopulse-ui"
+      ],
+      "groupName": "geopulse"
+    },
+    {
+      "description": "RKE2's Multus chart pads its last component (v4.3.014), which strict semver rejects.",
+      "matchPackageNames": [
+        "rke2-multus"
+      ],
+      "versioning": "loose"
+    }
+  ]
+}

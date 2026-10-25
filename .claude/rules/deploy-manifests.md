@@ -17,8 +17,9 @@ paths:
   `storageClassName` is needed, since `lvm-data` is the default.
 - Removing a PVC from the manifests makes Flux prune it, data included.
 - Upstream manifests (operator installs, CRDs) go in `vendor.txt`, never as
-  URLs in `resources:`. CI rejects remote resources. Run `scripts/vendor.sh`
-  before a local `kustomize build`.
+  URLs in `resources:`. CI rejects remote resources. Give each entry a
+  `# renovate:` comment (see the file's header) so Renovate bumps it. Run
+  `scripts/vendor.sh` before a local `kustomize build`.
 - Give a new third-party image an `ImageRepository` + `ImagePolicy` in
   `flux-system/sync/images.yaml`, and add a
   `# {"$imagepolicy": "flux-system:<name>"}` marker to its image line.

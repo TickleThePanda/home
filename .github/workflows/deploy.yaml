@@ -51,11 +51,13 @@ on:
       - terraform/cloudflare-zero-trust/**
       - scripts/check-gather-subset.py
       - scripts/vendor.sh
+      - scripts/check-versions.sh
       - scripts/validate-manifests.sh
       - scripts/wait-flux-deploy.sh
       - vendor.txt
       - .github/workflows/deploy*.yaml
       - .github/actions/ansible-*/**
+      - .github/actions/validate-cluster/**
       - '!**/*.md'
   workflow_dispatch: {}
 
@@ -101,9 +103,11 @@ jobs:
               - 'flux-system/**'
               - 'vendor.txt'
               - 'scripts/vendor.sh'
+              - 'scripts/check-versions.sh'
               - 'scripts/validate-manifests.sh'
               - 'scripts/wait-flux-deploy.sh'
               - '.github/workflows/deploy-cluster.yaml'
+              - '.github/actions/validate-cluster/**'
               - '!**/*.md'
             terraform:
               - 'terraform/cloudflare-zero-trust/**'

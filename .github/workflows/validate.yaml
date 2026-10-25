@@ -1,0 +1,63 @@
+name: Validate
+
+# Cluster-independent checks on every push to main or a Renovate branch.
+# Renovate merges a branch into main only once this passes (renovate.json);
+# a failure leaves it as a PR instead. deploy-cluster.yaml repeats the
+# manifest checks before it promotes, since it vendors the artifact anyway.
+#
+# Needs no cluster, WARP or environment secrets, so it also runs while the
+# cluster is down.
+
+on:
+  push:
+    branches:
+      - main
+      - 'renovate/**'
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      # Bumped by Renovate (renovate.json). Needs the Node version below.
+      RENOVATE_VERSION: 44.149.3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # The image check diffs against main.
+          fetch-depth: 0
+
+      - name: Vendor and validate
+        uses: ./.github/actions/validate-cluster
+
+      # A branch is checked against where it forked from main; a push to main
+      # against the commit before it.
+      - name: Check changed images are multi-arch
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ $GITHUB_REF != refs/heads/main ]]; then
+            base=$(git merge-base origin/main HEAD)
+          elif [[ -n $BEFORE && $BEFORE != 0000000000000000000000000000000000000000 ]]; then
+            base=$BEFORE
+          else
+            base=HEAD~1
+          fi
+          ./scripts/check-image-platforms.sh "$base"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Check Renovate config and coverage
+        env:
+          GITHUB_COM_TOKEN: ${{ github.token }}
+        run: ./scripts/check-renovate.sh

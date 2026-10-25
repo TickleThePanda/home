@@ -1,0 +1,32 @@
+name: Validate cluster manifests
+description: >-
+  Vendor the upstream manifests in vendor.txt, check version invariants, and
+  build and schema-check everything Flux reconciles, including rendered Helm
+  charts. Needs no cluster access. Leaves the vendored files in the tree for
+  the OCI artifact. Uses the runner's preinstalled kustomize, helm and yq.
+
+runs:
+  using: composite
+  steps:
+    - name: Install kubeconform
+      shell: bash
+      env:
+        KUBECONFORM_VERSION: v0.7.0
+      run: |
+        set -euo pipefail
+        curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+          | sudo tar -xz -C /usr/local/bin kubeconform
+
+    # A failed download fails the step, so a bump to a version with no
+    # published artifact fails here.
+    - name: Vendor upstream manifests
+      shell: bash
+      run: ./scripts/vendor.sh
+
+    - name: Check version invariants
+      shell: bash
+      run: ./scripts/check-versions.sh
+
+    - name: Validate manifests and charts
+      shell: bash
+      run: ./scripts/validate-manifests.sh

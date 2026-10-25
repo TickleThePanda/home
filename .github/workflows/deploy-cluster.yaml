@@ -66,21 +66,12 @@ jobs:
             --namespace flux-system \
             --dry-run=client --validate=false -o yaml | kubectl apply -f -
 
-      # Downloads the upstream manifests in vendor.txt into the tree, so the
-      # artifact is self-contained and Flux never fetches them from GitHub.
-      - name: Vendor upstream manifests
-        run: ./scripts/vendor.sh
-
-      # Builds every path Flux reconciles and checks it against schemas, so a
-      # broken manifest fails here instead of after promotion.
-      - name: Validate manifests
-        env:
-          KUBECONFORM_VERSION: v0.7.0
-        run: |
-          set -euo pipefail
-          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin kubeconform
-          ./scripts/validate-manifests.sh
+      # Vendors vendor.txt into the tree, so the artifact is self-contained and
+      # Flux never fetches from GitHub, then validates everything Flux
+      # reconciles, so a broken manifest fails here instead of after promotion.
+      # validate.yaml runs the same checks on Renovate branches.
+      - name: Vendor and validate
+        uses: ./.github/actions/validate-cluster
 
       # Push as one sha-tagged OCI artifact, then move the moving `deploy`
       # tag to point at it -- the promotion boundary flux-system/sync/

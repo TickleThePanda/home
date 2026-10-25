@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Build every path Flux reconciles and check the output against Kubernetes and
-# CRD schemas. Run scripts/vendor.sh first.
+# CRD schemas. Also render every HelmRelease's chart with its values and check
+# that too. Run scripts/vendor.sh first. Needs kustomize, kubeconform, helm and
+# yq (mikefarah).
 #
 # Each deploy/ layer builds from a copy holding only that layer, since its
 # ExternalArtifact (flux-system/sync/artifact-generator.yaml) contains nothing
@@ -20,14 +22,11 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 # The catalog lacks Flux Operator's CRDs. Its release ships their schemas as
 # flat files (fluxinstance-fluxcd-v1.json); rename them to kubeconform's
 # {{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json layout.
-release() { grep -F "$1" "$repo_root/vendor.txt" | grep -oE '/download/v[^/]+/'; }
-op_release=$(release flux-operator.vendored.yaml) || fail "no flux-operator line in vendor.txt"
-[[ $(release flux-operator-crd-schemas) == "$op_release" ]] \
-    || fail "flux-operator and its CRD schemas are on different releases in vendor.txt"
-
+# scripts/check-versions.sh checks they match the vendored operator.
 operator_schemas=$(mktemp -d)
 layers_root=$(mktemp -d)
-trap 'rm -rf "$operator_schemas" "$layers_root"' EXIT
+charts_root=$(mktemp -d)
+trap 'rm -rf "$operator_schemas" "$layers_root" "$charts_root"' EXIT
 mkdir "$operator_schemas/fluxcd.controlplane.io"
 tar -xzf "$repo_root/scripts/flux-operator-crd-schemas.vendored.tar.gz" -C "$operator_schemas"
 for f in "$operator_schemas"/*-fluxcd-*.json; do
@@ -43,12 +42,12 @@ if remote=$(grep -rn --include=kustomization.yaml -E '^\s*-\s*https?://' \
     fail "remote resources found; add them to vendor.txt instead:"$'\n'"$remote"
 fi
 
-validate() {
-    kustomize build "$1" \
-        | kubeconform -strict -summary -skip Secret -ignore-missing-schemas \
-            -schema-location default -schema-location "$operator_schemas" \
-            -schema-location "$crd_schemas"
+validate_file() {
+    kubeconform -strict -summary -skip Secret -ignore-missing-schemas \
+        -schema-location default -schema-location "$operator_schemas" \
+        -schema-location "$crd_schemas" "$@"
 }
+validate() { kustomize build "$1" | validate_file; }
 
 mapfile -t layers < <(grep -oE '@repo/deploy/[^/"]+' \
     "$repo_root/flux-system/sync/artifact-generator.yaml" | sed 's|^@repo/||' | sort -u)
@@ -62,6 +61,38 @@ for layer in "${layers[@]}"; do
     cp -a "$repo_root/$layer" "$root/$layer"
     find "$root/$layer" -name '*.md' -delete
     validate "$root/$layer" || fail "$layer does not validate on its own"
+done
+
+# helm-controller renders each HelmRelease in the cluster, so the builds above
+# only see the HelmRelease object. Render its chart here with the same version
+# and values. --kube-version (k3s's) matters to charts that check
+# .Capabilities.KubeVersion.
+kube_version=$(yq '.k3s_version' "$repo_root/ansible/k3s/vars/versions.yml")
+kube_version=${kube_version%%+*}
+[[ $kube_version == v* ]] || fail "no k3s_version in ansible/k3s/vars/versions.yml"
+
+mapfile -t releases < <(cd "$repo_root" && git ls-files deploy | grep -E '\.ya?ml$' \
+    | xargs grep -l '^kind: HelmRelease')
+(( ${#releases[@]} > 0 )) || fail "no HelmReleases found under deploy/"
+for file in "${releases[@]}"; do
+    echo "== $file"
+    dir=$(dirname "$repo_root/$file")
+    release=$(yq 'select(.kind == "HelmRelease")' "$repo_root/$file")
+    name=$(yq '.spec.releaseName // .metadata.name' <<<"$release")
+    namespace=$(yq '.metadata.namespace' <<<"$release")
+    chart=$(yq '.spec.chart.spec.chart' <<<"$release")
+    version=$(yq '.spec.chart.spec.version' <<<"$release")
+    repo=$(yq '.spec.chart.spec.sourceRef.name' <<<"$release")
+    url=$(yq ea "select(.kind == \"HelmRepository\" and .metadata.name == \"$repo\") | .spec.url" \
+        "$dir"/*.yaml)
+    [[ -n $url ]] || fail "$file: no HelmRepository '$repo' next to it"
+    values="$charts_root/${name}-values.yaml"
+    yq '.spec.values // {}' <<<"$release" > "$values"
+    helm template "$name" "$chart" --repo "$url" --version "$version" \
+            --namespace "$namespace" --kube-version "$kube_version" \
+            --include-crds --values "$values" > "$charts_root/$name.yaml" \
+        || fail "$file: chart $chart $version does not render"
+    validate_file "$charts_root/$name.yaml" || fail "$file: rendered chart does not validate"
 done
 
 # self.yaml reads the whole OCIRepository, so flux-system builds in place.
