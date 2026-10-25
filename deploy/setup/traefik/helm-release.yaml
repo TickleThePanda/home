@@ -38,13 +38,11 @@ spec:
     image:
       registry: docker.io
       repository: traefik
-      tag: v3.7.8 # {"$imagepolicy": "flux-system:traefik:tag"}
-
+      tag: v3.7.16 # {"$imagepolicy": "flux-system:traefik:tag"}
     deployment:
       podAnnotations:
         prometheus.io/port: "8082"
         prometheus.io/scrape: "true"
-
     priorityClassName: "system-cluster-critical"
     tolerations:
       - key: "CriticalAddonsOnly"
@@ -55,7 +53,6 @@ spec:
       - key: "node-role.kubernetes.io/master"
         operator: "Exists"
         effect: "NoSchedule"
-
     service:
       enabled: false
       # The chart renders only `.spec` into a Service spec, so a top-level
@@ -70,14 +67,12 @@ spec:
             type: LoadBalancer
           annotations:
             metallb.io/address-pool: external
-
         internal:
           enabled: true
           spec:
             type: LoadBalancer
           annotations:
             metallb.io/address-pool: internal
-
     ingressRoute:
       dashboard:
         enabled: true
@@ -87,17 +82,14 @@ spec:
         middlewares:
           - name: tinyauth
             namespace: tinyauth
-
     accessLog:
       enabled: true
-
     providers:
       kubernetesCRD:
         allowCrossNamespace: true
       kubernetesIngress:
         publishedService:
           enabled: true
-
     ports:
       # Per-entrypoint HTTP settings (`redirections`, `tls`, `middlewares`)
       # live under `http`.
@@ -123,7 +115,6 @@ spec:
         http:
           tls:
             enabled: true
-
       ext-web:
         exposedPort: 80
         port: 8080
@@ -131,7 +122,6 @@ spec:
           default: false
           external: true
         protocol: TCP
-
       int-mqtt:
         exposedPort: 1883
         port: 1883
@@ -139,7 +129,6 @@ spec:
           default: false
           internal: true
         protocol: TCP
-
       traefik:
         port: 9000
         exposedPort: 9000
