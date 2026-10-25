@@ -17,7 +17,7 @@ spec:
   distribution:
     # Exact, not a range: the operator would otherwise upgrade Flux to the
     # newest patch it bundles.
-    version: "2.9.4"
+    version: "2.9.6"
     registry: ghcr.io/fluxcd
   components:
     - source-controller

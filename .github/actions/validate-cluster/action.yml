@@ -11,7 +11,7 @@ runs:
     - name: Install kubeconform
       shell: bash
       env:
-        KUBECONFORM_VERSION: v0.7.0
+        KUBECONFORM_VERSION: v0.8.0
       run: |
         set -euo pipefail
         curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \

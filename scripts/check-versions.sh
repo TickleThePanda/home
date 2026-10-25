@@ -63,6 +63,14 @@ done
 version=$(yq '.spec.distribution.version' flux-system/instance/flux-instance.yaml)
 [[ $version =~ $exact ]] || fail "FluxInstance version '$version' is not an exact version"
 
+# The flux CLI that CI pushes artifacts with is the cluster's Flux release:
+# the action ref and the version it installs.
+flux_step='.jobs[].steps[] | select((.uses // "") | test("^fluxcd/flux2/action@"))'
+flux_ref=$(yq "$flux_step | .uses | sub(\"^fluxcd/flux2/action@v\"; \"\")" .github/workflows/deploy-cluster.yaml)
+flux_cli=$(yq "$flux_step | .with.version" .github/workflows/deploy-cluster.yaml)
+[[ $flux_ref == "$version" && $flux_cli == "$version" ]] \
+    || fail "flux action ref ($flux_ref) and CLI version ($flux_cli) differ from the FluxInstance ($version)"
+
 # Traefik's chart pins its own image, so the chart version is the only thing
 # to upgrade. An image override would stop chart upgrades from moving it.
 [[ $(yq '.spec.values.image // ""' deploy/setup/traefik/helm-release.yaml) == "" ]] \
