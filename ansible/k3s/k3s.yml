@@ -75,6 +75,60 @@
                 - image-gc-high-threshold=70
                 - image-gc-low-threshold=60
 
+    # Graceful node shutdown: on a host shutdown (proxmox-01 stopping its VMs,
+    # or a reboot kured didn't drain first) the kubelet holds a systemd
+    # inhibitor lock and terminates pods first, critical pods last. These are
+    # KubeletConfiguration fields, not kubelet flags, so they go in the
+    # kubelet's --config-dir, which k3s points at kubelet.conf.d (it owns
+    # 00-k3s-defaults.conf there). Applied by the restart the roles below do
+    # every run.
+    #
+    # logind caps the lock at InhibitDelayMaxSec. unattended-upgrades sets 30s
+    # in /usr/lib/systemd/logind.conf.d/unattended-upgrades-logind-maxdelay.conf,
+    # which sorts after the kubelet's own 99-kubelet.conf and wins, so the
+    # kubelet gives up. The zz- name sorts after both.
+    - name: Terminate pods gracefully on node shutdown
+      block:
+        - name: Ensure the logind drop-in directory exists
+          ansible.builtin.file:
+            path: /etc/systemd/logind.conf.d
+            state: directory
+            mode: "0755"
+
+        - name: Let shutdown inhibitors delay for 120s
+          ansible.builtin.copy:
+            dest: /etc/systemd/logind.conf.d/zz-kubelet-graceful-shutdown.conf
+            mode: "0644"
+            content: |
+              # Managed by ansible/k3s/k3s.yml. Do not edit on the host.
+              [Login]
+              InhibitDelayMaxSec=120
+          register: k3s_logind_delay
+
+        # A restart, not a reload: logind on the Pi (systemd 252) can't reload.
+        # Sessions survive it; logind restores them from /run.
+        - name: Restart logind to apply it
+          ansible.builtin.systemd_service:
+            name: systemd-logind
+            state: restarted
+          when: k3s_logind_delay is changed
+
+        - name: Ensure the kubelet config drop-in directory exists
+          ansible.builtin.file:
+            path: /var/lib/rancher/k3s/agent/etc/kubelet.conf.d
+            state: directory
+            mode: "0700"
+
+        - name: Write the kubelet shutdown grace periods
+          ansible.builtin.copy:
+            dest: /var/lib/rancher/k3s/agent/etc/kubelet.conf.d/90-graceful-shutdown.conf
+            mode: "0644"
+            content: |
+              apiVersion: kubelet.config.k8s.io/v1beta1
+              kind: KubeletConfiguration
+              shutdownGracePeriod: 90s
+              shutdownGracePeriodCriticalPods: 30s
+
     # Authenticate docker.io pulls so the cluster draws on an account's
     # Docker Hub rate limit instead of the shared anonymous per-IP one.
     # Skipped when the credentials are absent (a hand run without them
