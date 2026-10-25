@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.15.1-slim
 RUN pip install --no-cache-dir tzdata
 RUN useradd -u 1000 -m appuser
 COPY server.py /server.py
