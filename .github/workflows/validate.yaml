@@ -2,8 +2,9 @@ name: Validate
 
 # Cluster-independent checks on every push to a branch other than main.
 # Renovate merges its branches into main only once this passes
-# (renovate.json); a failure leaves it as a PR instead. Pushes to main get the manifest checks from
-# deploy-cluster.yaml, which runs them before it promotes.
+# (renovate.json); a failure leaves it as a PR instead. Pushes to main get
+# the manifest checks from deploy-cluster.yaml, which runs them before it
+# promotes.
 #
 # Needs no cluster, WARP or environment secrets, so it also runs while the
 # cluster is down.
