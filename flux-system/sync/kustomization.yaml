@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ./self.yaml
   - ./oci-repository.yaml
+  - ./artifact-generator.yaml
   - ./notifications.yaml
   - ./images.yaml
   - ./image-automation.yaml

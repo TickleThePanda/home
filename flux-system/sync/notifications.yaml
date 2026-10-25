@@ -70,6 +70,8 @@ spec:
       name: "*"
     - kind: OCIRepository
       name: "*"
+    - kind: ArtifactGenerator
+      name: "*"
     - kind: GitRepository
       name: "*"
     - kind: ImageRepository

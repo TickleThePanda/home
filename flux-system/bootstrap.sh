@@ -72,6 +72,8 @@ kubectl -n flux-system wait --for=condition=Ready --timeout=5m fluxinstance/flux
 kubectl wait --for=condition=Established --timeout=60s \
   crd/gitrepositories.source.toolkit.fluxcd.io \
   crd/ocirepositories.source.toolkit.fluxcd.io \
+  crd/artifactgenerators.source.extensions.fluxcd.io \
+  crd/externalartifacts.source.toolkit.fluxcd.io \
   crd/kustomizations.kustomize.toolkit.fluxcd.io \
   crd/imagerepositories.image.toolkit.fluxcd.io \
   crd/imagepolicies.image.toolkit.fluxcd.io \
