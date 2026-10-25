@@ -65,9 +65,9 @@ from_lines=$(git ls-files apps | grep -E '/Dockerfile[^/]*$' | xargs grep -HE '^
 failed=0
 missing() { echo "FAIL: Renovate does not detect $*" >&2; failed=1; }
 
-# Floating tags (our own :latest images, lldap, ubuntu-latest runners) can't
-# be bumped, and unpinned deps (apt packages, provider blocks) have nothing to
-# bump. Anything else skipped means a tag or version Renovate can't parse.
+# Floating tags (our own :latest images, lldap) can't be bumped, and unpinned
+# deps (apt packages, provider blocks) have nothing to bump. Anything else
+# skipped means a tag or version Renovate can't parse.
 while read -r manager file dep value reason; do
     [[ $reason == - || $reason == unspecified-version || $value == latest* ]] && continue
     echo "FAIL: Renovate skips $dep $value in $file ($reason)" >&2

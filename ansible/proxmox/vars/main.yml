@@ -40,10 +40,13 @@ proxmox_api_token_secret: "{{ lookup('ansible.builtin.env', 'PROXMOX_API_TOKEN_S
 # The k3s VMs' cloud-init `deploy` key(s) come from ssh_authorized_keys
 # (group_vars/all.yml) -- see tasks/vm-provision.yml.
 
-# Debian 13 "genericcloud" image built into template VMID 9000.
+# Debian 13 "genericcloud" image built into template VMID 9000. The build is
+# one of Debian's dated directories under cloud.debian.org/images/cloud/trixie/,
+# so a rebuild is reproducible. Renovate bumps it monthly.
 proxmox_template_vmid: 9000
 proxmox_template_name: debian-13-cloud
-proxmox_template_image_url: https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
+proxmox_template_image_build: "20261021-2638"
+proxmox_template_image_base: "https://cloud.debian.org/images/cloud/trixie/{{ proxmox_template_image_build }}"
 proxmox_template_image_path: /var/lib/vz/template/iso/debian-13-genericcloud-amd64.qcow2
 
 # cloud-init resolver for the k3s VMs. Quad9, not the in-cluster Pi-hole

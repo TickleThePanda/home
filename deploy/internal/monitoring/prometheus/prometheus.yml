@@ -19,10 +19,11 @@ scrape_configs:
   # (Pi + proxmox-01 only) temperature -- node_exporter, with real
   # device/mountpoint/interface labels (replaced Glances, whose
   # metric-name-encodes-identity scheme couldn't support rate()/topk()/sum-by
-  # and used different metric names per Glances major version). The Pi's
-  # instance also carries the `data` volume-group's free space, via its
-  # textfile collector fed by lvm-prom-collector -- Glances had no
-  # VG/PV-level plugin, only per-mount usage.
+  # and used different metric names per Glances major version). Every
+  # instance carries apt's pending upgrades and node_reboot_required from the
+  # textfile collector. The Pi's also carries the `data` volume-group's free
+  # space, fed by lvm-prom-collector -- Glances had no VG/PV-level plugin,
+  # only per-mount usage.
   #
   # Targets stay IP:port -- these hostnames don't resolve from inside the
   # cluster (confirmed live: NXDOMAIN even for k8s-storage-anchor-01.home.arpa).

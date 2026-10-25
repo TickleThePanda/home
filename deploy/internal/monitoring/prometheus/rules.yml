@@ -69,6 +69,32 @@ groups:
             The Pi's `data` volume group has had under 10 GiB free for 5
             minutes. New PersistentVolumeClaims will start failing soon.
 
+  - name: os-updates
+    rules:
+      # From the apt textfile collector on every Debian host (the
+      # node_exporter Ansible role). A week's grace covers the normal gap
+      # between a package landing and the next upgrade or reboot window.
+      - alert: HostUpgradesPending
+        expr: sum by (hostname) (apt_upgrades_pending) > 0
+        for: 7d
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.hostname }}: {{ $value }} apt upgrades pending for a week"
+          description: >-
+            {{ $labels.hostname }} has had apt upgrades waiting for 7 days.
+
+      - alert: HostRebootRequired
+        expr: node_reboot_required > 0
+        for: 7d
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.hostname }} has needed a reboot for a week"
+          description: >-
+            {{ $labels.hostname }} installed updates (usually a kernel) that
+            only take effect after a reboot, 7 or more days ago.
+
   - name: kubernetes
     rules:
       - alert: KubePodCrashLooping

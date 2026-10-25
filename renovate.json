@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Updates container images, Helm charts, vendor.txt, GitHub Actions, Ansible collections and ansible-core, k3s, Flux, Terraform and its providers, and app Dockerfiles. Non-major updates merge into main once .github/workflows/validate.yaml passes; majors wait for approval on the Dependency Dashboard.",
+  "description": "Updates container images, Helm charts, vendor.txt, GitHub Actions and runners, Ansible collections and ansible-core, k3s, Flux, Terraform and its providers, app Dockerfiles, the Proxmox VM template image and the router's OpenWrt release. Non-major updates merge into main once .github/workflows/validate.yaml passes; majors wait for approval on the Dependency Dashboard.",
   "extends": [
     "config:recommended",
     ":semanticCommitsDisabled"
@@ -120,6 +120,33 @@
         "pip install [^\\n]*?(?<depName>[A-Za-z0-9_.-]+)==(?<currentValue>[^\\s]+)"
       ],
       "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "The Debian cloud image build behind the Proxmox VM template",
+      "managerFilePatterns": [
+        "/^ansible/proxmox/vars/main\\.yml$/"
+      ],
+      "matchStrings": [
+        "proxmox_template_image_build: \"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "debian-cloud-trixie",
+      "datasourceTemplate": "custom.debian-cloud-trixie",
+      "extractVersionTemplate": "^(?<version>\\d{8}-\\d+)/?$",
+      "versioningTemplate": "regex:^(?<major>\\d{4})(?<minor>\\d{2})(?<patch>\\d{2})-(?<build>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "The OpenWrt release bootstrap/router/build.sh builds",
+      "managerFilePatterns": [
+        "/^bootstrap/router/build\\.sh$/"
+      ],
+      "matchStrings": [
+        "VERSION=\"\\$\\{VERSION:-(?<currentValue>[^}]+)\\}\""
+      ],
+      "depNameTemplate": "openwrt/openwrt",
+      "datasourceTemplate": "github-tags",
+      "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+)$"
     }
   ],
   "packageRules": [
@@ -220,6 +247,29 @@
       ],
       "dependencyDashboardApproval": true,
       "automerge": false
+    },
+    {
+      "description": "Debian publishes cloud image builds every few days. The pin matters only when the template is rebuilt, so take at most one a month. The year rollover counts as a major.",
+      "matchPackageNames": [
+        "debian-cloud-trixie"
+      ],
+      "schedule": [
+        "* * 1 * *"
+      ]
+    },
+    {
+      "description": "Nothing applies these on merge: the router image is flashed by hand (bootstrap/router/README.md) and bootstrap/terraform is applied by hand. Leave the PR open as the reminder; merge it once the change is live.",
+      "matchFileNames": [
+        "bootstrap/**"
+      ],
+      "automerge": false
     }
-  ]
+  ],
+  "customDatasources": {
+    "debian-cloud-trixie": {
+      "description": "Debian's dated trixie cloud image builds (YYYYMMDD-N directories)",
+      "defaultRegistryUrlTemplate": "https://cloud.debian.org/images/cloud/trixie/",
+      "format": "html"
+    }
+  }
 }

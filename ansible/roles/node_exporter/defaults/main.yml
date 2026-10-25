@@ -10,6 +10,7 @@ node_exporter_port: 9100
 # there, nowhere else. Everything LVM-specific below is gated on this.
 node_exporter_lvm_collector: false
 
-# Where the textfile collector reads from, and where the LVM timer writes
-# to. Only created/used when node_exporter_lvm_collector is true.
-node_exporter_textfile_dir: /var/lib/prometheus-node-exporter/textfile_collector
+# Where the textfile collector reads from: Debian's default, where the
+# prometheus-node-exporter-collectors timers write. The LVM timer writes here
+# too.
+node_exporter_textfile_dir: /var/lib/prometheus/node-exporter

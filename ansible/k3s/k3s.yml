@@ -38,15 +38,16 @@
       when: inventory_hostname != 'k8s-storage-anchor-01'
 
     # The k3s_server / k3s_agent roles run /usr/local/bin/k3s-install.sh
-    # unconditionally, but only fetch it when a version change is needed. On a
-    # node already at the target version (the Pi) the script is otherwise
-    # absent. force: false keeps this a one-time fetch.
-    - name: Ensure the k3s install script is present
+    # unconditionally, and fetch get.k3s.io (upstream's latest) only when the
+    # file is absent. Fetching the script from the k3s_version tag here keeps
+    # every node's installer at the release it installs. force: true replaces
+    # it when k3s_version changes; get_url reports a change only then.
+    - name: Install the k3s install script for k3s_version
       ansible.builtin.get_url:
-        url: https://get.k3s.io
+        url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version }}/install.sh"
         dest: /usr/local/bin/k3s-install.sh
         mode: "0755"
-        force: false
+        force: true
 
     # The kubelet's image GC defaults (start at 85% disk, free down to 80%)
     # sit above HostDiskSpaceLow's 80% alert, so stale images left by

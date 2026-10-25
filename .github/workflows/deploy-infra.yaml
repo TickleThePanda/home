@@ -18,7 +18,7 @@ on:
 
 jobs:
   infra:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: prod
     # Secrets are set for the whole job rather than per layer. Every layer runs
     # in this one job against the `prod` environment, so each could reference

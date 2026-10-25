@@ -3,19 +3,8 @@
 #
 # SSH + qm, not the API: Proxmox has no API call to import a downloaded qcow2
 # as a VM disk. Idempotent -- the whole build is skipped once the template
-# exists. Rebuilding it means deleting VMID 9000 by hand first.
-
-- name: Ensure the image directory exists
-  ansible.builtin.file:
-    path: "{{ proxmox_template_image_path | dirname }}"
-    state: directory
-    mode: "0755"
-
-- name: Download the Debian 13 genericcloud image
-  ansible.builtin.get_url:
-    url: "{{ proxmox_template_image_url }}"
-    dest: "{{ proxmox_template_image_path }}"
-    mode: "0644"
+# exists, so the image downloads only for a build. Rebuilding it means
+# deleting VMID 9000 by hand first; it then uses proxmox_template_image_build.
 
 - name: Install the qemu-guest-agent cloud-init snippet
   ansible.builtin.template:
@@ -33,6 +22,19 @@
 - name: Build the template
   when: proxmox_template_status.rc != 0
   block:
+    - name: Ensure the image directory exists
+      ansible.builtin.file:
+        path: "{{ proxmox_template_image_path | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download the Debian 13 genericcloud image
+      ansible.builtin.get_url:
+        url: "{{ proxmox_template_image_base }}/debian-13-genericcloud-amd64-{{ proxmox_template_image_build }}.qcow2"
+        checksum: "sha512:{{ proxmox_template_image_base }}/SHA512SUMS"
+        dest: "{{ proxmox_template_image_path }}"
+        mode: "0644"
+
     - name: Create the template VM
       ansible.builtin.command:
         argv:
