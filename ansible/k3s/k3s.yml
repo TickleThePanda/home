@@ -48,6 +48,29 @@
         mode: "0755"
         force: false
 
+    # The kubelet's image GC defaults (start at 85% disk, free down to 80%)
+    # sit above HostDiskSpaceLow's 80% alert, so stale images left by
+    # Renovate bumps fire the alert before GC ever runs on the 24G VM disks.
+    # A drop-in rather than server_config_yaml / agent_config_yaml so one
+    # setting covers every node; `kubelet-arg+` appends to, not replaces, any
+    # kubelet-arg set in config.yaml. Applied by the restart the roles below
+    # do every run.
+    - name: Start kubelet image GC below the disk alert
+      block:
+        - name: Ensure the k3s config drop-in directory exists
+          ansible.builtin.file:
+            path: /etc/rancher/k3s/config.yaml.d
+            state: directory
+            mode: "0755"
+        - name: Write the image GC thresholds
+          ansible.builtin.copy:
+            dest: /etc/rancher/k3s/config.yaml.d/image-gc.yaml
+            mode: "0644"
+            content: |
+              kubelet-arg+:
+                - image-gc-high-threshold=70
+                - image-gc-low-threshold=60
+
     # Authenticate docker.io pulls so the cluster draws on an account's
     # Docker Hub rate limit instead of the shared anonymous per-IP one.
     # Skipped when the credentials are absent (a hand run without them

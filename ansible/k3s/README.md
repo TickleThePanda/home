@@ -25,6 +25,7 @@ as `deploy` through the same cloudflared tunnel as `node` / `router` /
 | VM node resolver (Quad9) | `tasks/node-dns.yml` |
 | Pi lvm-vg label + storage-anchor taint at join | `host_vars/k8s-storage-anchor-01.yml` |
 | lvm-vg label, server taint, Pi taint (via API) | `tasks/node-labels.yml` |
+| kubelet image GC thresholds (all nodes) | `k3s.yml` -> `/etc/rancher/k3s/config.yaml.d/image-gc.yaml` |
 | docker.io pull auth (all nodes) | `k3s.yml` -> `/etc/rancher/k3s/registries.yaml` |
 
 Not managed: the VMs themselves (that is `ansible/proxmox/`), the etcd datastore
