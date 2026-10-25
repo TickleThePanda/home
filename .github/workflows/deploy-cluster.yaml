@@ -99,51 +99,26 @@ jobs:
             --tag deploy
 
       # Trigger reconciliation immediately rather than waiting for the
-      # OCIRepository's own polling interval. Only the source needs an
-      # explicit trigger: kustomize-controller watches its sourceRef and
-      # auto-reconciles on every artifact revision change, so
-      # setup/home/internal pick this up on their own. The wait step below
-      # does the actual waiting, with its own independent budget.
+      # OCIRepository's own polling interval. Only the source needs it:
+      # flux-system/sync/artifact-generator.yaml regenerates the per-layer
+      # artifacts from it, and each Kustomization reconciles only when its
+      # own artifact's revision changes.
       - name: Trigger Flux reconciliation
         run: flux reconcile source oci deploy -n flux-system
 
-      # lastAppliedRevision mirrors the OCIRepository's own
-      # artifact.revision (deploy@sha256:<digest>) -- not the --revision
-      # string passed to `flux push artifact` above, which is metadata
-      # inside the artifact, not what source-controller reports. Read it
-      # straight from the source rather than constructing a sha1-based
-      # string that could never match.
+      # The OCIRepository's own revision (deploy@sha256:<digest>), not the
+      # --revision string passed to `flux push artifact`.
       - name: Read the promoted revision
         id: revision
         run: |
           revision=$(kubectl -n flux-system get ocirepository deploy -o jsonpath='{.status.artifact.revision}')
-          echo "PROMOTED_REVISION=${revision}" >> "$GITHUB_ENV"
           echo "promoted=${revision}" >> "$GITHUB_OUTPUT"
 
-      # Fails the job when any Kustomization doesn't reconcile. This is the
-      # job's last step, and the `promoted` output lets deploy.yaml still run
-      # terraform: the artifact is already promoted, and Flux keeps retrying
-      # on its own 10m interval regardless. The loop
-      # does not abort on the first bad Kustomization, so every one is
-      # reported as an error annotation and in the run summary.
-      - name: Confirm the promoted revision reconciles
-        timeout-minutes: 10
-        run: |
-          set -uo pipefail
-          expected="${PROMOTED_REVISION}"
-          rc=0
-          flux reconcile source oci deploy -n flux-system --timeout=2m || rc=1
-          for ks in flux-system setup setup-config home internal; do
-            if ! flux reconcile kustomization "$ks" -n flux-system --timeout=3m; then
-              msg=$(kubectl -n flux-system get kustomization "$ks" \
-                -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || true)
-              echo "::error title=Flux kustomization/$ks failed::${msg:-did not reconcile cleanly}"
-              echo "- :x: \`$ks\`: ${msg:-did not reconcile cleanly}" >> "$GITHUB_STEP_SUMMARY"
-              rc=1
-            fi
-            applied=$(kubectl -n flux-system get kustomization "$ks" \
-              -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)
-            [[ "$applied" == *"$expected"* ]] \
-              || echo "::error title=Flux kustomization/$ks behind::applied ${applied:-<none>}, expected $expected"
-          done
-          exit $rc
+      # Fails the job when any Kustomization isn't Ready on this commit, with
+      # an error annotation per failure and a table in the run summary. It
+      # waits rather than forcing reconciles, so unchanged layers stay
+      # untouched. This is the last step: the `promoted` output lets
+      # deploy.yaml still run terraform, since Flux keeps retrying on its own.
+      - name: Confirm the promoted commit reconciles
+        timeout-minutes: 12
+        run: ./scripts/wait-flux-deploy.sh "${GITHUB_SHA}"

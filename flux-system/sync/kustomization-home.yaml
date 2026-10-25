@@ -8,10 +8,9 @@ spec:
   dependsOn:
     - name: setup-config # home--cert.yaml needs the ClusterIssuer; root/ingress.yaml needs MetalLB's IPAddressPool
   sourceRef:
-    kind: OCIRepository
-    name: deploy
-  # Relative to the pushed OCIRepository artifact's own root -- see
-  # kustomization-setup.yaml's comment.
+    kind: ExternalArtifact
+    name: deploy-home
+  # The ExternalArtifact keeps the repo-relative path (artifact-generator.yaml).
   path: ./deploy/home
   prune: true
   wait: true

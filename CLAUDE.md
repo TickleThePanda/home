@@ -86,6 +86,12 @@ Documentation and comments: simple, concise, practical.
   Flux reconciles only that tag, never `main`, through Kustomizations
   `setup` → `setup-config` → `home` / `internal` (plus `flux-system`), with
   `prune` and `wait`, every 10m.
+- The ArtifactGenerator in `flux-system/sync/artifact-generator.yaml` splits
+  the artifact per `deploy/` layer, so a push reconciles only the layers it
+  changed. `dependsOn` then only checks that a dependency is Ready, not that it
+  applied the same commit. Ship a cross-layer change that needs strict order
+  (a CRD and its first CR) in two pushes. `scripts/wait-flux-deploy.sh`
+  is CI's pass/fail gate.
 - Flux manages `flux-system/` itself; CI never applies it. Flux Operator
   installs the controllers from the FluxInstance in
   `flux-system/instance/`. Never delete it: that uninstalls Flux.

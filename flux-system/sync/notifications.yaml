@@ -6,11 +6,15 @@
 # up -- as a red check on that commit on GitHub -- without the pipeline
 # having to block and wait.
 #
-# The source is the `deploy` OCIRepository, not a GitRepository, so the
-# commit SHA isn't in the reconcile revision (that's `deploy@sha256:...`).
-# notification-controller recovers it from the artifact's
-# `org.opencontainers.image.revision` annotation, which CI sets via
-# `flux push artifact --revision=main@sha1:<sha>`.
+# The sources are OCI and External artifacts, not a GitRepository, so the
+# commit SHA isn't in the reconcile revision. CI sets it with
+# `flux push artifact --revision=main@sha1:<sha>`. It travels as the
+# `org.opencontainers.image.revision` annotation, which artifact-generator.yaml
+# copies onto each ExternalArtifact. kustomize-controller sends it as
+# `originRevision` event metadata, which notification-controller posts against.
+#
+# A Kustomization only reconciles when its own artifact changes, so a commit
+# shows statuses for the layers it changed (and flux-system), not all of them.
 #
 # Needs an out-of-band Secret `github-commit-status` with key `token`: a
 # GitHub PAT scoped to commit-status write on this repo (fine-grained:

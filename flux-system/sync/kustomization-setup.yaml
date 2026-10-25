@@ -6,11 +6,9 @@ metadata:
 spec:
   interval: 10m
   sourceRef:
-    kind: OCIRepository
-    name: deploy
-  # Relative to the pushed OCIRepository artifact's own root, which is the
-  # git repo root -- CI's `flux push artifact --path=.` pushes the whole
-  # repo as one artifact, shared with flux-system/sync/self.yaml.
+    kind: ExternalArtifact
+    name: deploy-setup
+  # The ExternalArtifact keeps the repo-relative path (artifact-generator.yaml).
   path: ./deploy/setup
   prune: true
   wait: true

@@ -8,10 +8,9 @@ spec:
   dependsOn:
     - name: setup # the CRs here need setup's controllers/webhooks already running to pass admission
   sourceRef:
-    kind: OCIRepository
-    name: deploy
-  # Relative to the pushed OCIRepository artifact's own root -- see
-  # kustomization-setup.yaml's comment.
+    kind: ExternalArtifact
+    name: deploy-setup-config
+  # The ExternalArtifact keeps the repo-relative path (artifact-generator.yaml).
   path: ./deploy/setup-config
   prune: true
   wait: true

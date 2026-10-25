@@ -53,6 +53,7 @@ on:
       - scripts/check-gather-subset.py
       - scripts/vendor.sh
       - scripts/validate-manifests.sh
+      - scripts/wait-flux-deploy.sh
       - vendor.txt
       - .github/workflows/deploy*.yaml
       - .github/actions/ansible-*/**
@@ -102,6 +103,7 @@ jobs:
               - 'vendor.txt'
               - 'scripts/vendor.sh'
               - 'scripts/validate-manifests.sh'
+              - 'scripts/wait-flux-deploy.sh'
               - '.github/workflows/deploy-cluster.yaml'
               - '!**/*.md'
             terraform:
