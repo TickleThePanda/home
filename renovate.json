@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Updates image tags, Helm chart versions and vendor.txt. Non-major updates merge into main once .github/workflows/validate.yaml passes; majors wait for approval on the Dependency Dashboard.",
+  "description": "Updates container images, Helm charts, vendor.txt, GitHub Actions, Ansible collections and ansible-core, k3s, Flux, Terraform and its providers, and app Dockerfiles. Non-major updates merge into main once .github/workflows/validate.yaml passes; majors wait for approval on the Dependency Dashboard.",
   "extends": [
     "config:recommended",
     ":semanticCommitsDisabled"
@@ -9,6 +9,13 @@
     "kubernetes",
     "flux",
     "kustomize",
+    "github-actions",
+    "ansible-galaxy",
+    "pip_requirements",
+    "terraform",
+    "dockerfile",
+    "gomod",
+    "docker-compose",
     "custom.regex"
   ],
   "kubernetes": {
@@ -19,6 +26,21 @@
   "flux": {
     "managerFilePatterns": [
       "/^deploy/.+\\.ya?ml$/"
+    ]
+  },
+  "ansible-galaxy": {
+    "managerFilePatterns": [
+      "/^ansible/requirements\\.yml$/"
+    ]
+  },
+  "pip_requirements": {
+    "managerFilePatterns": [
+      "/^\\.github/actions/ansible-setup/requirements\\.txt$/"
+    ]
+  },
+  "dockerfile": {
+    "managerFilePatterns": [
+      "/^apps/.+/Dockerfile[^/]*$/"
     ]
   },
   "automerge": true,
@@ -47,6 +69,57 @@
       ],
       "depNameTemplate": "renovate",
       "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "k3s_version, the cluster's k3s release",
+      "managerFilePatterns": [
+        "/^ansible/k3s/vars/versions\\.yml$/"
+      ],
+      "matchStrings": [
+        "k3s_version: \"(?<currentValue>v[^\"]+)\""
+      ],
+      "depNameTemplate": "k3s-io/k3s",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "The Flux release: the FluxInstance's distribution.version and the flux CLI that CI installs",
+      "managerFilePatterns": [
+        "/^flux-system/instance/flux-instance\\.yaml$/",
+        "/^\\.github/workflows/deploy-cluster\\.yaml$/"
+      ],
+      "matchStrings": [
+        "distribution:\\n(?:\\s*#.*\\n)*\\s*version: \"(?<currentValue>[^\"]+)\"",
+        "fluxcd/flux2/action@\\S+\\n\\s+with:\\n\\s+version: (?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "fluxcd/flux2",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "kubeconform, installed by the validate-cluster action",
+      "managerFilePatterns": [
+        "/^\\.github/actions/validate-cluster/action\\.yml$/"
+      ],
+      "matchStrings": [
+        "KUBECONFORM_VERSION: (?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "yannh/kubeconform",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "pip packages pinned in app Dockerfiles",
+      "managerFilePatterns": [
+        "/^apps/.+/Dockerfile[^/]*$/"
+      ],
+      "matchStrings": [
+        "pip install [^\\n]*?(?<depName>[A-Za-z0-9_.-]+)==(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "pypi"
     }
   ],
   "packageRules": [
@@ -88,6 +161,65 @@
         "rke2-multus"
       ],
       "versioning": "loose"
+    },
+    {
+      "description": "k3s and ansible-core upgrade one minor at a time (ansible/k3s/vars/versions.yml, .github/actions/ansible-setup/requirements.txt). Each minor gets its own branch.",
+      "matchPackageNames": [
+        "k3s-io/k3s",
+        "ansible-core"
+      ],
+      "separateMultipleMinor": true
+    },
+    {
+      "description": "...and each minor waits for approval on the Dependency Dashboard, so they can be taken in order.",
+      "matchPackageNames": [
+        "k3s-io/k3s",
+        "ansible-core"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "description": "The flux CLI in CI and the cluster's Flux move together (scripts/check-versions.sh).",
+      "matchPackageNames": [
+        "fluxcd/flux2",
+        "fluxcd/flux2/action"
+      ],
+      "groupName": "flux"
+    },
+    {
+      "description": "The Go toolchain image and go.mod's go directive move together.",
+      "matchPackageNames": [
+        "golang",
+        "go"
+      ],
+      "groupName": "go"
+    },
+    {
+      "description": "One branch for every non-major GitHub Actions bump.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "A Python minor can outrun what runs on it (ansible-core lists the Pythons it supports). Each waits for approval.",
+      "matchPackageNames": [
+        "python",
+        "actions/python-versions"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false
     }
   ]
 }

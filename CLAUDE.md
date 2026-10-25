@@ -104,10 +104,14 @@ Documentation and comments: simple, concise, practical.
 - For an out-of-band fix to one component, use
   `./apply-subset.sh <deploy-subdir> [kubectl apply args...]`, never
   `kubectl apply -f` or `kubectl apply -k deploy/<subdir>`.
-- Renovate (Mend app, `renovate.json`) bumps third-party image tags, Helm
-  chart versions and `vendor.txt`. It merges non-major updates into `main`
-  once `.github/workflows/validate.yaml` passes on its branch. Majors wait for
-  approval on the Dependency Dashboard issue.
+- Renovate (Mend app, `renovate.json`) bumps every pinned third-party
+  version: images, Helm charts and `vendor.txt`, GitHub Actions, Ansible
+  collections and `ansible-core`, k3s, Flux, Terraform and its providers, and
+  `apps/` Dockerfiles. It merges non-major updates into `main` once
+  `.github/workflows/validate.yaml` passes on its branch. Majors, and each
+  minor of k3s, `ansible-core` and Python, wait for approval on the Dependency
+  Dashboard issue. `scripts/check-renovate.sh` fails CI on a pin Renovate
+  can't parse.
 
 ## Administration
 

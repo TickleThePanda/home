@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Check renovate.json is valid and that Renovate still finds every dependency
-# it should update. A manifest Renovate can't parse is otherwise silently
-# never updated.
+# it should update: images, charts and kustomize pins in deploy/, vendor.txt,
+# GitHub Actions, Ansible collections, app Dockerfiles and single version
+# pins. A file Renovate can't parse is otherwise silently never updated.
 #
 # Runs Renovate's local platform in extract mode: no registry lookups, no
 # branches. It reads git-tracked files only, so commit (or `git add`) new
@@ -34,10 +35,11 @@ LOG_LEVEL=warn renovate renovate --platform=local --dry-run=extract \
     || fail "renovate extract failed"
 
 # One "<manager> <packageFile> <depName> <currentValue> <skipReason>" line per
-# dependency. API versions are deliberately disabled in renovate.json.
+# dependency, with spaces dropped from ranges (`~> 5.0` -> `~>5.0`). API
+# versions are deliberately disabled in renovate.json.
 deps=$(jq -r '.repositories.local.packageFiles | to_entries[] | .key as $m
     | .value[] | .packageFile as $f | .deps[] | select(.datasource != "kubernetes-api")
-    | [$m, $f, .depName, .currentValue, (.skipReason // "-")] | join(" ")' "$report")
+    | [$m, $f, .depName, (.currentValue // "-" | gsub(" "; "")), (.skipReason // "-")] | join(" ")' "$report")
 [[ -n $deps ]] || fail "Renovate found no dependencies"
 
 # What Renovate should find, listed before any loop: a failure inside a
@@ -47,16 +49,27 @@ image_lines=$(xargs grep -HE '^\s*(-\s+)?image:' <<<"$manifests" \
     | sed -nE 's/^([^:]+):\s*(-\s+)?image:\s*([^ #]+).*/\1 \3/p')
 helm_releases=$(xargs grep -l '^kind: HelmRelease' <<<"$manifests")
 kustomizations=$(git ls-files | grep -E '(^|/)kustomization\.yaml$')
-[[ -n $image_lines && -n $helm_releases && -n $kustomizations ]] \
-    || fail "found no image lines, HelmReleases or kustomizations in git ls-files"
+# "<file> <owner>/<repo> <ref>" for every remote action, minus any subpath.
+action_lines=$(git ls-files .github | grep -E '\.ya?ml$' | xargs grep -HE '^\s*(-\s+)?uses:\s*[^.]' \
+    | sed -nE 's#^([^:]+):\s*(-\s+)?uses:\s*([^/@ ]+/[^/@ ]+)[^@ ]*@([^ #]+).*#\1 \3 \4#p')
+# "<name> <version>"; Renovate names a git collection by its host and path.
+collections=$(yq '.collections[] | .name + " " + .version' ansible/requirements.yml \
+    | sed -E 's#^https://([^ ]+)\.git #\1 #')
+# "<file> <image> <tag>" for every FROM in apps/.
+from_lines=$(git ls-files apps | grep -E '/Dockerfile[^/]*$' | xargs grep -HE '^FROM ' \
+    | sed -nE 's#^([^:]+):FROM\s+([^: ]+):([^ ]+).*#\1 \2 \3#p')
+[[ -n $image_lines && -n $helm_releases && -n $kustomizations && -n $action_lines \
+    && -n $collections && -n $from_lines ]] \
+    || fail "found no image lines, HelmReleases, kustomizations, actions, collections or FROM lines"
 
 failed=0
 missing() { echo "FAIL: Renovate does not detect $*" >&2; failed=1; }
 
-# Floating tags (our own :latest images, lldap) can't be bumped; anything
-# else skipped means a tag or version Renovate can't parse.
+# Floating tags (our own :latest images, lldap, ubuntu-latest runners) can't
+# be bumped, and unpinned deps (apt packages, provider blocks) have nothing to
+# bump. Anything else skipped means a tag or version Renovate can't parse.
 while read -r manager file dep value reason; do
-    [[ $reason == - || $value == latest* ]] && continue
+    [[ $reason == - || $reason == unspecified-version || $value == latest* ]] && continue
     echo "FAIL: Renovate skips $dep $value in $file ($reason)" >&2
     failed=1
 done <<<"$deps"
@@ -90,9 +103,38 @@ expected=$(grep -cvE '^\s*(#|$)' vendor.txt)
 found=$(grep -c '^regex vendor.txt ' <<<"$deps" || true)
 (( found == expected )) || missing "every vendor.txt entry: $found of $expected (each needs a # renovate: comment)"
 
-# The CLI this script runs.
-grep -q '^regex .github/workflows/validate.yaml renovate ' <<<"$deps" \
-    || missing "RENOVATE_VERSION in .github/workflows/validate.yaml"
+# Every remote GitHub Action.
+while read -r file action ref; do
+    grep -qxF "github-actions $file $action $ref -" <<<"$deps" || missing "$action@$ref in $file"
+done <<<"$action_lines"
+
+# Every Ansible collection.
+while read -r name version; do
+    grep -qxF "ansible-galaxy ansible/requirements.yml $name $version -" <<<"$deps" \
+        || missing "collection $name $version"
+done <<<"$collections"
+
+# Every app base image.
+while read -r file image tag; do
+    grep -qxF "dockerfile $file $image $tag -" <<<"$deps" || missing "$image:$tag in $file"
+done <<<"$from_lines"
+
+# Single version pins, as "<manager> <file> <dep>".
+while read -r manager file dep; do
+    grep -qE "^$manager $file $dep [^ ]+ -$" <<<"$deps" || missing "$dep in $file"
+done <<'PINS'
+regex .github/workflows/validate.yaml renovate
+regex ansible/k3s/vars/versions.yml k3s-io/k3s
+regex flux-system/instance/flux-instance.yaml fluxcd/flux2
+regex .github/workflows/deploy-cluster.yaml fluxcd/flux2
+regex .github/actions/validate-cluster/action.yml yannh/kubeconform
+regex apps/sync-runner/Dockerfile.librofm librofm
+pip_requirements .github/actions/ansible-setup/requirements.txt ansible-core
+github-actions .github/workflows/deploy-terraform.yaml terraform
+gomod apps/sync-runner/go.mod go
+terraform terraform/cloudflare-zero-trust/versions.tf cloudflare
+terraform bootstrap/terraform/versions.tf google
+PINS
 
 (( failed == 0 )) && echo "OK: Renovate detects $(wc -l <<<"$deps") dependencies"
 exit "$failed"
