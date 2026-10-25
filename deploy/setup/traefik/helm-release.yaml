@@ -1,10 +1,6 @@
-# Upstream Traefik chart. Upgrade by changing `version`; a new major needs its
-# release notes checked against the values below.
-#
-# The image tag is set separately so Flux image automation can bump patches
-# (flux-system/sync/images.yaml). The chart warns, but doesn't fail, when the
-# tag is newer than its own Traefik version. A new Traefik minor goes with a
-# chart bump.
+# Upstream Traefik chart. It pins the Traefik image itself, so upgrade both
+# by changing `version`. A new major needs its release notes checked against
+# the values below.
 #
 # The chart's crds/ directory installs and upgrades the Traefik, Hub and
 # Gateway API CRDs, so they always match the chart version. Helm never deletes
@@ -37,10 +33,6 @@ spec:
   driftDetection:
     mode: enabled
   values:
-    image:
-      registry: docker.io
-      repository: traefik
-      tag: v3.7.16 # {"$imagepolicy": "flux-system:traefik:tag"}
     deployment:
       podAnnotations:
         prometheus.io/port: "8082"
