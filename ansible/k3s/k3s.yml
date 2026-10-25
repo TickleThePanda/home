@@ -72,6 +72,19 @@
                 - image-gc-high-threshold=70
                 - image-gc-low-threshold=60
 
+    # Graceful node shutdown: on a host shutdown (proxmox-01 stopping its VMs,
+    # or any reboot kured didn't drain first) the kubelet holds a systemd
+    # inhibitor lock and terminates pods before the node goes down, critical
+    # pods last.
+    - name: Terminate pods gracefully on node shutdown
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/config.yaml.d/graceful-shutdown.yaml
+        mode: "0644"
+        content: |
+          kubelet-arg+:
+            - shutdown-grace-period=90s
+            - shutdown-grace-period-critical-pods=30s
+
     # Authenticate docker.io pulls so the cluster draws on an account's
     # Docker Hub rate limit instead of the shared anonymous per-IP one.
     # Skipped when the credentials are absent (a hand run without them

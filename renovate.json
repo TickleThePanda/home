@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Updates container images, Helm charts, vendor.txt, GitHub Actions and runners, Ansible collections and ansible-core, k3s, Flux, Terraform and its providers, app Dockerfiles, the Proxmox VM template image and the router's OpenWrt release. Non-major updates merge into main once .github/workflows/validate.yaml passes; majors wait for approval on the Dependency Dashboard.",
+  "description": "Updates container images, Helm charts, vendor.txt, GitHub Actions and runners, Ansible collections and ansible-core, k3s, Flux, Terraform and its providers, app Dockerfiles, the Proxmox VM template image and the router's OpenWrt release. Non-major updates merge into main once .github/workflows/validate.yaml passes, outside 02:00-06:00 London so deploys miss the kured reboot window; majors wait for approval on the Dependency Dashboard.",
   "extends": [
     "config:recommended",
     ":semanticCommitsDisabled"
@@ -45,6 +45,10 @@
   },
   "automerge": true,
   "automergeType": "branch",
+  "timezone": "Europe/London",
+  "automergeSchedule": [
+    "* 0-1,6-23 * * *"
+  ],
   "customManagers": [
     {
       "customType": "regex",

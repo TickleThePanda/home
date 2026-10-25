@@ -60,7 +60,11 @@ proxmox_vm_nameservers: 9.9.9.9 149.112.112.112
 # k3s-vm-control-01 is the k3s server (control-plane, tainted); the other two
 # are agents.
 proxmox_vm_disk_gb: 24
+# startup: PVE boots guests in ascending `order` and stops them in reverse,
+# so the control plane is up before the workers join and stops after they
+# leave. `down` bounds each graceful shutdown (the kubelet needs 90s,
+# ansible/k3s/k3s.yml) before PVE stops the VM hard.
 k3s_vms:
-  - { name: k3s-vm-control-01, vmid: 132, ip: 192.168.1.32, cores: 2, memory: 3072 }
-  - { name: k3s-vm-worker-01,  vmid: 133, ip: 192.168.1.33, cores: 2, memory: 6144 }
-  - { name: k3s-vm-worker-02,  vmid: 134, ip: 192.168.1.34, cores: 2, memory: 6144 }
+  - { name: k3s-vm-control-01, vmid: 132, ip: 192.168.1.32, cores: 2, memory: 3072, startup: "order=1,up=60,down=150" }
+  - { name: k3s-vm-worker-01,  vmid: 133, ip: 192.168.1.33, cores: 2, memory: 6144, startup: "order=2,down=150" }
+  - { name: k3s-vm-worker-02,  vmid: 134, ip: 192.168.1.34, cores: 2, memory: 6144, startup: "order=2,down=150" }

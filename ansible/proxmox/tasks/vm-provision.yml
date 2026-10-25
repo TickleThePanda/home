@@ -10,7 +10,9 @@
 #
 # Idempotent by construction: clone + `qm set` run only for a vmid that does
 # not exist yet. Changing an existing VM's shape means deleting it by hand and
-# re-running -- the VMs are disposable (see ansible/proxmox/README.md).
+# re-running -- the VMs are disposable (see ansible/proxmox/README.md). The
+# startup order is the exception: it takes effect without a restart, so it is
+# reconciled on every VM.
 #
 # k3s on these VMs is ansible/k3s/'s job, not this one.
 
@@ -75,6 +77,8 @@
       - "0"
       - --onboot
       - "1"
+      - --startup
+      - "{{ item.startup }}"
       - --ciuser
       - deploy
       - --sshkeys
@@ -107,6 +111,24 @@
   loop: "{{ k3s_vms }}"
   loop_control:
     label: "{{ item.name }} -> {{ proxmox_vm_disk_gb }}G"
+
+- name: Read each VM's startup order
+  ansible.builtin.command: "qm config {{ item.vmid }}"
+  register: proxmox_vm_config
+  changed_when: false
+  check_mode: false
+  loop: "{{ k3s_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Set each VM's startup order
+  ansible.builtin.command:
+    argv: [qm, set, "{{ item.item.vmid }}", --startup, "{{ item.item.startup }}"]
+  loop: "{{ proxmox_vm_config.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: "('startup: ' ~ item.item.startup) not in item.stdout_lines"
+  changed_when: true
 
 - name: Ensure each VM is running
   community.proxmox.proxmox_kvm:

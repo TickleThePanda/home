@@ -5,6 +5,11 @@ metadata:
   namespace: postgres
 spec:
   instances: 1
+  # CNPG's primary PDB (minAvailable 1) can never be satisfied with one
+  # instance, so it would block every drain of the Pi, including kured's
+  # reboots (deploy/setup/kured/). Without it, a drain stops Postgres until
+  # the Pi is uncordoned.
+  enablePDB: false
 
   imageName: imresamu/postgis:17-3.5-alpine
   # This Alpine-based image uses UID/GID 70 for `postgres`, unlike CNPG's own

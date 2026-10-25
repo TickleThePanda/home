@@ -6,7 +6,9 @@ metadata:
   labels:
     app: unbound
 spec:
-  replicas: 1
+  # Two replicas on different nodes, so draining one (kured reboots) doesn't
+  # break home DNS. Stateless: config comes from the ConfigMap.
+  replicas: 2
   selector:
     matchLabels:
       app: unbound
@@ -15,6 +17,15 @@ spec:
       labels:
         app: unbound
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: unbound
       containers:
         - name: unbound
           image: klutchell/unbound:1.26.2
