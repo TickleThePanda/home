@@ -1,9 +1,9 @@
 name: Validate
 
-# Cluster-independent checks on every push to main or a Renovate branch.
-# Renovate merges a branch into main only once this passes (renovate.json);
-# a failure leaves it as a PR instead. deploy-cluster.yaml repeats the
-# manifest checks before it promotes, since it vendors the artifact anyway.
+# Cluster-independent checks on every push to a Renovate branch. Renovate
+# merges a branch into main only once this passes (renovate.json); a failure
+# leaves it as a PR instead. Pushes to main get the manifest checks from
+# deploy-cluster.yaml, which runs them before it promotes.
 #
 # Needs no cluster, WARP or environment secrets, so it also runs while the
 # cluster is down.
@@ -11,7 +11,6 @@ name: Validate
 on:
   push:
     branches:
-      - main
       - 'renovate/**'
     paths-ignore:
       - '**/*.md'
@@ -36,21 +35,9 @@ jobs:
       - name: Vendor and validate
         uses: ./.github/actions/validate-cluster
 
-      # A branch is checked against where it forked from main; a push to main
-      # against the commit before it.
+      # Only the images the branch changed since it forked from main.
       - name: Check changed images are multi-arch
-        env:
-          BEFORE: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          if [[ $GITHUB_REF != refs/heads/main ]]; then
-            base=$(git merge-base origin/main HEAD)
-          elif [[ -n $BEFORE && $BEFORE != 0000000000000000000000000000000000000000 ]]; then
-            base=$BEFORE
-          else
-            base=HEAD~1
-          fi
-          ./scripts/check-image-platforms.sh "$base"
+        run: ./scripts/check-image-platforms.sh "$(git merge-base origin/main HEAD)"
 
       - name: Set up Node
         uses: actions/setup-node@v4
