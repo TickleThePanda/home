@@ -47,6 +47,14 @@ Documentation and comments: simple, concise, practical.
   asked for the client to provide credentials", restart k3s on
   `k3s-vm-control-01`, re-pull `/etc/rancher/k3s/k3s.yaml` into
   `~/.kube/config`, and set `server:` to `192.168.1.32`.
+- Off the LAN, your access to `192.168.1.x` rides either Cloudflare WARP or
+  Tailscale. Check with `ip route get 192.168.1.32`: `dev tailscale0` uses
+  the router's subnet router and survives a cluster outage, but anything
+  else goes through the in-cluster `cloudflared`, like CI. Over WARP, never
+  take both workers down: no draining both, no rebooting `proxmox-01`, no
+  cordoning the Pi while draining a worker. That evicts both `cloudflared`
+  replicas and cuts you off mid-operation, with home DNS (Unbound, CoreDNS)
+  down too. Switch to Tailscale first, or drain one worker at a time.
 
 ## Networking
 
