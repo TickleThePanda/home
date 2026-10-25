@@ -6,6 +6,9 @@ metadata:
 spec:
   repo: https://rke2-charts.rancher.io
   chart: rke2-multus
+  # Without a version, every re-install pulls the newest chart. Upgrade by
+  # changing it here.
+  version: v4.3.014
   targetNamespace: kube-system
   valuesContent: |-
     config:
