@@ -1,0 +1,76 @@
+# Reboots proxmox-01 on Sunday mornings, when its weekly upgrade
+# (ansible/proxmox/tasks/auto-upgrade.yml) has left /run/reboot-required.
+# kured skips Sundays, and this job takes kured's lock anyway. See
+# ../README.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: proxmox-reboot
+  namespace: kube-system
+spec:
+  # Suspended until the proxmox-reboot Secret (the kured@pve!reboot API
+  # token) is committed; see ../README.md.
+  suspend: true
+  schedule: "0 3 * * 0"
+  timeZone: Europe/London
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      # An hour waiting for the lock, then up to 50 minutes for the reboot.
+      activeDeadlineSeconds: 7200
+      # A failed Job (and its KubeJobFailed alert) clears after a week.
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          serviceAccountName: proxmox-reboot
+          restartPolicy: Never
+          # Pinned to the Pi, the one node that stays up while proxmox-01 and
+          # its VMs reboot. An exception to the "PVC, not nodeSelector" rule:
+          # this pod has no volume to pin it.
+          nodeSelector:
+            kubernetes.io/hostname: k8s-storage-anchor-01
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+          containers:
+            - name: proxmox-reboot
+              image: alpine/k8s:1.33.13
+              command: [bash, /config/proxmox-reboot.sh]
+              env:
+                - name: PVE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: proxmox-reboot
+                      key: token
+                # Must match kured's alertFilterRegexp (../helm-release.yaml).
+                - name: ALERT_FILTER
+                  value: ^(HostRebootRequired|HostUpgradesPending)$
+                - name: HOME
+                  value: /tmp
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: config
+              configMap:
+                name: proxmox-reboot
+            - name: tmp
+              emptyDir: {}

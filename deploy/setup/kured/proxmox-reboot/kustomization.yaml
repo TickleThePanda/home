@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ./rbac.yaml
+  - ./cronjob.yaml
+
+# pve-root-ca.pem is proxmox-01's /etc/pve/pve-root-ca.pem (public), so the
+# script verifies the API's certificate. It expires in 2036.
+configMapGenerator:
+  - name: proxmox-reboot
+    namespace: kube-system
+    files:
+      - proxmox-reboot.sh
+      - pve-root-ca.pem

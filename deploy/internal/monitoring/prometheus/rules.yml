@@ -110,6 +110,21 @@ groups:
             {{ $labels.namespace }}/{{ $labels.pod }} has restarted in the
             last 15 minutes.
 
+      # The proxmox-reboot CronJob (deploy/setup/kured/). A failure after
+      # the reboot keeps kured's lock, so kured stays paused until someone
+      # releases it. Failed Jobs are deleted after a week, which clears this.
+      - alert: ProxmoxRebootFailed
+        expr: kube_job_status_failed{namespace="kube-system", job_name=~"proxmox-reboot-.*"} > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "proxmox-reboot Job {{ $labels.job_name }} failed"
+          description: >-
+            Read its log (kubectl -n kube-system logs job/{{ $labels.job_name }}).
+            If it failed after the reboot, kured is paused until the lock is
+            released: kubectl -n kube-system annotate ds kured
+            weave.works/kured-node-lock- (deploy/setup/kured/README.md).
+
       - alert: KubeNodeNotReady
         expr: kube_node_status_condition{condition="Ready", status="true"} == 0
         for: 5m

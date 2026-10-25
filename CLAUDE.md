@@ -115,6 +115,13 @@ Documentation and comments: simple, concise, practical.
 
 ## Administration
 
+- **OS upgrades and reboots are unattended.** unattended-upgrades runs
+  daily on the k3s nodes; kured reboots them Mon–Sat 03:00–05:00 London,
+  one at a time. proxmox-01 upgrades Sunday 01:30, and the `proxmox-reboot`
+  CronJob reboots it at 03:00, which takes down the VMs, CI's tunnel and
+  home DNS for 5–10 minutes. Both share kured's lock, the
+  `weave.works/kured-node-lock` annotation on `ds/kured`. Take it before
+  rebooting anything by hand. See `deploy/setup/kured/README.md`.
 - Run Ansible by whole layer playbook (`ansible/site.yml` lists them), never
   with `--limit` alone. The Pi is in both `pi` and `agent`, so `--limit pi`
   still runs the k3s agent play on it.

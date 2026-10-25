@@ -91,3 +91,10 @@ scope a run.
   fingerprint from the console.
 - `vars/main.yml` holds `proxmox_apt_suite` (`trixie`); bump it on a major
   PVE / Debian upgrade.
+- `pve-auto-upgrade.timer` runs `apt full-upgrade` every Sunday at 01:30
+  (`tasks/auto-upgrade.yml`). It never reboots; it writes
+  `/run/reboot-required`, and the `proxmox-reboot` CronJob reboots the host
+  at 03:00. That job authenticates as the `kured@pve!reboot` API token,
+  which only has `Sys.PowerMgmt` and `Sys.Audit` on this node. Create the
+  token by hand: see `deploy/setup/kured/README.md`. Majors stay manual,
+  because `proxmox_apt_suite` pins the suite.

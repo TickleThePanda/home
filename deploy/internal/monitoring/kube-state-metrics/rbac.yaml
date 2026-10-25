@@ -9,7 +9,7 @@ automountServiceAccountToken: true
 ---
 # Scoped to just the resource kinds this deployment actually asks for via
 # --resources= in deployment.yaml (pod restarts/crash-loops, node
-# conditions, deployment/PVC status) -- not upstream's full default set.
+# conditions, deployment/PVC/Job status) -- not upstream's full default set.
 # Read-only, no Secrets.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -23,6 +23,9 @@ rules:
     verbs: [list, watch]
   - apiGroups: [apps]
     resources: [deployments, replicasets, statefulsets]
+    verbs: [list, watch]
+  - apiGroups: [batch]
+    resources: [jobs]
     verbs: [list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

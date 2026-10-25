@@ -22,7 +22,7 @@ spec:
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0
           imagePullPolicy: IfNotPresent
           args:
-            - --resources=pods,nodes,deployments,replicasets,statefulsets,persistentvolumeclaims,persistentvolumes,namespaces
+            - --resources=pods,nodes,deployments,replicasets,statefulsets,persistentvolumeclaims,persistentvolumes,namespaces,jobs
           ports:
             - name: http
               containerPort: 8080
