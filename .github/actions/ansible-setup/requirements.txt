@@ -2,5 +2,6 @@
 #
 # ansible-core is pinned like the collections in each tree's requirements.yml:
 # a version bump changes what a deploy does to live infra, so it moves in its
-# own reviewed commit. One minor at a time.
-ansible-core==2.21.3
+# own commit. One minor at a time: Renovate automerges patches, and opens each
+# minor separately for approval on the Dependency Dashboard.
+ansible-core==2.21.5

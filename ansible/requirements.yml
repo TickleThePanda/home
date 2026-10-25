@@ -23,15 +23,15 @@
 
 collections:
   - name: community.general
-    version: "13.3.0"
+    version: "13.5.0"
   - name: ansible.posix
     version: "2.2.2"
   - name: community.proxmox
-    version: "2.0.0"
+    version: "2.1.0"
   - name: community.openwrt
-    version: "1.6.0"
+    version: "1.10.0"
   - name: ansible.utils
-    version: "5.1.2"
+    version: "6.1.1"
   - name: https://github.com/k3s-io/k3s-ansible.git
     type: git
     version: "1.2.2"
