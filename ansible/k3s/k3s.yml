@@ -29,6 +29,9 @@
     - min
     - network
   become: true
+  # k3s_version picks the install script below.
+  vars_files:
+    - vars/versions.yml
   pre_tasks:
     # Fix node DNS before anything that needs to resolve a name. The VMs ship
     # from cloud-init pointing at the in-cluster Pi-hole; that cannot be a
