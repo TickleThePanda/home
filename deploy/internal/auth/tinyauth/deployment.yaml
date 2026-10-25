@@ -17,31 +17,33 @@ spec:
     spec:
       containers:
         - name: tinyauth
-          image: ghcr.io/steveiliop56/tinyauth:v4.1.0
+          image: ghcr.io/tinyauthapp/tinyauth:v5.2.0
           ports:
             - containerPort: 3000
           env:
-            - name: APP_URL
+            - name: TINYAUTH_APPURL
               value: "https://forward-auth.internal.ticklethepanda.co.uk"
-            - name: SERVER_PORT
-              value: "3000"
-            - name: OAUTH_AUTO_REDIRECT
+            # Its Kubernetes ACL discovery reads only networking.k8s.io
+            # Ingresses, and every app here uses Traefik IngressRoutes.
+            - name: TINYAUTH_LABELPROVIDER
+              value: none
+            - name: TINYAUTH_OAUTH_AUTOREDIRECT
               value: pocketid
-            - name: PROVIDERS_POCKETID_NAME
+            - name: TINYAUTH_OAUTH_PROVIDERS_POCKETID_NAME
               value: "Pocket ID"
-            - name: PROVIDERS_POCKETID_AUTH_URL
+            - name: TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL
               value: "https://auth.internal.ticklethepanda.co.uk/authorize"
-            - name: PROVIDERS_POCKETID_TOKEN_URL
+            - name: TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL
               value: "http://pocket-id.pocket-id.svc.cluster.local/api/oidc/token"
-            - name: PROVIDERS_POCKETID_USER_INFO_URL
+            - name: TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL
               value: "http://pocket-id.pocket-id.svc.cluster.local/api/oidc/userinfo"
-            - name: PROVIDERS_POCKETID_REDIRECT_URL
+            - name: TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL
               value: "https://forward-auth.internal.ticklethepanda.co.uk/api/oauth/callback/pocketid"
-            - name: PROVIDERS_POCKETID_SCOPES
+            - name: TINYAUTH_OAUTH_PROVIDERS_POCKETID_SCOPES
               value: "openid email profile groups"
-            - name: PROVIDERS_POCKETID_CLIENT_ID
+            - name: TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID
               value: 47a54fd4-c771-4e4a-979f-23112cd995a3
-            - name: PROVIDERS_POCKETID_CLIENT_SECRET
+            - name: TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET
               valueFrom:
                 secretKeyRef:
                   name: tinyauth-secrets
