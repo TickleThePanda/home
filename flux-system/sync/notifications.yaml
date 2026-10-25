@@ -76,6 +76,10 @@ spec:
       name: "*"
     - kind: ArtifactGenerator
       name: "*"
+    - kind: ExternalArtifact
+      name: "*"
+    - kind: FluxInstance
+      name: "*"
     - kind: GitRepository
       name: "*"
     - kind: ImageRepository
