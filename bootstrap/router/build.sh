@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${VERSION:-24.10.5}"
+VERSION="${VERSION:-24.10.8}"
 PROFILE="glinet_gl-mt6000"
 IMG="${IMAGEBUILDER_IMAGE:-ghcr.io/openwrt/imagebuilder:mediatek-filogic-${VERSION}}"
 RUNTIME="${CONTAINER_RUNTIME:-podman}"
