@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ./rbac.yaml
   - ./cronjob.yaml
+  - ./secret.sops.yaml
 
 # pve-root-ca.pem is proxmox-01's /etc/pve/pve-root-ca.pem (public), so the
 # script verifies the API's certificate. It expires in 2036.

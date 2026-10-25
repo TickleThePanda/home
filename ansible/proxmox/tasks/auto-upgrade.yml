@@ -72,7 +72,7 @@
 - name: Note the reboot identity's current state
   ansible.builtin.set_fact:
     proxmox_kured_user_exists: "{{ 'kured@pve' in (proxmox_access.results[0].stdout | from_json | map(attribute='userid')) }}"
-    proxmox_kured_token_exists: "{{ 'reboot' in (proxmox_access.results[0].stdout | from_json | selectattr('userid', '==', 'kured@pve') | map(attribute='tokens', default=[]) | flatten | map(attribute='tokenid')) }}"
+    proxmox_kured_token_exists: "{{ 'reboot' in (proxmox_access.results[0].stdout | from_json | selectattr('userid', '==', 'kured@pve') | map(attribute='tokens', default=[]) | map('default', [], true) | flatten | map(attribute='tokenid')) }}"
     proxmox_kured_role_privs: "{{ proxmox_access.results[1].stdout | from_json | selectattr('roleid', '==', 'KuredReboot') | map(attribute='privs') | first | default('') }}"
     proxmox_kured_acls: "{{ proxmox_access.results[2].stdout | from_json | selectattr('path', '==', '/nodes/' ~ proxmox_node_name) | selectattr('roleid', '==', 'KuredReboot') | map(attribute='ugid') | list }}"
 

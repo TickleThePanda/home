@@ -8,9 +8,6 @@ metadata:
   name: proxmox-reboot
   namespace: kube-system
 spec:
-  # Suspended until the proxmox-reboot Secret (the kured@pve!reboot API
-  # token) is committed; see ../README.md.
-  suspend: true
   schedule: "0 3 * * 0"
   timeZone: Europe/London
   concurrencyPolicy: Forbid
