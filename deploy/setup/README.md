@@ -5,7 +5,7 @@ in `deploy/setup-config/` (see its `kustomization.yaml`).
 
 ## Helm releases
 
-Traefik and Multus are Flux `HelmRelease`s in `kube-system`. k3s's own
+Traefik, Multus and kured are Flux `HelmRelease`s in `kube-system`. k3s's own
 helm-controller is disabled (`ansible/group_vars/k3s_cluster.yml`).
 
 - **Upgrade** by changing `chart.spec.version`. Versions are exact pins.

@@ -1,0 +1,58 @@
+# kured reboots k3s nodes that need it (/var/run/reboot-required, written by
+# unattended-upgrades), one at a time: lock, cordon, drain, reboot, uncordon.
+# The lock is an annotation on this release's DaemonSet, which the
+# proxmox-reboot CronJob also takes before rebooting proxmox-01. See
+# README.md. Upgrade by changing `version`; it pins the kured image too.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kured
+  namespace: kube-system
+spec:
+  interval: 10m
+  releaseName: kured
+  chart:
+    spec:
+      chart: kured
+      version: "6.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: kubereboot
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  driftDetection:
+    mode: enabled
+  values:
+    configuration:
+      startTime: "3:00"
+      endTime: "5:00"
+      timeZone: Europe/London
+      # Sunday belongs to proxmox-01 (proxmox-reboot/cronjob.yaml).
+      rebootDays: [mo, tu, we, th, fr, sa]
+      # Checked every 10 minutes so all four nodes fit in the two-hour window.
+      period: 10m
+      # A drain that can't finish is abandoned: kured uncordons the node and
+      # tries again next period.
+      drainTimeout: 10m
+      skipWaitForDeleteTimeout: 60
+      # Any firing alert blocks a reboot, except the two that only say a
+      # reboot or upgrade is due -- clearing those is kured's job.
+      prometheusUrl: http://prometheus.monitoring.svc:9090
+      alertFiringOnly: true
+      alertFilterRegexp: ^(HostRebootRequired|HostUpgradesPending)$
+      annotateNodes: true
+      # Keeps pods drained from one node off nodes that are also waiting to
+      # reboot.
+      preferNoScheduleTaint: weave.works/kured-node-reboot
+    tolerations:
+      - key: ticklethepanda.dev/control-plane
+        operator: Exists
+        effect: NoSchedule
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
