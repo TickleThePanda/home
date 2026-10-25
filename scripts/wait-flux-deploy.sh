@@ -71,10 +71,12 @@ done
 
 declare -A result message
 
-# check <ks> <first>: sets result[ks] to unchanged/applied when it's done,
-# failed when Stalled, and leaves it unset while still converging.
+# check <ks>: sets result[ks] to applied/unchanged when it's done, failed when
+# Stalled, and leaves it unset while still converging. "applied" means it
+# applied this commit: every source carries the commit as its origin, but a
+# Kustomization only records it after reconciling a new revision.
 check() {
-    local ks=$1 first=$2 json kind name target
+    local ks=$1 json kind name target
     json=$(kubectl -n "$ns" get kustomization "$ks" -o json)
     kind=$(jq -r '.spec.sourceRef.kind' <<<"$json")
     name=$(jq -r '.spec.sourceRef.name' <<<"$json")
@@ -85,7 +87,11 @@ check() {
             .status.lastAppliedRevision == $r
             and .status.observedGeneration == .metadata.generation' <<<"$json" >/dev/null \
         && [[ $(condition "$json" Ready status) == True ]]; then
-        result[$ks]=$([[ $first == 1 ]] && echo unchanged || echo applied)
+        if [[ $(jq -r '.status.lastAppliedOriginRevision // empty' <<<"$json") == "$origin" ]]; then
+            result[$ks]=applied
+        else
+            result[$ks]=unchanged
+        fi
     elif [[ $(condition "$json" Stalled status) == True ]]; then
         result[$ks]=failed
     fi
@@ -93,15 +99,14 @@ check() {
 
 # wait_for <ks...>: polls until each is done or the deadline passes.
 wait_for() {
-    local pending=("$@") first=1 next ks
+    local pending=("$@") next ks
     while (( ${#pending[@]} > 0 )); do
         next=()
         for ks in "${pending[@]}"; do
-            check "$ks" "$first"
+            check "$ks"
             [[ -n ${result[$ks]:-} ]] || next+=("$ks")
         done
         pending=("${next[@]}")
-        first=0
         (( ${#pending[@]} == 0 )) && break
         if past_deadline; then
             for ks in "${pending[@]}"; do result[$ks]=failed; done
