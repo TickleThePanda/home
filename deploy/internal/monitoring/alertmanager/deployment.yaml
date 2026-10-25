@@ -22,7 +22,7 @@ spec:
         fsGroup: 65534 # the image runs as nobody; the LV root is root-owned
       containers:
         - name: alertmanager
-          image: prom/alertmanager:v0.34.1 # {"$imagepolicy": "flux-system:alertmanager"}
+          image: prom/alertmanager:v0.34.1
           imagePullPolicy: IfNotPresent
           args:
             - --config.file=/etc/alertmanager/alertmanager.yml

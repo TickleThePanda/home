@@ -90,11 +90,3 @@ spec:
     - kind: HelmChart
       name: "*"
       namespace: kube-system
-    - kind: GitRepository
-      name: "*"
-    - kind: ImageRepository
-      name: "*"
-    - kind: ImagePolicy
-      name: "*"
-    - kind: ImageUpdateAutomation
-      name: "*"

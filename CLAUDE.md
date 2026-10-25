@@ -104,8 +104,10 @@ Documentation and comments: simple, concise, practical.
 - For an out-of-band fix to one component, use
   `./apply-subset.sh <deploy-subdir> [kubectl apply args...]`, never
   `kubectl apply -f` or `kubectl apply -k deploy/<subdir>`.
-- Flux image automation bumps third-party image tags and commits them to
-  `main`. Majors are manual.
+- Renovate (Mend app, `renovate.json`) bumps third-party image tags, Helm
+  chart versions and `vendor.txt`. It merges non-major updates into `main`
+  once `.github/workflows/validate.yaml` passes on its branch. Majors wait for
+  approval on the Dependency Dashboard issue.
 
 ## Administration
 

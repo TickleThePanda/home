@@ -26,7 +26,7 @@ spec:
         fsGroup: 65534
       containers:
         - name: prometheus
-          image: prom/prometheus:v3.15.1 # {"$imagepolicy": "flux-system:prometheus"}
+          image: prom/prometheus:v3.15.1
           imagePullPolicy: IfNotPresent
           args:
             - --config.file=/etc/prometheus/prometheus.yml

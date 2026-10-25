@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: pihole
-          image: pihole/pihole:2026.10.0 # {"$imagepolicy": "flux-system:pihole"}
+          image: pihole/pihole:2026.10.0
           imagePullPolicy: IfNotPresent
           resources:
             requests:

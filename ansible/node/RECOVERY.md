@@ -230,16 +230,6 @@ way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`)
     A bad edit can cut CI off from the LAN, since it reaches the cluster only
     through this tunnel. Recover from a human path (Tailscale, then
     `kubectl`), not CI.
-  - Rotating `flux-git-write` (read-write deploy key for image automation;
-    without it image tags stop bumping):
-    ```sh
-    ssh-keygen -t ed25519 -N "" -C flux-image-automation -f flux-deploy-key
-    gh repo deploy-key add flux-deploy-key.pub --repo TickleThePanda/home \
-      --allow-write --title flux-image-automation
-    ssh-keyscan github.com > known_hosts
-    ```
-    Then put the three files into `flux-system/secrets/flux-git-write.sops.yaml`
-    (`identity`, `identity.pub`, `known_hosts`) with `sops`.
   - `github-commit-status` (key `token`) is a GitHub PAT with commit-status
     write on `ticklethepanda/home`. Without it the Flux → GitHub
     commit-status Alert logs auth errors and deploys are unaffected.

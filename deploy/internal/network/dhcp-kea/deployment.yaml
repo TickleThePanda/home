@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: kea-dhcp4
-          image: jonasal/kea-dhcp4:3.2.1 # {"$imagepolicy": "flux-system:kea-dhcp4"}
+          image: jonasal/kea-dhcp4:3.2.1
           imagePullPolicy: IfNotPresent
           args:
             - "-c"
@@ -52,7 +52,7 @@ spec:
         # DHCP-DDNS: turns every lease's hostname into a signed DNS UPDATE
         # to BIND (10.43.53.55). Reached by kea-dhcp4 over localhost:53001.
         - name: kea-dhcp-ddns
-          image: jonasal/kea-dhcp-ddns:3.2.1 # {"$imagepolicy": "flux-system:kea-dhcp-ddns"}
+          image: jonasal/kea-dhcp-ddns:3.2.1
           imagePullPolicy: IfNotPresent
           args:
             - "-c"

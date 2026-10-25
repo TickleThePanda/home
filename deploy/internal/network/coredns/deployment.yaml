@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: coredns
-          image: coredns/coredns:1.15.0 # {"$imagepolicy": "flux-system:coredns"}
+          image: coredns/coredns:1.15.0
           imagePullPolicy: IfNotPresent
           args: ["-conf", "/etc/coredns/Corefile"]
           ports:

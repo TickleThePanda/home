@@ -20,9 +20,9 @@ paths:
   URLs in `resources:`. CI rejects remote resources. Give each entry a
   `# renovate:` comment (see the file's header) so Renovate bumps it. Run
   `scripts/vendor.sh` before a local `kustomize build`.
-- Give a new third-party image an `ImageRepository` + `ImagePolicy` in
-  `flux-system/sync/images.yaml`, and add a
-  `# {"$imagepolicy": "flux-system:<name>"}` marker to its image line.
+- Give a third-party image an exact, multi-arch version tag. Renovate picks
+  it up with no config; add a `packageRules` entry in `renovate.json` only
+  for an unusual tag scheme (like Kea's even minors).
 - Send app mail through `smtp-relay.smtp-relay.svc:587` as
   `hello@ticklethepanda.dev` (see the relay's README).
 - `deploy/home/` sets `namespace: home` once at its top level. Internal apps
@@ -34,8 +34,7 @@ A new service needs:
 
 - Its own directory with `namespace.yaml` and a `kustomization.yaml`, listed
   in its parent's `resources:` (`deploy/internal/kustomization.yaml`).
-- A multi-arch image with an `ImageRepository`, `ImagePolicy` and marker
-  (above).
+- A multi-arch image with an exact version tag (above).
 - If it has state, a sized `lvm-data` PVC and `Recreate` strategy (above).
 - If it has a web UI, an IngressRoute on `int-web-secure` with `tls: {}`,
   ``Host(`<app>.internal.ticklethepanda.co.uk`)`` and the `tinyauth`
