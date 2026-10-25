@@ -2,3 +2,11 @@
 # Bound to the Pi's LAN address, not 0.0.0.0 -- this is an unauthenticated
 # read-only API.
 node_exporter_bind_address: 192.168.1.2
+
+# Raspbian's own archive and the Raspberry Pi Foundation's, not Debian's.
+unattended_upgrades_origins:
+  - "origin=Raspbian,codename=${distro_codename},label=Raspbian"
+  - "origin=Raspberry Pi Foundation,codename=${distro_codename},label=Raspberry Pi Foundation"
+# Off until the Pi's backlog has been upgraded by hand once, with someone
+# watching. It may replace the rpi-update kernel.
+unattended_upgrades_enabled: false

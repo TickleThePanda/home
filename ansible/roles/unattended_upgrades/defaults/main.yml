@@ -1,0 +1,12 @@
+---
+# false skips the role entirely, leaving the host's apt config untouched.
+unattended_upgrades_enabled: true
+
+# Origins-Pattern entries: which repositories unattended-upgrades installs
+# from. These defaults are Debian's stable, -updates and -security suites;
+# group_vars/pi.yml overrides them for Raspbian. ${distro_codename} is
+# expanded by unattended-upgrades, not Ansible.
+unattended_upgrades_origins:
+  - "origin=Debian,codename=${distro_codename},label=Debian"
+  - "origin=Debian,codename=${distro_codename}-updates,label=Debian"
+  - "origin=Debian,codename=${distro_codename}-security,label=Debian-Security"

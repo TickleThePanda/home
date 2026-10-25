@@ -1,0 +1,12 @@
+// Managed by the unattended_upgrades Ansible role. Do not edit on the host.
+// #clear drops the package's default origins, so this list is the only one.
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+{% for origin in unattended_upgrades_origins %}
+        "{{ origin }}";
+{% endfor %}
+};
+
+// kured reboots, inside its window (deploy/setup/kured/).
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";

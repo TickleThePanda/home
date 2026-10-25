@@ -1,0 +1,71 @@
+---
+# Daily unattended upgrades from the repositories in
+# unattended_upgrades_origins. Lists refresh at 01:00 and upgrades install at
+# 01:30, ahead of kured's 03:00-05:00 reboot window (deploy/setup/kured/).
+# A package that needs a reboot writes /var/run/reboot-required, and kured
+# reboots the node for it. Nothing here reboots.
+
+- name: Unattended upgrades
+  when: unattended_upgrades_enabled
+  block:
+    - name: Install unattended-upgrades
+      ansible.builtin.package:
+        name: unattended-upgrades
+        state: present
+
+    - name: Enable the daily list refresh and upgrade
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          // Managed by the unattended_upgrades Ansible role. Do not edit on the host.
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+
+    - name: Configure unattended-upgrades
+      ansible.builtin.template:
+        src: 52unattended-upgrades-local.j2
+        dest: /etc/apt/apt.conf.d/52unattended-upgrades-local
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Create the apt timer drop-in directories
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ item }}.d"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop: [apt-daily.timer, apt-daily-upgrade.timer]
+
+    # The empty OnCalendar= clears the packaged schedule; without it the
+    # timer would also keep firing at its default times.
+    - name: Schedule the apt timers ahead of the reboot window
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/{{ item.timer }}.d/schedule.conf"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          # Managed by the unattended_upgrades Ansible role. Do not edit on the host.
+          [Timer]
+          OnCalendar=
+          OnCalendar=*-*-* {{ item.time }}
+          RandomizedDelaySec=10m
+      loop:
+        - { timer: apt-daily.timer, time: "01:00" }
+        - { timer: apt-daily-upgrade.timer, time: "01:30" }
+      loop_control:
+        label: "{{ item.timer }} {{ item.time }}"
+      notify: restart apt timers
+
+    - name: Enable the apt timers
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop: [apt-daily.timer, apt-daily-upgrade.timer]
+      when: not ansible_check_mode
