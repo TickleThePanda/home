@@ -23,8 +23,9 @@ spec:
             requests:
               cpu: 5m
               memory: 24Mi
+            # Idles under 30Mi but peaks near 60Mi every two hours.
             limits:
-              memory: 64Mi
+              memory: 128Mi
           ports:
             - containerPort: 3890
             - containerPort: 17170
