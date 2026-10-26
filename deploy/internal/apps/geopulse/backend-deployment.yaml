@@ -44,7 +44,7 @@ spec:
               subPath: keys
       containers:
         - name: geopulse-backend
-          image: tess1o/geopulse-backend:2.1.0-native-compat
+          image: tess1o/geopulse-backend:2.1.1-native-compat
           resources:
             requests:
               cpu: 50m

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: geopulse-ui
-          image: tess1o/geopulse-ui:2.1.0
+          image: tess1o/geopulse-ui:2.1.1
           resources:
             requests:
               cpu: 10m
