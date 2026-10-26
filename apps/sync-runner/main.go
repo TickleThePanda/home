@@ -28,7 +28,7 @@ type jobFunc func(ctx context.Context, out *capBuffer) error
 
 var jobs = map[string]jobFunc{
 	"librofm": func(ctx context.Context, out *capBuffer) error {
-		return runCmd(ctx, out, "librofm-download", "/audiobooks")
+		return runCmd(ctx, out, "librofm-sync", "--base-path", "/audiobooks")
 	},
 	"libation": func(ctx context.Context, out *capBuffer) error {
 		if err := runCmd(ctx, out, "/libation/LibationCli", "scan"); err != nil {
