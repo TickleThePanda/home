@@ -162,8 +162,12 @@ flash() {
   fi
 
   step "flash"
-  # Detached: sysupgrade kills dropbear, this session and the CI tunnel with it.
-  r 'nohup sysupgrade /tmp/fw.bin >/dev/null 2>&1 </dev/null &'
+  # sysupgrade kills dropbear, this session and the CI tunnel with it, so it
+  # runs in its own session via start-stop-daemon -b (as
+  # community.openwrt.nohup does). `nohup ... &` is not enough: it stays in
+  # this session and dies when the session closes, part-way through.
+  r "start-stop-daemon -S -b -q -p /dev/null -x /bin/sh -- -c \
+    'sleep 2; exec sysupgrade /tmp/fw.bin >/tmp/sysupgrade.log 2>&1'"
   started=$(date +%s)
 
   step "wait for the router (up to $((BOOT_TIMEOUT / 60)) min)"
@@ -186,7 +190,8 @@ pre-flash config backup is $BACKUP."
     # minutes later means it refused the image and never rebooted.
     if [ -n "$uptime" ] && [ "$elapsed" -gt 180 ]; then
       fail "sysupgrade did not reboot the router; it still runs the old firmware.
-Check /tmp/fw.bin and run 'sysupgrade -v /tmp/fw.bin' on the router by hand."
+Its output (/tmp/sysupgrade.log on the router):
+$(r 'cat /tmp/sysupgrade.log' 2>&1)"
     fi
     sleep 10
   done
