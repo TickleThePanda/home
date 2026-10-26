@@ -48,6 +48,11 @@ jobs:
           CONTAINER_RUNTIME: docker
         run: ./router/build.sh
 
+      # upgrade.sh encrypts the pre-flash config backup with age. Also before
+      # WARP, which can block the Ubuntu mirrors.
+      - name: Install age
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
       - name: Connect to Cloudflare Warp
         uses: ./.github/actions/cloudflare-warp
         with:
