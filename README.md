@@ -25,7 +25,7 @@ declarative and applied by CI — there is nothing to install by hand:
 All four Ansible layers are applied by the single `infra` job in
 `.github/workflows/deploy-infra.yaml`, in the order `ansible/site.yml` documents.
 The router's firmware is built and flashed by its own workflow,
-`.github/workflows/router-firmware.yaml`.
+`.github/workflows/router-firmware.yaml`, which Deploy runs after infra.
 
 ### `ansible/node`
 

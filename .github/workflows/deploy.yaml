@@ -4,6 +4,7 @@ name: Deploy
 #
 #   preflight   the cluster is reachable
 #   infra       deploy-infra.yaml -- ansible/, every layer: proxmox, node, k3s, router
+#   firmware    router-firmware.yaml -- router/, the gateway's firmware
 #   cluster     deploy-cluster.yaml -- deploy/, applied with kustomize
 #   terraform   deploy-terraform.yaml -- terraform/cloudflare-zero-trust/, applied last
 #
@@ -24,6 +25,11 @@ name: Deploy
 # Each layer is skipped when the push changed nothing under its own tree
 # (including its own workflow file), and runs on a manual workflow_dispatch.
 # Which Ansible layers run is decided inside deploy-infra.yaml.
+#
+# The monthly schedule runs only `firmware`: it rebuilds the image and
+# flashes it if feed updates changed the package set within the pinned
+# release (router/README.md). Midday on the 3rd, clear of the 02:00-06:00
+# London reboot window.
 #
 # preflight exists because CI's only path to any of this is through the cluster
 # itself (cloudflared runs in-cluster) -- checking reachability first gives a
@@ -48,6 +54,7 @@ on:
       - deploy/**
       - flux-system/**
       - ansible/**
+      - router/**
       - terraform/cloudflare-zero-trust/**
       - scripts/check-gather-subset.py
       - scripts/vendor.sh
@@ -56,11 +63,14 @@ on:
       - scripts/wait-flux-deploy.sh
       - vendor.txt
       - .github/workflows/deploy*.yaml
+      - .github/workflows/router-firmware.yaml
       - .github/actions/ansible-*/**
       - .github/actions/validate-cluster/**
       - .github/actions/cloudflare-warp/**
       - '!**/*.md'
   workflow_dispatch: {}
+  schedule:
+    - cron: '0 11 3 * *'
 
 # Never let two runs touch the cluster at once -- the infra job restarts k3s,
 # which takes down the tunnel the cluster job reaches the API through.
@@ -79,6 +89,7 @@ jobs:
       # workflow_dispatch (it diffs HEAD against its own merge-base), which is
       # why that case has to be handled explicitly.
       infra: ${{ steps.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' }}
+      firmware: ${{ steps.changes.outputs.firmware == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
       cluster: ${{ steps.changes.outputs.cluster == 'true' || github.event_name == 'workflow_dispatch' }}
       terraform: ${{ steps.changes.outputs.terraform == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
@@ -86,8 +97,9 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       # Markdown never triggers a deploy: `some-with-excludes` drops any file a
-      # `!` pattern matches.
+      # `!` pattern matches. A scheduled run has no diff to filter.
       - name: Detect which layers changed
+        if: github.event_name != 'schedule'
         uses: dorny/paths-filter@v4.0.3
         id: changes
         with:
@@ -98,6 +110,10 @@ jobs:
               - 'scripts/check-gather-subset.py'
               - '.github/workflows/deploy-infra.yaml'
               - '.github/actions/ansible-*/**'
+              - '!**/*.md'
+            firmware:
+              - 'router/**'
+              - '.github/workflows/router-firmware.yaml'
               - '!**/*.md'
             cluster:
               - 'deploy/**'
@@ -158,8 +174,20 @@ jobs:
     uses: ./.github/workflows/deploy-infra.yaml
     secrets: inherit
 
-  cluster:
+  firmware:
     needs: [preflight, infra]
+    # Same gate as cluster: after infra passed or was skipped, so the router
+    # playbook's keep list lands before a flash.
+    if: >-
+      always() &&
+      needs.preflight.result == 'success' &&
+      (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
+      needs.preflight.outputs.firmware == 'true'
+    uses: ./.github/workflows/router-firmware.yaml
+    secrets: inherit
+
+  cluster:
+    needs: [preflight, infra, firmware]
     # Runs when deploy/ or flux-system/ changed (or on a manual dispatch), and
     # only after infra either passed or was itself skipped -- every Ansible
     # layer lands before Flux reconciles through the same tunnel. always() plus
@@ -169,12 +197,13 @@ jobs:
       always() &&
       needs.preflight.result == 'success' &&
       (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
+      (needs.firmware.result == 'success' || needs.firmware.result == 'skipped') &&
       needs.preflight.outputs.cluster == 'true'
     uses: ./.github/workflows/deploy-cluster.yaml
     secrets: inherit
 
   terraform:
-    needs: [preflight, infra, cluster]
+    needs: [preflight, infra, firmware, cluster]
     # Same gate as cluster, plus cluster itself: see the header for why this
     # runs last. A cluster failure after the artifact was promoted (Flux
     # didn't reconcile cleanly) doesn't hold it back; an earlier failure does.
@@ -182,6 +211,7 @@ jobs:
       always() &&
       needs.preflight.result == 'success' &&
       (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
+      (needs.firmware.result == 'success' || needs.firmware.result == 'skipped') &&
       (needs.cluster.result == 'success' || needs.cluster.result == 'skipped' ||
         (needs.cluster.result == 'failure' && needs.cluster.outputs.promoted != '')) &&
       needs.preflight.outputs.terraform == 'true'

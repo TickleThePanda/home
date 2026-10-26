@@ -1,35 +1,22 @@
 name: Router firmware
 
+# Called by deploy.yaml's `firmware` job, after infra and before cluster.
 # Builds the gateway's firmware from router/ and flashes it when the router
-# doesn't run that build (router/README.md). Runs on a push to main that
-# changes router/, on a manual dispatch, and monthly, so feed updates within
-# the pinned release reach the router. A no-op when the router already runs
-# the build.
+# doesn't run that build (router/README.md). A no-op when it already does.
 #
 # A flash cuts CI's own path for a few minutes: CI reaches the LAN through
-# the in-cluster cloudflared, which egresses through this router. So this
-# shares deploy.yaml's `cluster` concurrency group, so no deploy is mid-flight
-# through the tunnel, and it waits for the cluster API and cloudflared before
-# it lets the next run start.
+# the in-cluster cloudflared, which egresses through this router. So it waits
+# for the cluster API and cloudflared before the cluster job goes on.
 #
-# deploy.yaml's router playbook writes the sysupgrade keep list this relies
+# It's a job of deploy.yaml rather than a workflow of its own because GitHub
+# keeps one pending run per concurrency group: a separate workflow in the
+# `cluster` group got its pending run cancelled by a deploy queued behind it.
+#
+# The router playbook (infra) writes the sysupgrade keep list this relies
 # on. upgrade.sh refuses to flash while that list is incomplete.
 
 on:
-  push:
-    branches: main
-    paths:
-      - router/**
-      - .github/workflows/router-firmware.yaml
-      - '!**/*.md'
-  workflow_dispatch: {}
-  # Midday on the 3rd, clear of the 02:00-06:00 London reboot window.
-  schedule:
-    - cron: '0 11 3 * *'
-
-concurrency:
-  group: cluster
-  cancel-in-progress: false
+  workflow_call:
 
 # Rollout gate for unattended flashing. While "false", only a manual dispatch
 # flashes the router; a push or the schedule reports the drift and stops.

@@ -88,11 +88,11 @@ Documentation and comments: simple, concise, practical.
 
 - `.github/workflows/deploy.yaml` runs on push to `main`, in order:
   `preflight` (pin guard, tunnel/API readiness), `infra` (all Ansible
-  layers), `cluster` (Flux), `terraform` (Cloudflare Zero Trust, last). Each
+  layers), `firmware` (router), `cluster` (Flux), `terraform` (Cloudflare Zero Trust, last). Each
   layer is skipped when nothing under its tree changed.
 - Router firmware (`router/`) has its own workflow,
-  `.github/workflows/router-firmware.yaml`, in the same `cluster`
-  concurrency group. Git pins the OpenWrt release and packages. CI builds the
+  `.github/workflows/router-firmware.yaml`, which `deploy.yaml` calls as its
+  `firmware` job between `infra` and `cluster`. Git pins the OpenWrt release and packages. CI builds the
   image and flashes it with settings kept, under kured's lock, then reruns the
   router playbook. A monthly scheduled run rebuilds the image and flashes if
   the package set moved. A flash cuts CI's tunnel for a few
