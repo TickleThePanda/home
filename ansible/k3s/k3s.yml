@@ -244,6 +244,10 @@
                 groups:
                   claim: groups
                   prefix: "oidc:"
+          # k3s passes --anonymous-auth=false only when no authentication
+          # config is set, so this file has to keep it off.
+          anonymous:
+            enabled: false
   roles:
     - role: k3s.orchestration.k3s_server
 
