@@ -12,7 +12,7 @@ on:
 
 jobs:
   cluster:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     environment: prod
     outputs:
       promoted: ${{ steps.revision.outputs.promoted }}

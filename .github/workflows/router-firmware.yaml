@@ -23,7 +23,7 @@ env:
 
 jobs:
   firmware:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     environment: prod
     # The router playbook's secrets, for the reconcile after a flash.
     env:
