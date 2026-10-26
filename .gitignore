@@ -10,14 +10,12 @@ __pycache__
 # in CI it is an actions/cache entry, not committed.
 .ansible_fact_cache/
 
-# Router bootstrap (bootstrap/router/). The GL.iNet backup and secrets.env hold
-# live credentials (PPPoE, Wi-Fi PSK, WireGuard/host keys, /etc/shadow); build/
-# holds the rendered overlay with secrets substituted in.
+# The router's live credentials (PPPoE, Wi-Fi keys, root hash). Local
+# checkouts may still hold the removed bootstrap/router/'s secrets.env and
+# secret-bearing images; never commit those either.
+ansible/router/secrets.env
 backup-GL-MT6000-*.tar.gz
-bootstrap/router/secrets.env
-bootstrap/router/authorized_keys.extra
-bootstrap/router/build/
-bootstrap/router/out/
+bootstrap/router/
 # router/build.sh output: the secret-free production image.
 router/out/
 

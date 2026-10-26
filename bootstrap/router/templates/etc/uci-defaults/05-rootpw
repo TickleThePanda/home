@@ -1,2 +1,0 @@
-#!/bin/sh
-sed -i {{ ('s|^root:[^:]*:|root:' ~ ROOT_HASH ~ ':|') | shquote }} /etc/shadow

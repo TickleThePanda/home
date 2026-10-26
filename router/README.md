@@ -28,10 +28,6 @@ list (`sysupgrade -l`). That decides the split:
 Don't add paths to `/etc/sysupgrade.conf`. A file the router needs that the
 keep list drops goes in `files/`.
 
-[`../bootstrap/router/`](../bootstrap/router/) builds the same image with a
-first-boot config overlay for a wiped or new router. Use that path for
-recovery, not for upgrades.
-
 ## Packages
 
 Every package the router needs is in the image. A sysupgrade replaces the
@@ -107,7 +103,7 @@ after step 5 only polls. There is no remote rollback.
   Release it once the router is fixed
   ([`deploy/setup/kured/README.md`](../deploy/setup/kured/README.md#the-lock)).
   Reach the router over Tailscale or the LAN. If it's down, follow
-  [`../bootstrap/router/README.md#recovery`](../bootstrap/router/README.md#recovery).
+  [Recovery](#recovery).
 
 Restore a backup from the run's `router-firmware-<run id>` artifact:
 
@@ -135,3 +131,43 @@ Take kured's lock first, as CI does. Then run the router playbook
 ([`../ansible/router/README.md`](../ansible/router/README.md)).
 `VERSION=25.12.6 ./router/build.sh` builds another release without editing
 `version.txt`.
+
+## Recovery
+
+The bootloader is never touched (sysupgrade images only), so GL.iNet's U-Boot
+web recovery always survives. Recovery is physical: at the router, with a
+laptop that has wired Ethernet and can set a static IP. While the router is
+down, CI can't reach the cluster.
+
+From least to most drastic:
+
+1. **Boots, but the config is wrong.** Restore the last
+   `router-firmware-<run id>` backup (above), or fix the template and run the
+   playbook from the LAN.
+2. **Locked out.** OpenWrt failsafe: power-cycle, tap reset when the LED
+   flashes during boot, connect to `192.168.1.1` (`root`, no password). Then
+   `firstboot && reboot` for a wiped router (step 4), or `mount_root` and
+   edit `/etc/config/*`.
+3. **Won't boot.** U-Boot web recovery: power off, hold reset, power on
+   holding it 8-10 s until the LED flashes fast. Set the laptop to
+   `192.168.1.2/24`, open `http://192.168.1.1` and upload `out/sysupgrade.bin`
+   from `build.sh`.
+4. **Wiped router** (after 3, `firstboot`, or a flash with "keep settings"
+   off). This image boots with OpenWrt's defaults: LAN `192.168.1.1/24`,
+   a DHCP server on it, no WAN, no Wi-Fi, and the repo's SSH keys in
+   `authorized_keys`. Then:
+   1. Keep it off the homelab switch until the playbook has run: its DHCP
+      server would compete with Kea. Plug the laptop straight into a LAN
+      port.
+   2. Refresh the pinned host key, checking the fingerprint against the
+      router's console: `ssh-keygen -R 192.168.1.1 -f ansible/known_hosts`,
+      then `ssh-keyscan -t ed25519 192.168.1.1 >> ansible/known_hosts`.
+      Commit it, or CI can't connect.
+   3. Run the playbook ([`../ansible/router/README.md`](../ansible/router/README.md#running-it-by-hand))
+      with `ROUTER_ROOT_PASSWORD_HASH` and `ROUTER_TS_AUTHKEY` set. It writes
+      the whole config, sets the root password and logs in to the tailnet.
+   4. Reconnect it to the network and check it as `upgrade.sh verify` does.
+
+The tailnet ACL needs `tagOwners` for `tag:home-router` and `autoApprovers`
+for `192.168.0.0/16` routes and the exit node, so the login needs no
+approval in the admin console.

@@ -19,7 +19,7 @@ was a second connector as a node-level systemd service). The cost of that
 choice is this document.
 
 A human isn't stuck the same way CI is: the router runs its own Tailscale
-subnet router + exit node (`ansible/router/tasks/tailscale.yml`), advertising
+subnet router + exit node (`ansible/router/templates/apply.sh.j2`), advertising
 `192.168.1.0/24` independently of the cluster. Join the tailnet and the node
 is reachable without being physically on the LAN — the router itself, not a
 cluster workload, is what has to be up.
