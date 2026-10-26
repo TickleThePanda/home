@@ -32,6 +32,10 @@ jobs:
       ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
       ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
       ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
+      # Optional; unset leaves the root password alone, and only a logged-out
+      # router needs the auth key (ansible/router/vars/secrets.yml).
+      ROUTER_ROOT_PASSWORD_HASH: ${{ secrets.ROUTER_ROOT_PASSWORD_HASH }}
+      ROUTER_TS_AUTHKEY: ${{ secrets.ROUTER_TS_AUTHKEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1

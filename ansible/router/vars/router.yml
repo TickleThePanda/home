@@ -6,6 +6,14 @@ router_hostname: gateway
 router_timezone: GMT0BST,M3.5.0/1,M10.5.0
 router_zonename: Europe/London
 
+# UCI configs router.yml owns. Whole: rendered from templates/config/<name>.j2,
+# replacing the file. Partial: only the options templates/apply.sh.j2 sets.
+router_uci_whole: [network, wireless, dhcp, firewall]
+router_uci_partial: [system, dropbear, uhttpd]
+
+# The switch ports on the board. All but router_trusted_port are br-lan.
+router_lan_ports: [lan1, lan2, lan3, lan4, lan5]
+
 router_lan_ipaddr: 192.168.1.1
 router_lan_netmask: 255.255.255.0
 router_lan_ip6assign: "60"
@@ -51,6 +59,9 @@ router_iot_fallback_key: "cinder-antler-verge-hollow-90"
 
 # Kea's macvlan address in the cluster -- the DHCP relay's upstream server.
 router_kea_dhcp_ip: 192.168.1.11
+
+# Pi-hole, the only DNS server the IoT VLANs may reach.
+router_pihole_dns_ip: 192.168.1.10
 
 # Bridges the Avahi mDNS reflector spans. homelab <-> trusted <-> every IoT
 # VLAN: this is hub-and-all, not per-pair, so mDNS service discovery is also

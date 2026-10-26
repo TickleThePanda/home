@@ -1,138 +1,120 @@
 ---
-# Ongoing configuration for the home gateway (GL.iNet Flint 2, OpenWrt).
+# The gateway's config (GL.iNet Flint 2, OpenWrt). router/README.md says
+# who owns what: the image owns packages and static files, this playbook
+# everything a keep-settings sysupgrade carries over.
 #
-# This is the source of truth for the router's config. bootstrap/router/ only
-# has to get a bare router far enough for this playbook to take over.
+# - network, wireless, dhcp and firewall are whole files
+#   (templates/config/). Anything else in them, a LuCI edit included, is
+#   drift and gets replaced.
+# - system, dropbear and uhttpd are mostly OpenWrt defaults; only the options
+#   in templates/apply.sh.j2 are set.
+# - Also: the Avahi config, authorized_keys, the root password, the services
+#   being enabled, and the Tailscale login and advertised routes.
 #
-# Reached from CI over the same Cloudflare tunnel as the node. A `network`
-# reload can briefly drop that tunnel, so the disruptive handlers detach with
-# nohup and reconnect with wait_for_connection -- mirroring ansible/node/node.yml's
-# handling of the k3s restart. Never fold them back into a synchronous restart.
+# All of it is one script (templates/apply.sh.j2), uploaded and run with raw
+# calls: a community.openwrt module task costs 8-10 SSH round trips through
+# the tunnel, a raw call one. A run is about five raw calls, plus the
+# reloads when something changed. Check mode still runs the script, which
+# then only compares.
 #
-# Deliberately NOT managed: the root password (bootstrap/router/ sets it once
-# from the GL.iNet backup hash) and the Tailscale login itself (persists in
-# /etc/tailscale/tailscaled.state). The advertised subnet routes ARE enforced
-# here (tasks/tailscale.yml).
+# Reached from CI over the same Cloudflare tunnel as the nodes. A network
+# reload can drop that tunnel and a dropbear restart drops the session, so
+# those run detached and the play waits for the router to come back.
 
 - name: Configure the gateway
   hosts: router
   gather_facts: false
 
-  roles:
-    - role: community.openwrt.init
-      vars:
-        # The router has busybox base64 + sha256sum; skip the opkg/apk checks so a
-        # stale package list can't make a run report "changed".
-        openwrt_install_recommended_packages: false
-        # Dropbear serves neither sftp nor scp; `smart` probes both (and warns)
-        # before settling on the piped transfer. Name it directly so the first
-        # module transfer of the run skips the two dead probes.
-        openwrt_ssh_transfer_method: piped
-
   vars_files:
     - vars/router.yml
     - vars/secrets.yml
 
+  vars:
+    # The names the apply script printed on its `@@changed` line.
+    router_changed: >-
+      {{ ((router_apply.stdout_lines | default([])
+            | select('match', '^@@changed') | first | default('@@changed'))[9:]).split() }}
+
   tasks:
-    - name: System identity
-      ansible.builtin.import_tasks: tasks/system.yml
-      tags: [system]
+    # dropbear caps a command at 9000 bytes, and the router has no base64 to
+    # decode a compressed one, so the script goes up in line-aligned chunks of
+    # at most 7000. It holds secrets: no_log, mode 0600, in RAM, and deleted
+    # by the next task.
+    - name: Render the apply script
+      ansible.builtin.set_fact:
+        router_apply_chunks: >-
+          {%- set ns = namespace(chunks=['']) -%}
+          {%- for line in lookup('ansible.builtin.template', 'apply.sh.j2').splitlines() -%}
+          {%- if (ns.chunks[-1] | length) + (line | length) > 7000 -%}
+          {%- set ns.chunks = ns.chunks + [''] -%}
+          {%- endif -%}
+          {%- set ns.chunks = ns.chunks[:-1] + [ns.chunks[-1] ~ line ~ '\n'] -%}
+          {%- endfor -%}
+          {{ ns.chunks }}
+      no_log: true
 
-    - name: Management access
-      ansible.builtin.import_tasks: tasks/mgmt-access.yml
-      tags: [mgmt]
+    - name: Upload the apply script
+      ansible.builtin.raw: |
+        umask 077
+        cat {{ '>' if ansible_loop.first else '>>' }} /tmp/ansible-router-apply.sh <<'__ANSIBLE_ROUTER_CHUNK__'
+        {{ item }}__ANSIBLE_ROUTER_CHUNK__
+      loop: "{{ router_apply_chunks }}"
+      loop_control:
+        extended: true
+        label: "chunk {{ ansible_loop.index }}/{{ ansible_loop.length }}"
+      check_mode: false
+      changed_when: false
+      no_log: true
 
-    - name: Trusted SSH keys
-      ansible.builtin.import_tasks: tasks/ssh-keys.yml
-      tags: [ssh-keys]
+    # Prints only masked values (templates/apply.sh.j2).
+    - name: Apply the router config
+      ansible.builtin.raw: >-
+        sh /tmp/ansible-router-apply.sh; rc=$?;
+        rm -f /tmp/ansible-router-apply.sh; exit $rc
+      register: router_apply
+      check_mode: false
+      changed_when: router_changed | length > 0
 
-    - name: Network / WAN / LAN
-      ansible.builtin.import_tasks: tasks/network.yml
-      tags: [network]
+    # A raw result is opaque to --diff, so render one from the masked before and
+    # after the script printed. Runs on the controller; no SSH.
+    - name: Show what changed
+      ansible.builtin.debug:
+        msg: "{{ lookup('ansible.builtin.pipe', 'python3 ' ~ playbook_dir ~ '/files/router-diff.py ' ~ (router_apply.stdout | b64encode)).splitlines() }}"
+      when: router_changed | length > 0
 
-    - name: Wireless
-      ansible.builtin.import_tasks: tasks/wireless.yml
-      tags: [wireless]
+    - name: Work out the reloads
+      ansible.builtin.set_fact:
+        # network reload can bounce the WAN/PPPoE link CI's tunnel egresses
+        # through, and a dropbear restart drops this very session.
+        router_reload_detached: >-
+          {{ (['/etc/init.d/network reload'] if 'network' in router_changed else [])
+           + (['/etc/init.d/dropbear restart'] if 'dropbear' in router_changed else []) }}
+        # Not in CI's transport path. In order: dnsmasq and avahi follow a network
+        # reload, which recreates the bridges they bind.
+        router_reload: >-
+          {{ (['/etc/init.d/firewall reload'] if 'firewall' in router_changed else [])
+           + (['/sbin/wifi reload'] if 'wireless' in router_changed else [])
+           + (['/etc/init.d/odhcpd reload'] if 'dhcp' in router_changed else [])
+           + (['/etc/init.d/dnsmasq restart'] if router_changed | intersect(['dhcp', 'network']) else [])
+           + (['/etc/init.d/avahi-daemon restart'] if router_changed | intersect(['avahi-daemon.conf', 'network']) else [])
+           + (['/etc/init.d/uhttpd restart'] if 'uhttpd' in router_changed else [])
+           + (['/etc/init.d/system reload', '/etc/init.d/sysntpd restart'] if 'system' in router_changed else []) }}
+      when: not ansible_check_mode
 
-    - name: No DHCP or DNS on the router
-      ansible.builtin.import_tasks: tasks/dhcp-dns.yml
-      tags: [dhcp-dns]
+    # Detached in its own session (start-stop-daemon -b, as router/upgrade.sh
+    # does), then wait for the router to answer again.
+    - name: Reload network and dropbear, detached
+      ansible.builtin.raw: >-
+        start-stop-daemon -S -b -q -p /dev/null -x /bin/sh --
+        -c {{ ('sleep 1; ' ~ router_reload_detached | join('; ')) | quote }}
+      when: not ansible_check_mode and router_reload_detached | length > 0
 
-    - name: Firewall
-      ansible.builtin.import_tasks: tasks/firewall.yml
-      tags: [firewall]
-
-    - name: mDNS reflector
-      ansible.builtin.import_tasks: tasks/mdns-reflector.yml
-      tags: [mdns]
-
-    - name: Tailscale
-      ansible.builtin.import_tasks: tasks/tailscale.yml
-      tags: [tailscale]
-
-  handlers:
-    - name: Reload network
-      community.openwrt.nohup:
-        command: /etc/init.d/network reload
-        delay: 1
-
-    - name: Restart dropbear
-      community.openwrt.nohup:
-        command: /etc/init.d/dropbear restart
-        delay: 1
-
-    # network reload can bounce the WAN/PPPoE link the CI tunnel egresses
-    # through; a dropbear restart drops this very session. Both detach above,
-    # so wait for the router to answer again before the play continues.
     - name: Wait for the router
       community.openwrt.wait_for_connection:
-        delay: 2
+        delay: 5
         timeout: 300
-      listen:
-        - Reload network
-        - Restart dropbear
+      when: not ansible_check_mode and router_reload_detached | length > 0
 
-    - name: Reload firewall
-      community.openwrt.service:
-        name: firewall
-        state: reloaded
-
-    - name: Reload wifi config
-      community.openwrt.nohup:
-        command: /sbin/wifi reload
-        delay: 1
-
-    - name: Restart uhttpd
-      community.openwrt.service:
-        name: uhttpd
-        state: restarted
-
-    - name: Reload odhcpd
-      community.openwrt.service:
-        name: odhcpd
-        state: reloaded
-
-    # dnsmasq is a DHCP relay only and not in the CI transport path, so a
-    # plain restart is fine. Runs after the network handlers so 192.168.10.1
-    # exists when the relay binds it.
-    - name: Restart dnsmasq
-      community.openwrt.service:
-        name: dnsmasq
-        state: restarted
-
-    # Not in the CI transport path; a plain restart is fine.
-    - name: Restart avahi-daemon
-      community.openwrt.service:
-        name: avahi-daemon
-        state: restarted
-
-    # Not in the CI transport path; a plain restart is fine.
-    - name: Restart sysntpd
-      community.openwrt.service:
-        name: sysntpd
-        state: restarted
-
-    - name: Reload system config
-      community.openwrt.service:
-        name: system
-        state: reloaded
+    - name: Reload the other changed services
+      ansible.builtin.raw: "set -e; {{ router_reload | join('; ') }}"
+      when: not ansible_check_mode and router_reload | length > 0

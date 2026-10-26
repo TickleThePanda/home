@@ -12,5 +12,5 @@ ppp-mod-pppoe         # PPPoE WAN (explicit; usually already in the default set)
 tailscale             # subnet router / exit node
 wpad-mbedtls          # full wpad: per-station VLAN (PPSK) for the IoT SSIDs
 -wpad-basic-mbedtls   # drop the basic build the target ships by default
-avahi-nodbus-daemon   # mDNS reflector (ansible/router/tasks/mdns-reflector.yml)
+avahi-nodbus-daemon   # mDNS reflector (ansible/router/templates/avahi-daemon.conf.j2)
 tcpdump-mini          # on-router packet capture for debugging

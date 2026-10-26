@@ -35,6 +35,10 @@ jobs:
       ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
       ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
       ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
+      # Optional; unset leaves the root password alone, and only a logged-out
+      # router needs the auth key (ansible/router/vars/secrets.yml).
+      ROUTER_ROOT_PASSWORD_HASH: ${{ secrets.ROUTER_ROOT_PASSWORD_HASH }}
+      ROUTER_TS_AUTHKEY: ${{ secrets.ROUTER_TS_AUTHKEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -43,6 +47,7 @@ jobs:
       # layer lists add what only some layers read:
       #
       #   roles/ssh_keys, roles/node_exporter, files/   proxmox, node, k3s
+      #   files/ssh-authorized-keys                     router too
       #   group_vars/pi.yml, host_vars/                 node and k3s (the Pi
       #                                                 is in both layers)
       # Markdown never triggers a deploy: `some-with-excludes` drops any file a
@@ -88,6 +93,7 @@ jobs:
             router:
               - 'ansible/router/**'
               - 'ansible/group_vars/router.yml'
+              - 'ansible/files/ssh-authorized-keys'
               - '!**/*.md'
 
       # paths-filter finds nothing on a workflow_dispatch (it diffs HEAD

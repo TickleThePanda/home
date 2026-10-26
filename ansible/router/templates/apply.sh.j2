@@ -1,0 +1,163 @@
+{# The router's whole config, as one script router.yml uploads and runs. Runs in ash.
+
+   Output, read by router.yml:
+     @@old <name> / @@new <name>   masked before/after of a changed file
+     @@note <text>                 a change with no file diff to show
+     @@changed <names>             last line; empty when nothing changed
+   Secrets are masked here, on the router: the controller-side diff never
+   sees them. #}
+set -eu
+CHECK={{ '1' if ansible_check_mode else '' }}
+umask 077
+new=$(mktemp -d)
+trap 'rm -rf "$new"' EXIT
+changed=""
+
+mark() { changed="$changed $1"; }
+mask() { sed -E "s/^(\s*option (key|password|username) ).*/\1'***'/"; }
+show() {
+	echo "@@old $1"
+	[ ! -f "$2" ] || mask <"$2"
+	echo "@@new $1"
+	mask <"$3"
+}
+
+# Refuse to run over someone's half-finished LuCI edit.
+for cfg in {{ router_uci_whole | join(' ') }} {{ router_uci_partial | join(' ') }}; do
+	if [ -n "$(uci changes "$cfg")" ]; then
+		echo "uncommitted uci changes in $cfg (LuCI?); commit or revert them first" >&2
+		exit 1
+	fi
+done
+
+{% for cfg in router_uci_whole %}
+cat >"$new/{{ cfg }}" <<'__ANSIBLE_ROUTER_EOF__'
+{{ lookup('ansible.builtin.template', 'config/' ~ cfg ~ '.j2') }}
+__ANSIBLE_ROUTER_EOF__
+{% endfor %}
+cat >"$new/avahi-daemon.conf" <<'__ANSIBLE_ROUTER_EOF__'
+{{ lookup('ansible.builtin.template', 'avahi-daemon.conf.j2') | regex_replace('\n+$', '') }}
+__ANSIBLE_ROUTER_EOF__
+cat >"$new/authorized_keys" <<'__ANSIBLE_ROUTER_EOF__'
+{{ ssh_authorized_keys }}
+__ANSIBLE_ROUTER_EOF__
+cat >"$new/sysupgrade.conf" <<'__ANSIBLE_ROUTER_EOF__'
+## This file contains files and directories that should
+## be preserved during an upgrade.
+
+# Nothing: a file the keep list drops belongs in router/files/.
+__ANSIBLE_ROUTER_EOF__
+
+# Whole UCI files. `uci export` normalises formatting and drops comments, so
+# only a real config difference counts.
+for cfg in {{ router_uci_whole | join(' ') }}; do
+	uci -c "$new" export "$cfg" >"$new/$cfg.want"
+	uci export "$cfg" >"$new/$cfg.have" 2>/dev/null || : >"$new/$cfg.have"
+	if ! cmp -s "$new/$cfg.want" "$new/$cfg.have"; then
+		mark "$cfg"
+		show "$cfg" "$new/$cfg.have" "$new/$cfg.want"
+		[ -n "$CHECK" ] || cp "$new/$cfg" "/etc/config/$cfg"
+	fi
+done
+
+# Plain files: <name> <path> <mode>
+while read -r name path mode; do
+	if ! cmp -s "$new/$name" "$path"; then
+		mark "$name"
+		show "$name" "$path" "$new/$name"
+		if [ -z "$CHECK" ]; then
+			mkdir -p "$(dirname "$path")"
+			cp "$new/$name" "$path"
+			chmod "$mode" "$path"
+		fi
+	fi
+done <<'__ANSIBLE_ROUTER_EOF__'
+avahi-daemon.conf /etc/avahi/avahi-daemon.conf 644
+authorized_keys /etc/dropbear/authorized_keys 600
+sysupgrade.conf /etc/sysupgrade.conf 644
+__ANSIBLE_ROUTER_EOF__
+
+# Partly owned UCI configs: mostly OpenWrt defaults, so only these options are
+# set. Staged with uci, then committed (or reverted, in check mode).
+uset() { [ "$(uci -q get "$1")" = "$2" ] || uci set "$1=$2"; }
+ulist() {
+	key=$1
+	shift
+	[ "$(uci -q get "$key")" = "$*" ] && return
+	uci -q delete "$key" || :
+	for v in "$@"; do uci add_list "$key=$v"; done
+}
+uset system.@system[0].hostname {{ router_hostname | quote }}
+uset system.@system[0].timezone {{ router_timezone | quote }}
+uset system.@system[0].zonename {{ router_zonename | quote }}
+# NTP server for the IoT VLANs: Kea hands each IoT subnet the router as its
+# time source, and firewall.j2 opens udp/123 from those zones.
+uset system.ntp.enable_server 1
+# Management stays on the homelab and trusted gateway addresses. IoT zones
+# are input REJECT, so 22/80/443 is refused there anyway.
+ulist dropbear.@dropbear[0].Interface lan trusted
+uset dropbear.@dropbear[0].Port 22
+uset dropbear.@dropbear[0].PasswordAuth on
+uset dropbear.@dropbear[0].RootPasswordAuth on
+ulist uhttpd.main.listen_http {{ router_lan_ipaddr }}:80 {{ router_trusted_ipaddr }}:80
+ulist uhttpd.main.listen_https {{ router_lan_ipaddr }}:443 {{ router_trusted_ipaddr }}:443
+for cfg in {{ router_uci_partial | join(' ') }}; do
+	staged="$(uci changes "$cfg")"
+	[ -n "$staged" ] || continue
+	mark "$cfg"
+	echo "@@note $cfg: $(echo "$staged" | tr '\n' ' ')"
+	if [ -n "$CHECK" ]; then uci revert "$cfg"; else uci commit "$cfg"; fi
+done
+
+# Root password (LuCI and console). Unmanaged while the hash isn't set.
+hash={{ router_root_password_hash | quote }}
+if [ -n "$hash" ]; then
+	have="$(sed -n 's/^root:\([^:]*\):.*/\1/p' /etc/shadow)"
+	if [ "$have" != "$hash" ]; then
+		mark shadow
+		echo "@@note shadow: root password hash differs"
+		if [ -z "$CHECK" ]; then
+			awk -v h="$hash" 'BEGIN { FS = OFS = ":" } $1 == "root" { $2 = h } 1' \
+				/etc/shadow >"$new/shadow"
+			cat "$new/shadow" >/etc/shadow
+		fi
+	fi
+fi
+
+# Services this config relies on: enabled at boot and running.
+for svc in dnsmasq avahi-daemon tailscale; do
+	if ! /etc/init.d/$svc enabled || ! /etc/init.d/$svc running; then
+		mark "service-$svc"
+		echo "@@note service $svc: not enabled or not running"
+		[ -n "$CHECK" ] || { /etc/init.d/$svc enable; /etc/init.d/$svc start; }
+	fi
+done
+
+# Tailscale: logged in, advertising the subnets and the exit node. The login
+# persists in /etc/tailscale/tailscaled.state, which a sysupgrade keeps.
+routes={{ router_tailscale_routes | join(',') | quote }}
+state="$(tailscale status --json 2>/dev/null | jsonfilter -e '@.BackendState' || :)"
+if [ "$state" = NeedsLogin ]; then
+	mark tailscale-login
+	echo "@@note tailscale: logged out"
+	if [ -z "$CHECK" ]; then
+		authkey={{ router_tailscale_authkey | quote }}
+		if [ -z "$authkey" ]; then
+			echo "tailscale is logged out and ROUTER_TS_AUTHKEY is unset" >&2
+			exit 1
+		fi
+		tailscale up --auth-key="$authkey" --hostname={{ router_hostname | quote }} \
+			--accept-dns=false --advertise-exit-node --advertise-routes="$routes"
+	fi
+else
+	# AdvertiseRoutes also carries 0.0.0.0/0 and ::/0 while the exit node is on.
+	have="$(tailscale debug prefs | jsonfilter -e '@.AdvertiseRoutes[*]' | sort | tr '\n' ',')"
+	want="$({ printf '%s\n' 0.0.0.0/0 ::/0; echo "$routes" | tr ',' '\n'; } | sort | tr '\n' ',')"
+	if [ "$have" != "$want" ]; then
+		mark tailscale-routes
+		echo "@@note tailscale: advertising ${have%,}, want ${want%,}"
+		[ -n "$CHECK" ] || tailscale set --advertise-exit-node --advertise-routes="$routes"
+	fi
+fi
+
+echo "@@changed$changed"

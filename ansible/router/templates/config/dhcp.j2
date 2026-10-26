@@ -1,0 +1,74 @@
+{# /etc/config/dhcp, whole. #}
+# Managed by ansible/router (templates/config/dhcp.j2).
+#
+# The router serves no DHCP leases and no DNS. Kea ({{ router_kea_dhcp_ip }})
+# leases; BIND / Unbound / Pi-hole resolve.
+#
+# dnsmasq runs in one narrow role: a DHCP relay for the trusted and IoT VLANs,
+# whose clients aren't on Kea's broadcast domain. DNS is off (port 0) and no
+# subnet is served directly. The relay's reply from Kea arrives on br-lan, so
+# for dnsmasq to accept it:
+#  - dhcp.lan has `dhcpv4 disabled` + `force 1`, NOT `ignore 1`: `ignore`
+#    emits `no-dhcp-interface=br-lan`, which drops the reply. `force` skips
+#    the "another DHCP server on br-lan" guard (that server is Kea).
+#  - the relays set no `interface`: with one, dnsmasq only accepts the reply
+#    on that interface (br-trusted).
+#  - `authoritative 0`: dnsmasq must never NAK a homelab client.
+#
+# The relayed VLANs get no `config dhcp` section: odhcpd has maindhcp 0 so
+# ignores them, and one with `ignore 1` emits `no-dhcp-interface=<br>`, which
+# disables the relay there.
+
+config dnsmasq 'dnsmasq'
+	option domainneeded '1'
+	option boguspriv '1'
+	option filterwin2k '0'
+	option localise_queries '1'
+	option rebind_protection '1'
+	option rebind_localhost '1'
+	option local '/lan/'
+	option domain 'lan'
+	option expandhosts '1'
+	option nonegcache '0'
+	option cachesize '1000'
+	option authoritative '0'
+	option readethers '1'
+	option leasefile '/tmp/dhcp.leases'
+	option resolvfile '/tmp/resolv.conf.d/resolv.conf.auto'
+	option nonwildcard '1'
+	option localservice '1'
+	option ednspacket_max '1232'
+	option filter_aaaa '0'
+	option filter_a '0'
+	option port '0'
+	option logdhcp '0'
+
+config dhcp 'lan'
+	option interface 'lan'
+	option dhcpv4 'disabled'
+	option force '1'
+	option dhcpv6 'disabled'
+	option ra 'disabled'
+	option ndp 'disabled'
+
+config dhcp 'wan'
+	option interface 'wan'
+	option ignore '1'
+
+config odhcpd 'odhcpd'
+	option maindhcp '0'
+	option leasefile '/tmp/hosts/odhcpd'
+	option leasetrigger '/usr/sbin/odhcpd-update'
+	option loglevel '4'
+	option piofolder '/tmp/odhcpd-piofolder'
+
+config relay 'relay_trusted'
+	option local_addr {{ router_trusted_ipaddr | quote }}
+	option server_addr {{ router_kea_dhcp_ip | quote }}
+
+{% for v in router_iot_vlans %}
+config relay 'relay_{{ v.name }}'
+	option local_addr {{ v.ipaddr | quote }}
+	option server_addr {{ router_kea_dhcp_ip | quote }}
+
+{% endfor %}

@@ -1,0 +1,87 @@
+{# /etc/config/network, whole. Values from vars go through `quote`, which
+   is valid UCI quoting too. #}
+# Managed by ansible/router (templates/config/network.j2).
+
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	option ipaddr '127.0.0.1'
+	option netmask '255.0.0.0'
+
+config globals 'globals'
+	option ula_prefix {{ router_ula_prefix | quote }}
+
+# br-lan keeps the stock GL.iNet MAC so switches and MAC-keyed reservations
+# don't relearn it. vlan_filtering stays off: toggling it recreates the bridge
+# and blips the node ports (and CI's tunnel). The trusted port lives only in
+# br-trusted.
+config device 'br_lan'
+	option name 'br-lan'
+	option type 'bridge'
+{% for port in router_lan_ports if port != router_trusted_port %}
+	list ports {{ port | quote }}
+{% endfor %}
+	option macaddr {{ router_lan_macaddr | quote }}
+
+config interface 'lan'
+	option device 'br-lan'
+	option proto 'static'
+	option ipaddr {{ router_lan_ipaddr | quote }}
+	option netmask {{ router_lan_netmask | quote }}
+	option ip6assign {{ router_lan_ip6assign | quote }}
+
+config device 'wan_dev'
+	option name {{ router_wan_device | quote }}
+	option macaddr {{ router_wan_macaddr | quote }}
+
+# PPPoE, IPv4 only. peerdns 0: the router resolves via Quad9
+# (router/files/etc/resolv.conf), never the ISP.
+config interface 'wan'
+	option device {{ router_wan_device | quote }}
+	option proto 'pppoe'
+	option username {{ router_pppoe_username | quote }}
+	option password {{ router_pppoe_password | quote }}
+	option ipv6 '0'
+	option metric {{ router_wan_metric | quote }}
+	option peerdns '0'
+
+# Trusted VLAN: a second bridge on its own port, no 802.1q tagging.
+config device 'br_trusted'
+	option name 'br-trusted'
+	option type 'bridge'
+	option macaddr {{ router_trusted_macaddr | quote }}
+	list ports {{ router_trusted_port | quote }}
+
+config interface 'trusted'
+	option device 'br-trusted'
+	option proto 'static'
+	option ipaddr {{ router_trusted_ipaddr | quote }}
+	option netmask {{ router_trusted_netmask | quote }}
+
+# IoT VLANs: one untagged bridge each, same shape as br-trusted. Wi-Fi only,
+# so no ports: hostapd adds the per-SSID AP-VLAN netdev when it classifies a
+# station (wireless.j2's wifi-vlan sections).
+{% for v in router_iot_vlans %}
+config device {{ v.bridge | replace('-', '_') | quote }}
+	option name {{ v.bridge | quote }}
+	option type 'bridge'
+	option macaddr {{ v.macaddr | quote }}
+
+config interface {{ v.name | quote }}
+	option device {{ v.bridge | quote }}
+	option proto 'static'
+	option ipaddr {{ v.ipaddr | quote }}
+	option netmask {{ router_iot_netmask | quote }}
+
+{% endfor %}
+# Parking network for the IoT wifi-ifaces: no address, no DHCP. A station only
+# sits here for the pre-auth moment; dynamic_vlan 2 rejects it if it resolves
+# to no VLAN.
+config device {{ router_iot_park_bridge | replace('-', '_') | quote }}
+	option name {{ router_iot_park_bridge | quote }}
+	option type 'bridge'
+	option macaddr {{ router_iot_park_macaddr | quote }}
+
+config interface 'iot_park'
+	option device {{ router_iot_park_bridge | quote }}
+	option proto 'none'

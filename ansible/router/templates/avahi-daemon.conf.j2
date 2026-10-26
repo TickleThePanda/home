@@ -1,4 +1,10 @@
-# Managed by ansible/router (tasks/mdns-reflector.yml).
+{# Why: mDNS is link-local and doesn't cross the router, so without this
+   Home Assistant on homelab can't follow an ESPHome/IoT device's address
+   change on the Wi-Fi VLANs until its DNS record expires (Kea DDNS TTL is
+   lease-lifetime / 3 = 8h). The IoT zones accept udp/5353 to 224.0.0.251
+   (config/firewall.j2). Needs avahi-nodbus-daemon (router/packages.txt), not
+   the D-Bus `avahi-daemon` build. #}
+# Managed by ansible/router (templates/avahi-daemon.conf.j2).
 #
 # mDNS reflector across the homelab, trusted and IoT VLAN bridges, plus it
 # publishes the router's own address as {{ router_hostname }}.local

@@ -1,0 +1,217 @@
+{# /etc/config/firewall, whole. #}
+# Managed by ansible/router (templates/config/firewall.j2).
+#
+# Stock OpenWrt firewall with these changes: wan drops rather than rejects, a
+# tailscale0 zone so fw4 doesn't drop forwarded tailnet traffic, and a trusted
+# zone for the trusted VLAN. lan <-> trusted is fully open for now. When it's
+# tightened, keep 22/80/443 and udp/5353 to the router open from trusted.
+#
+# The IoT zones are the opposite: default deny. lan, trusted and tailscale0
+# may initiate in; IoT may not initiate back, and IoT VLANs can't reach each
+# other. Only the `internet` ones get a route to wan. Each is input REJECT,
+# with narrow rules for the router services IoT clients need: DHCP relay, DNS
+# to Pi-hole, NTP, mDNS. iot_park (the wifi-iface base network) drops
+# everything.
+
+config defaults 'defaults'
+	option syn_flood '1'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config zone 'lan'
+	option name 'lan'
+	list network 'lan'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'ACCEPT'
+
+config zone 'wan'
+	option name 'wan'
+	list network 'wan'
+	option input 'DROP'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+	option masq '1'
+	option mtu_fix '1'
+
+config zone 'trusted'
+	option name 'trusted'
+	option network 'trusted'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config zone 'tailscale0'
+	option name 'tailscale0'
+	option device 'tailscale0'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+	option mtu_fix '1'
+
+{% for v in router_iot_vlans %}
+config zone {{ v.name | quote }}
+	option name {{ v.name | quote }}
+	option network {{ v.name | quote }}
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+{% endfor %}
+config zone 'iot_park'
+	option name 'iot_park'
+	option network 'iot_park'
+	option input 'DROP'
+	option output 'DROP'
+	option forward 'DROP'
+
+{# lan/trusted/tailscale0 mesh, then into every IoT VLAN, then IoT out #}
+{% set forwardings = [
+     ['lan', 'wan'],
+     ['tailscale0', 'lan'], ['tailscale0', 'wan'], ['lan', 'tailscale0'],
+     ['tailscale0', 'trusted'], ['trusted', 'tailscale0'],
+     ['trusted', 'wan'], ['trusted', 'lan'], ['lan', 'trusted'],
+   ] %}
+{% for src in ['lan', 'trusted', 'tailscale0'] %}
+{% for v in router_iot_vlans %}
+{% set _ = forwardings.append([src, v.name]) %}
+{% endfor %}
+{% endfor %}
+{% for v in router_iot_vlans if v.internet %}
+{% set _ = forwardings.append([v.name, 'wan']) %}
+{% endfor %}
+{% for src, dest in forwardings %}
+config forwarding 'fwd_{{ src }}_{{ dest }}'
+	option src {{ src | quote }}
+	option dest {{ dest | quote }}
+
+{% endfor %}
+# Stock rules for the wan zone.
+config rule 'allow_dhcp_renew'
+	option name 'Allow-DHCP-Renew'
+	option src 'wan'
+	option proto 'udp'
+	option dest_port '68'
+	option target 'ACCEPT'
+	option family 'ipv4'
+
+config rule 'allow_ping'
+	option name 'Allow-Ping'
+	option src 'wan'
+	option proto 'icmp'
+	option icmp_type 'echo-request'
+	option family 'ipv4'
+	option target 'ACCEPT'
+
+config rule 'allow_igmp'
+	option name 'Allow-IGMP'
+	option src 'wan'
+	option proto 'igmp'
+	option family 'ipv4'
+	option target 'ACCEPT'
+
+config rule 'allow_dhcpv6'
+	option name 'Allow-DHCPv6'
+	option src 'wan'
+	option proto 'udp'
+	option dest_port '546'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule 'allow_mld'
+	option name 'Allow-MLD'
+	option src 'wan'
+	option proto 'icmp'
+	option src_ip 'fe80::/10'
+	list icmp_type '130/0'
+	list icmp_type '131/0'
+	list icmp_type '132/0'
+	list icmp_type '143/0'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule 'allow_icmpv6_input'
+	option name 'Allow-ICMPv6-Input'
+	option src 'wan'
+	option proto 'icmp'
+	list icmp_type 'echo-request'
+	list icmp_type 'echo-reply'
+	list icmp_type 'destination-unreachable'
+	list icmp_type 'packet-too-big'
+	list icmp_type 'time-exceeded'
+	list icmp_type 'bad-header'
+	list icmp_type 'unknown-header-type'
+	list icmp_type 'router-solicitation'
+	list icmp_type 'neighbour-solicitation'
+	list icmp_type 'router-advertisement'
+	list icmp_type 'neighbour-advertisement'
+	option limit '1000/sec'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule 'allow_icmpv6_forward'
+	option name 'Allow-ICMPv6-Forward'
+	option src 'wan'
+	option dest '*'
+	option proto 'icmp'
+	list icmp_type 'echo-request'
+	list icmp_type 'echo-reply'
+	list icmp_type 'destination-unreachable'
+	list icmp_type 'packet-too-big'
+	list icmp_type 'time-exceeded'
+	list icmp_type 'bad-header'
+	list icmp_type 'unknown-header-type'
+	option limit '1000/sec'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule 'allow_ipsec_esp'
+	option name 'Allow-IPSec-ESP'
+	option src 'wan'
+	option dest 'lan'
+	option proto 'esp'
+	option target 'ACCEPT'
+
+config rule 'allow_isakmp'
+	option name 'Allow-ISAKMP'
+	option src 'wan'
+	option dest 'lan'
+	option dest_port '500'
+	option proto 'udp'
+	option target 'ACCEPT'
+
+# IoT punch-through rules (the zones are input REJECT).
+{% for v in router_iot_vlans %}
+config rule 'allow_dhcp_{{ v.name }}'
+	option name 'Allow-DHCP-{{ v.name }}'
+	option src {{ v.name | quote }}
+	option proto 'udp'
+	option dest_port '67'
+	option target 'ACCEPT'
+
+config rule 'allow_dns_{{ v.name }}'
+	option name 'Allow-DNS-{{ v.name }}'
+	option src {{ v.name | quote }}
+	option dest 'lan'
+	option dest_ip {{ router_pihole_dns_ip | quote }}
+	option proto 'tcp udp'
+	option dest_port '53'
+	option target 'ACCEPT'
+
+config rule 'allow_ntp_{{ v.name }}'
+	option name 'Allow-NTP-{{ v.name }}'
+	option src {{ v.name | quote }}
+	option proto 'udp'
+	option dest_port '123'
+	option target 'ACCEPT'
+
+config rule 'allow_mdns_{{ v.name }}'
+	option name 'Allow-mDNS-{{ v.name }}'
+	option src {{ v.name | quote }}
+	option proto 'udp'
+	option dest_ip '224.0.0.251'
+	option dest_port '5353'
+	option target 'ACCEPT'
+
+{% endfor %}

@@ -1,0 +1,75 @@
+{# /etc/config/wireless, whole. #}
+# Managed by ansible/router (templates/config/wireless.j2).
+
+# radio0 is the 2.4 GHz radio and radio1 the 5 GHz one on the GL-MT6000. The
+# paths are this board's; a different router needs them re-read from a fresh
+# `wifi config`.
+config wifi-device 'radio0'
+	option type 'mac80211'
+	option path 'platform/soc/18000000.wifi'
+	option band '2g'
+	option channel 'auto'
+	option htmode 'HE40'
+	option country {{ router_wifi_country | quote }}
+
+config wifi-device 'radio1'
+	option type 'mac80211'
+	option path 'platform/soc/18000000.wifi+1'
+	option band '5g'
+	option channel 'auto'
+	option htmode 'HE160'
+	option country {{ router_wifi_country | quote }}
+
+{% for ap in [
+     {'name': 'wifinet0', 'radio': 'radio0', 'ssid': router_wifi_ssid_24g},
+     {'name': 'wifinet1', 'radio': 'radio1', 'ssid': router_wifi_ssid_5g},
+   ] %}
+config wifi-iface {{ ap.name | quote }}
+	option device {{ ap.radio | quote }}
+	option mode 'ap'
+	option network 'trusted'
+	option ssid {{ ap.ssid | quote }}
+	option encryption 'sae-mixed'
+	option key {{ router_wifi_key | quote }}
+
+{% endfor %}
+# IoT: two 2.4 GHz BSSes, one PPSK SSID each. dynamic_vlan 2 forces every
+# accepted station onto a VLAN: the wifi-station whose key it joined with
+# picks the vid, and the wifi-vlan bridges that vid. A station that resolves
+# to no VLAN is rejected, never parked. isolate 1 on the isolated BSS blocks
+# station-to-station; the peers BSS leaves it off. wmm is explicit: MediaTek
+# 24.10 clients can fail to join a wifi-vlan network without it.
+#
+# UCI still wants a `key` on a psk2 wifi-iface even with per-station keys.
+# router_iot_fallback_key is never handed out, and dynamic_vlan 2 rejects any
+# station that uses it.
+{% for ap in [
+     {'name': 'iotnet', 'group': 'isolated', 'ssid': router_iot_ssid_isolated, 'isolate': '1'},
+     {'name': 'iotpeer', 'group': 'peers', 'ssid': router_iot_ssid_peers, 'isolate': '0'},
+   ] %}
+config wifi-iface {{ ap.name | quote }}
+	option device 'radio0'
+	option mode 'ap'
+	option network 'iot_park'
+	option ssid {{ ap.ssid | quote }}
+	option encryption 'psk2'
+	option key {{ router_iot_fallback_key | quote }}
+	option wmm '1'
+	option dynamic_vlan '2'
+	option ieee80211w '0'
+	option isolate {{ ap.isolate | quote }}
+
+{% for v in router_iot_vlans if v.group == ap.group %}
+config wifi-station 'sta_{{ v.vid }}'
+	option iface {{ ap.name | quote }}
+	option vid '{{ v.vid }}'
+	option key {{ router_iot_keys[v.name] | quote }}
+
+config wifi-vlan 'vlan_{{ v.vid }}'
+	option iface {{ ap.name | quote }}
+	option vid '{{ v.vid }}'
+	option name 'v{{ v.vid }}'
+	option network {{ v.name | quote }}
+
+{% endfor %}
+{% endfor %}

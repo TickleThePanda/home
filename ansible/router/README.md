@@ -1,84 +1,89 @@
 # ansible/router
 
-The `community.openwrt` playbook that holds the gateway's ongoing config. It
-reproduces the steady state of [`../../bootstrap/router/`](../../bootstrap/router/)
-and is the source of truth from there on.
+The gateway's config (GL.iNet Flint 2, OpenWrt, `192.168.1.1`). The firmware
+in [`../../router/`](../../router/) owns packages and static files; this
+playbook owns everything a keep-settings sysupgrade carries over. See
+[Who owns what](../../router/README.md#who-owns-what).
 
-Applied by the `router` step in `.github/workflows/deploy-infra.yaml` on every push
-touching `ansible/router/**`, and by `.github/workflows/router-firmware.yaml`
-after a firmware flash, over SSH as `root` through the same cloudflared
-tunnel the `node` job uses.
+Applied by the `router` step in `.github/workflows/deploy-infra.yaml` on every
+push touching `ansible/router/**`, and by
+`.github/workflows/router-firmware.yaml` after a firmware flash, over SSH as
+`root` through the same cloudflared tunnel the `node` job uses.
 
 ## What it manages
 
-| Area | File |
+| What | Where |
 |---|---|
-| hostname, timezone, NTP server (for the IoT VLANs) | `tasks/system.yml` |
-| dropbear + LuCI on the homelab + trusted gateway addresses | `tasks/mgmt-access.yml` |
-| LAN address, PPPoE WAN, MACs, ULA, `br-trusted` + `br-iot-*` VLAN bridges | `tasks/network.yml` |
-| radios, the two `trusted` APs, and the two 2.4 GHz IoT PPSK SSIDs (`wifi-station` / `wifi-vlan`) | `tasks/wireless.yml` |
-| `dhcp.lan` ignored, dnsmasq as a DHCP relay for the trusted + IoT VLANs, `/etc/resolv.conf` → Quad9 | `tasks/dhcp-dns.yml` |
-| `wan` drops, `tailscale0` + `trusted` + IoT zones + forwardings + IoT punch-through rules | `tasks/firewall.yml` |
-| Avahi mDNS reflector (homelab ↔ trusted ↔ every IoT VLAN) | `tasks/mdns-reflector.yml` |
-| forwarding sysctls, `tailscaled` enabled, advertised subnet routes | `tasks/tailscale.yml` |
+| `/etc/config/network`, whole: LAN, PPPoE WAN, MACs, ULA, `br-trusted` and the `br-iot-*` VLAN bridges | `templates/config/network.j2` |
+| `/etc/config/wireless`, whole: radios, the two trusted APs, the two 2.4 GHz IoT PPSK SSIDs | `templates/config/wireless.j2` |
+| `/etc/config/dhcp`, whole: no DHCP or DNS served, dnsmasq as a relay to Kea for the trusted and IoT VLANs | `templates/config/dhcp.j2` |
+| `/etc/config/firewall`, whole: `wan` drops, `tailscale0`, `trusted` and IoT zones, IoT punch-through rules | `templates/config/firewall.j2` |
+| hostname, timezone, NTP server; dropbear and LuCI on the homelab and trusted addresses | options in `templates/apply.sh.j2` |
+| Avahi mDNS reflector (homelab ↔ trusted ↔ every IoT VLAN) | `templates/avahi-daemon.conf.j2` |
+| `authorized_keys`, root password, `/etc/sysupgrade.conf` (empty), dnsmasq/avahi/tailscale enabled | `templates/apply.sh.j2` |
+| Tailscale login, advertised subnets and exit node | `templates/apply.sh.j2` |
 
-Not managed:
+A whole file is rendered and replaces the router's. Anything else in it is
+drift: a LuCI edit there shows up in the next run's diff and gets reverted.
+`system`, `dropbear` and `uhttpd` are mostly OpenWrt defaults, so only the
+options the script sets are managed.
 
-- **Packages.** They are built into the firmware by
-  [`../../router/`](../../router/), which also flashes upgrades.
-- **The root password.** `../../bootstrap/router/` sets it once from the
-  GL.iNet backup hash.
-- **The Tailscale login.** It persists in `/etc/tailscale/tailscaled.state`;
-  `../../bootstrap/router/`'s hotplug script logs in on first WAN up.
+## How a run works
 
-The advertised routes (`router_tailscale_routes`) *are* enforced by
-`tasks/tailscale.yml`.
+Each `community.openwrt` module task costs 8-10 SSH round trips through the
+tunnel. So `router.yml` renders everything into one shell script, uploads it
+with a few `raw` calls (dropbear caps a command at 9000 bytes) and runs it.
+The script:
+
+1. refuses to run over uncommitted `uci` changes (a half-finished LuCI edit);
+2. compares each whole file by `uci export`, which ignores formatting and
+   comments, and installs the ones that differ;
+3. sets the partly managed options, the plain files, the root password, the
+   services and Tailscale;
+4. prints a masked before/after of each change, which the play turns into a
+   diff on the controller.
+
+The play then reloads only what changed. `network` and `dropbear` restart
+detached, because they can drop the tunnel or the session, and the play
+waits for the router to answer again.
+
+`--check` runs the same script in compare-only mode, so CI's idempotence
+re-run is a real check.
 
 ## Secrets
 
-These values come from the environment. CI reads them from the `prod` GitHub
-Environment; the SSH key is `NODE_SSH_KEY` (its public half is already in the
-router's `authorized_keys`).
+From the environment. CI reads them from the `prod` GitHub Environment. The
+SSH key is `NODE_SSH_KEY`, whose public half the firmware bakes in.
 
-| Env var | GitHub secret |
+| Env var / GitHub secret | |
 |---|---|
-| `ROUTER_PPPOE_USERNAME` | `ROUTER_PPPOE_USERNAME` |
-| `ROUTER_PPPOE_PASSWORD` | `ROUTER_PPPOE_PASSWORD` |
-| `ROUTER_WIFI_KEY` | `ROUTER_WIFI_KEY` |
-| `ROUTER_WIFI_IOT_KEY_INET` | `ROUTER_WIFI_IOT_KEY_INET` |
-| `ROUTER_WIFI_IOT_KEY_LOCAL` | `ROUTER_WIFI_IOT_KEY_LOCAL` |
-| `ROUTER_WIFI_IOT_KEY_ECHO` | `ROUTER_WIFI_IOT_KEY_ECHO` |
+| `ROUTER_PPPOE_USERNAME`, `ROUTER_PPPOE_PASSWORD` | PPPoE login |
+| `ROUTER_WIFI_KEY` | trusted SSIDs' PSK |
+| `ROUTER_WIFI_IOT_KEY_INET`, `_LOCAL`, `_ECHO` | IoT PPSKs, one per VLAN |
+| `ROUTER_ROOT_PASSWORD_HASH` | optional: root's crypt hash. Unset leaves the password alone |
+| `ROUTER_TS_AUTHKEY` | optional: tagged `tag:home-router`, reusable, non-ephemeral. Only used when the router is logged out of the tailnet; the run fails then if it's unset |
 
 ## Running it by hand
 
-Do the first apply after a bootstrap reflash (`sysupgrade -n`) from the LAN, not through CI — a `network`
-reload can briefly drop the tunnel CI rides on.
+From a machine that reaches `192.168.1.1` (LAN or Tailscale):
 
 ```sh
 cd ansible
-set -a; . ../bootstrap/router/secrets.env; set +a   # same var names
+cp router/secrets.env.example router/secrets.env   # once; fill it in
+set -a; . router/secrets.env; set +a
 ansible-galaxy collection install -r requirements.yml
-ansible-playbook router/router.yml --diff --private-key ../deploy_key
-# then confirm it is idempotent:
 ansible-playbook router/router.yml --check --diff --private-key ../deploy_key
+ansible-playbook router/router.yml --diff --private-key ../deploy_key
 ```
-
-The router already carries this config from the image, so a first run against a
-freshly-flashed router should report few or no changes and no interface bounce.
 
 ## Notes
 
-- `known_hosts` pins the router's dropbear host key. A keep-settings upgrade
-  keeps it. After a bootstrap reflash regenerates it, refresh with `ssh-keyscan -t ed25519 192.168.1.1` and verify the
-  fingerprint from the console.
-- The playbook assumes `radio0` is 2.4 GHz and `radio1` is 5 GHz; `wireless.yml`
-  asserts this and fails clearly if a particular router differs.
-- Anonymous UCI sections that stay anonymous (the `eth1` device) are matched
-  by their attributes, not a positional index, so a run stays idempotent
-  regardless of ordering.
-- The firewall is rendered by `templates/firewall.uci.j2` and applied in one
-  `uci batch`; its zones, forwardings and IoT rules are **named** sections.
-  `templates/firewall-anon-cleanup.sh.j2` runs first and deletes the
-  anonymous copies a bootstrapped or previously-managed router starts with,
-  so a first run reports firewall changes and one firewall reload; steady
-  state is clean.
+- `known_hosts` pins the router's dropbear host key. A keep-settings flash
+  keeps it; a wiped router has a new one (see
+  [Recovery](../../router/README.md#recovery)).
+- `wireless.j2` hardcodes this board's radio paths: `radio0` is 2.4 GHz and
+  `radio1` 5 GHz. Another router needs them re-read from a fresh
+  `wifi config`.
+- After a release upgrade, OpenWrt's migrations may touch an owned file. The
+  next run shows that as a diff and reverts it; fold it into the template if
+  it's wanted.
