@@ -4,9 +4,11 @@
 # `k3s.orchestration` reads `k3s_version` to install/upgrade every node.
 #
 # Upgrades go one minor at a time -- Kubernetes does not support skipping.
-# Current target chain: 1.33 -> 1.34 -> 1.35 -> 1.36. Renovate automerges
-# patches and opens each minor separately for approval on the Dependency
-# Dashboard; approve the next one only once the last is rolled out.
+# Renovate automerges patches and minors, one minor per branch:
+# - scripts/check-versions.sh fails any branch that moves more than one minor
+#   past main, so only the next minor merges.
+# - k3s.yml's first play refuses to deploy a minor that any node would skip,
+#   so a failed upgrade halts the chain until a human fixes it.
 
 k3s_version: "v1.33.13+k3s2"
 

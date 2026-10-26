@@ -82,4 +82,7 @@ ansible-playbook k3s/k3s.yml --diff -e node_user=deploy
   shared anonymous per-IP one. Absent creds -> the file is skipped, any
   existing one left in place. Rotate with `gh secret set DOCKER_PULL_TOKEN
   --env prod` then a `workflow_dispatch`.
-- k3s upgrades: bump `k3s_version`. One minor version at a time.
+- k3s upgrades: bump `k3s_version`, one minor at a time. Renovate does
+  this unattended (see `vars/versions.yml`). The first play fails the run if
+  any node would skip a minor; CI then also fails unless every node reports
+  `k3s_version`.

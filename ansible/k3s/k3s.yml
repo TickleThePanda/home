@@ -17,6 +17,41 @@
 # keeps pods (cloudflared included) up, so the tunnel only blips;
 # ansible.cfg's keepalives cover it. Do the first run by hand from the LAN.
 
+# Renovate merges the next k3s minor once the previous one is on main, whether
+# or not its deploy succeeded. Kubernetes can't skip a minor, so stop before
+# touching any node that would. any_errors_fatal: with forks = 1, one failed
+# host would otherwise let the rest upgrade.
+- name: Refuse to skip a k3s minor
+  hosts: k3s_cluster
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  vars_files:
+    - vars/versions.yml
+  tasks:
+    - name: Read the running k3s version
+      ansible.builtin.command: /usr/local/bin/k3s --version
+      register: k3s_running
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    # No binary: a fresh install, which can start at any version.
+    - name: Upgrade by at most one minor
+      when: k3s_running.rc == 0
+      vars:
+        running: "{{ k3s_running.stdout | regex_search('v(\\d+)\\.(\\d+)', '\\1', '\\2') }}"
+        target: "{{ k3s_version | regex_search('v(\\d+)\\.(\\d+)', '\\1', '\\2') }}"
+      ansible.builtin.assert:
+        that:
+          - running[0] == target[0]
+          - target[1] | int - running[1] | int <= 1
+        fail_msg: >-
+          {{ inventory_hostname }} runs k3s {{ running | join('.') }}; k3s_version
+          {{ k3s_version }} would skip a minor. Bring every node to
+          {{ running[0] }}.{{ running[1] | int + 1 }} first.
+        quiet: true
+
 - name: Cluster prerequisites
   hosts: k3s_cluster
   gather_facts: true

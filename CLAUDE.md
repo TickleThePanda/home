@@ -125,8 +125,9 @@ Documentation and comments: simple, concise, practical.
   collections and `ansible-core`, k3s, Flux, Terraform and its providers, and
   `apps/` Dockerfiles. It merges non-major updates into `main` once
   `.github/workflows/validate.yaml` passes on its branch. Majors, and each
-  minor of k3s, `ansible-core` and Python, wait for approval on the Dependency
-  Dashboard issue. `scripts/check-renovate.sh` fails CI on a pin Renovate
+  minor of `ansible-core` and Python, wait for approval on the Dependency
+  Dashboard issue. k3s and `alpine/k8s` minors automerge one at a time
+  (`ansible/k3s/vars/versions.yml`). `scripts/check-renovate.sh` fails CI on a pin Renovate
   can't parse.
 
 ## Administration

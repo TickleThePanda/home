@@ -76,5 +76,27 @@ flux_cli=$(yq "$flux_step | .with.version" .github/workflows/deploy-cluster.yaml
 [[ $(yq '.spec.values.image // ""' deploy/setup/traefik/helm-release.yaml) == "" ]] \
     || fail "deploy/setup/traefik/helm-release.yaml overrides the chart's image"
 
+# k3s and alpine/k8s (kubectl) minors automerge, but Kubernetes can't skip a
+# minor. Renovate opens a branch per minor at once, so fail all but the next
+# one; each rebase after a merge lets the following minor through.
+minor() { sed -nE 's/^v?([0-9]+\.[0-9]+).*/\1/p' <<<"$1"; }
+k3s_vars=ansible/k3s/vars/versions.yml
+k3s=$(minor "$(yq '.k3s_version' "$k3s_vars")")
+kubectl=$(minor "$(tag alpine/k8s)")
+if git rev-parse --verify -q origin/main >/dev/null; then
+    main_k3s=$(minor "$(git show "origin/main:$k3s_vars" | yq '.k3s_version')")
+    main_kubectl=$(minor "$(git grep -h -E 'image:\s*alpine/k8s:' origin/main -- deploy \
+        | sed -nE 's/.*alpine\/k8s:([^ #]+).*/\1/p' | head -n1)")
+    step_ok() { [[ ${1%.*} == "${2%.*}" ]] && (( ${2#*.} - ${1#*.} <= 1 )); }
+    step_ok "$main_k3s" "$k3s" || fail "k3s moves from $main_k3s to $k3s; upgrade one minor at a time"
+    step_ok "$main_kubectl" "$kubectl" \
+        || fail "alpine/k8s moves from $main_kubectl to $kubectl; upgrade one minor at a time"
+else
+    echo "NOTE: no origin/main, skipping the one-minor-at-a-time check" >&2
+fi
+# kubectl supports a server one minor either side of it.
+(( ${kubectl#*.} - ${k3s#*.} <= 1 && ${k3s#*.} - ${kubectl#*.} <= 1 )) \
+    || fail "alpine/k8s ($kubectl) is more than one minor from k3s ($k3s)"
+
 (( failed == 0 )) && echo "OK: version invariants hold"
 exit "$failed"

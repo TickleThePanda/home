@@ -228,6 +228,13 @@ jobs:
             | .spec.taints // [] | any(.key=="ticklethepanda.dev/control-plane" and .effect=="NoSchedule")' >/dev/null; then
             echo "::error::k3s-vm-control-01 is missing the control-plane-only taint"; exit 1
           fi
+          # A half-done upgrade fails here, not on the next minor's run.
+          want=$(yq '.k3s_version' ansible/k3s/vars/versions.yml)
+          behind=$(echo "$nodes" | jq -r --arg want "$want" '.items[]
+            | select(.status.nodeInfo.kubeletVersion != $want) | .metadata.name')
+          if [ -n "$behind" ]; then
+            echo "::error::not on k3s ${want}: $(echo $behind)"; exit 1
+          fi
 
       # Last: this is CI's own egress path. See the header.
       - name: Router

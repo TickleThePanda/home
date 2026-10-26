@@ -194,7 +194,7 @@
       "versioning": "loose"
     },
     {
-      "description": "k3s and ansible-core upgrade one minor at a time (ansible/k3s/vars/versions.yml, .github/actions/ansible-setup/requirements.txt), as does alpine/k8s, whose tag is its kubectl version (deploy/setup/kured/proxmox-reboot/cronjob.yaml). Each minor gets its own branch.",
+      "description": "k3s and ansible-core upgrade one minor at a time (ansible/k3s/vars/versions.yml, .github/actions/ansible-setup/requirements.txt), as does alpine/k8s, whose tag is its kubectl version (deploy/setup/kured/proxmox-reboot/cronjob.yaml). Each minor gets its own branch. k3s and alpine/k8s minors automerge: scripts/check-versions.sh fails every branch but the next minor, and ansible/k3s/k3s.yml refuses to deploy a minor the nodes would skip.",
       "matchPackageNames": [
         "k3s-io/k3s",
         "ansible-core",
@@ -203,11 +203,9 @@
       "separateMultipleMinor": true
     },
     {
-      "description": "...and each minor waits for approval on the Dependency Dashboard, so they can be taken in order.",
+      "description": "...and each ansible-core minor waits for approval on the Dependency Dashboard.",
       "matchPackageNames": [
-        "k3s-io/k3s",
-        "ansible-core",
-        "alpine/k8s"
+        "ansible-core"
       ],
       "matchUpdateTypes": [
         "minor"
