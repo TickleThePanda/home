@@ -285,6 +285,16 @@
       "automerge": false
     },
     {
+      "description": "The Renovate CLI releases several times a day. Without a minimum age, each run finds a newer release and restarts Validate, so the branch never merges. CI only uses it to check renovate.json, so a day-old release is new enough.",
+      "matchDepNames": [
+        "renovate"
+      ],
+      "matchDatasources": [
+        "npm"
+      ],
+      "minimumReleaseAge": "1 day"
+    },
+    {
       "description": "ansible-galaxy passes a git role's whole URL to the github-tags datasource, which expects owner/repo, so the lookup fails.",
       "matchPackageNames": [
         "https://github.com/k3s-io/k3s-ansible.git"
