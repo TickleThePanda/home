@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Flash the gateway with a router/build.sh image, keeping its config, and check
-# it comes back healthy. deploy-infra.yaml runs it; so can anyone who can reach
+# it comes back healthy. router-firmware.yaml runs it; so can anyone who can reach
 # 192.168.1.1 with the deploy key.
 #
 #   ./router/upgrade.sh check  router/out   exit 0 if the router runs this build, 3 if not

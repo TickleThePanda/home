@@ -5,7 +5,8 @@ reproduces the steady state of [`../../bootstrap/router/`](../../bootstrap/route
 and is the source of truth from there on.
 
 Applied by the `router` step in `.github/workflows/deploy-infra.yaml` on every push
-touching `ansible/router/**`, and again after a firmware flash, over SSH as `root` through the same cloudflared
+touching `ansible/router/**`, and by `.github/workflows/router-firmware.yaml`
+after a firmware flash, over SSH as `root` through the same cloudflared
 tunnel the `node` job uses.
 
 ## What it manages

@@ -34,21 +34,25 @@ and the commit it was built from.
    fails if a package in `router_firmware_packages` is missing from the
    image. Renovate merges an OpenWrt patch once this passes. A new release
    series (24.10 → 25.12) waits for approval on the Dependency Dashboard.
-2. **Deploy (`main`).** `deploy-infra.yaml` rebuilds the image after the
-   router playbook, and `upgrade.sh check` compares the router's release and
+2. **Deploy (`main`).** `router-firmware.yaml` runs on a push that changes
+   `router/`. It rebuilds the image, and `upgrade.sh check` compares the router's release and
    `/etc/firmware.manifest` with the build. If they differ, the job:
    1. takes kured's lock, so no node or proxmox-01 reboot overlaps;
    2. runs `upgrade.sh flash`, then waits for the kube API and cloudflared;
    3. releases the lock and runs the router playbook again;
    4. keeps the manifest, the encrypted config backup and the log as a
       90-day artifact.
-3. **Monthly rebuild.** On the 3rd at 11:00 UTC, `deploy.yaml` rebuilds the
-   image for the pinned release. It flashes only if feed updates changed the
+3. **Monthly rebuild.** On the 3rd at 11:00 UTC, the same workflow rebuilds
+   the image for the pinned release. It flashes only if feed updates changed the
    package set, and is a no-op otherwise.
 
-`ROUTER_AUTO_FLASH` in `deploy-infra.yaml` gates steps 2 and 3. While it's
-`"false"`, only a manual dispatch of Deploy flashes. A push or the schedule
-reports the drift as a warning.
+`ROUTER_AUTO_FLASH` in `router-firmware.yaml` gates steps 2 and 3. While it's
+`"false"`, only a manual dispatch of the workflow flashes. A push or the
+schedule reports the drift as a warning.
+
+The workflow shares `deploy.yaml`'s `cluster` concurrency group, so a flash
+never overlaps a deploy that needs the tunnel. The router playbook (run by
+`deploy.yaml`) writes the sysupgrade keep list that `upgrade.sh` checks.
 
 ## What `upgrade.sh flash` does
 

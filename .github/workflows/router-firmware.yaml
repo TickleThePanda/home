@@ -1,0 +1,197 @@
+name: Router firmware
+
+# Builds the gateway's firmware from router/ and flashes it when the router
+# doesn't run that build (router/README.md). Runs on a push to main that
+# changes router/, on a manual dispatch, and monthly, so feed updates within
+# the pinned release reach the router. A no-op when the router already runs
+# the build.
+#
+# A flash cuts CI's own path for a few minutes: CI reaches the LAN through
+# the in-cluster cloudflared, which egresses through this router. So this
+# shares deploy.yaml's `cluster` concurrency group, so no deploy is mid-flight
+# through the tunnel, and it waits for the cluster API and cloudflared before
+# it lets the next run start.
+#
+# deploy.yaml's router playbook writes the sysupgrade keep list this relies
+# on. upgrade.sh refuses to flash while that list is incomplete.
+
+on:
+  push:
+    branches: main
+    paths:
+      - router/**
+      - .github/workflows/router-firmware.yaml
+      - '!**/*.md'
+  workflow_dispatch: {}
+  # Midday on the 3rd, clear of the 02:00-06:00 London reboot window.
+  schedule:
+    - cron: '0 11 3 * *'
+
+concurrency:
+  group: cluster
+  cancel-in-progress: false
+
+# Rollout gate for unattended flashing. While "false", only a manual dispatch
+# flashes the router; a push or the schedule reports the drift and stops.
+env:
+  ROUTER_AUTO_FLASH: "false"
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    environment: prod
+    # The router playbook's secrets, for the reconcile after a flash.
+    env:
+      ROUTER_PPPOE_USERNAME: ${{ secrets.ROUTER_PPPOE_USERNAME }}
+      ROUTER_PPPOE_PASSWORD: ${{ secrets.ROUTER_PPPOE_PASSWORD }}
+      ROUTER_WIFI_KEY: ${{ secrets.ROUTER_WIFI_KEY }}
+      ROUTER_WIFI_IOT_KEY_INET: ${{ secrets.ROUTER_WIFI_IOT_KEY_INET }}
+      ROUTER_WIFI_IOT_KEY_LOCAL: ${{ secrets.ROUTER_WIFI_IOT_KEY_LOCAL }}
+      ROUTER_WIFI_IOT_KEY_ECHO: ${{ secrets.ROUTER_WIFI_IOT_KEY_ECHO }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # Before WARP: with it connected, the Image Builder container can't reach
+      # downloads.openwrt.org. No secrets go into this image; the router keeps
+      # its own config.
+      - name: Build the firmware
+        env:
+          CONTAINER_RUNTIME: docker
+        run: ./router/build.sh
+
+      - name: Connect to Cloudflare Warp
+        uses: ./.github/actions/cloudflare-warp
+        with:
+          organization: ticklethepanda
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
+      # kured's lock and the post-flash wait.
+      - name: Setup k8s context
+        uses: azure/k8s-set-context@v5.0.1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Install the SSH key
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/deploy_key
+
+      - name: Check the router is reachable
+        run: |
+          if ! nc -zv -w 10 192.168.1.1 22; then
+            echo "::error::Cannot reach 192.168.1.1:22 through the tunnel. Check cloudflared and the Zero Trust policy for the CI service token."
+            exit 1
+          fi
+
+      - name: Compare the router with the build
+        id: compare
+        env:
+          FLASH_ALLOWED: ${{ github.event_name == 'workflow_dispatch' || env.ROUTER_AUTO_FLASH == 'true' }}
+        run: |
+          set -euo pipefail
+          # 0: already running this build; 3: differs; anything else: error.
+          rc=0
+          SSH_KEY=~/.ssh/deploy_key ./router/upgrade.sh check router/out || rc=$?
+          case "$rc" in
+            0) echo "flash=false" >> "$GITHUB_OUTPUT" ;;
+            3)
+              if [ "$FLASH_ALLOWED" = "true" ]; then
+                echo "flash=true" >> "$GITHUB_OUTPUT"
+              else
+                echo "::warning::The router does not run the firmware in router/ (diff above). ROUTER_AUTO_FLASH is off; dispatch this workflow to flash it."
+                echo "flash=false" >> "$GITHUB_OUTPUT"
+              fi
+              ;;
+            *) exit "$rc" ;;
+          esac
+
+      # kured's lock, so no node or proxmox-01 reboot overlaps the flash. Same
+      # format and resourceVersion guard as
+      # deploy/setup/kured/proxmox-reboot/proxmox-reboot.sh.
+      - name: Take kured's reboot lock
+        id: lock
+        if: steps.compare.outputs.flash == 'true'
+        run: |
+          set -euo pipefail
+          lock=weave.works/kured-node-lock
+          ds=$(kubectl -n kube-system get ds kured -o json)
+          holder=$(jq -r --arg a "$lock" '.metadata.annotations[$a] // empty' <<<"$ds")
+          if [ -n "$holder" ]; then
+            echo "::error::kured's lock is held ($holder): a reboot is in progress. Re-run once it is released."
+            exit 1
+          fi
+          value=$(jq -cn --arg now "$(date -u +%FT%TZ)" \
+            '{nodeID: "router-firmware", metadata: {unschedulable: false}, created: $now, TTL: 0}')
+          kubectl -n kube-system annotate ds kured "$lock=$value" \
+            --resource-version="$(jq -r .metadata.resourceVersion <<<"$ds")"
+
+      - name: Flash the router
+        id: flash
+        if: steps.compare.outputs.flash == 'true'
+        env:
+          BACKUP: ${{ runner.temp }}/router-backup.tar.gz.age
+        run: |
+          set -euo pipefail
+          SSH_KEY=~/.ssh/deploy_key ./router/upgrade.sh flash router/out 2>&1 \
+            | tee "$RUNNER_TEMP/router-upgrade.log"
+
+      # The flash dropped cloudflared's upstream; the next deploy reaches the
+      # LAN through it.
+      - name: Wait for the cluster API and cloudflared
+        if: steps.flash.outcome == 'success'
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            kubectl get --raw /readyz >/dev/null 2>&1 && break
+            [ "$i" -lt 30 ] || { echo "::error::API server not ready 5 min after the flash"; exit 1; }
+            sleep 10
+          done
+          kubectl wait --all-namespaces --for=condition=Ready pod \
+            --selector pod=cloudflared --timeout=300s
+
+      # A failure before the flash releases the lock. A failed flash keeps it,
+      # which pauses kured until someone releases it by hand
+      # (deploy/setup/kured/README.md#the-lock): the router needs a human first.
+      - name: Release kured's reboot lock
+        if: always() && steps.lock.outcome == 'success'
+        env:
+          FLASHED: ${{ steps.flash.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$FLASHED" = "failure" ] && grep -qx '== flash' "$RUNNER_TEMP/router-upgrade.log" 2>/dev/null; then
+            echo "::error::The flash failed after sysupgrade started. kured's lock stays held until the router is checked; release it by hand."
+            exit 1
+          fi
+          kubectl -n kube-system annotate ds kured weave.works/kured-node-lock-
+
+      - name: Set up Ansible
+        if: steps.flash.outcome == 'success'
+        uses: ./.github/actions/ansible-setup
+        with:
+          working-directory: ansible
+
+      # A keep-settings flash should leave nothing to change; this proves it.
+      - name: Reconcile the router's config
+        if: steps.flash.outcome == 'success'
+        uses: ./.github/actions/ansible-apply
+        with:
+          playbook: router/router.yml
+
+      # The backup is encrypted to the committed SSH keys (router/upgrade.sh),
+      # so it is safe in a public repo's artifacts.
+      - name: Keep the firmware manifest and config backup
+        if: always() && steps.compare.outputs.flash == 'true'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: router-firmware-${{ github.run_id }}
+          path: |
+            router/out/firmware.manifest
+            ${{ runner.temp }}/router-backup.tar.gz.age
+            ${{ runner.temp }}/router-upgrade.log
+          retention-days: 90
+          if-no-files-found: warn

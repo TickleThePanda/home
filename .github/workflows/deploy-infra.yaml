@@ -8,24 +8,13 @@ name: Deploy - infra
 # layer that can drop CI's own egress, so a WAN blip there cannot strand a
 # layer that had yet to run.
 #
-# The router firmware (router/) runs after the router playbook, which keeps
-# the sysupgrade keep list current, and the playbook runs again after a flash.
-# A flash cuts CI's own path for a few minutes; router/upgrade.sh only polls
-# afterwards, and the job waits for the cluster API and cloudflared before
-# the cluster and terraform jobs go on.
-#
 # Each layer runs when the push changed a file its playbook reads, or on a
-# manual workflow_dispatch. The monthly schedule runs only the firmware. The filters below list every role, vars file and
+# manual workflow_dispatch. The filters below list every role, vars file and
 # shared file per layer. A file a layer reads but doesn't list is a deploy that
 # silently never happens, so keep them in step with the playbooks.
 
 on:
   workflow_call:
-
-# Rollout gate for unattended flashing. While "false", only a manual dispatch
-# flashes the router; a push or the schedule reports the drift and stops.
-env:
-  ROUTER_AUTO_FLASH: "false"
 
 jobs:
   infra:
@@ -59,7 +48,6 @@ jobs:
       # Markdown never triggers a deploy: `some-with-excludes` drops any file a
       # `!` pattern matches.
       - name: Detect which layers changed
-        if: github.event_name != 'schedule'
         uses: dorny/paths-filter@v4.0.3
         id: changes
         with:
@@ -101,25 +89,19 @@ jobs:
               - 'ansible/router/**'
               - 'ansible/group_vars/router.yml'
               - '!**/*.md'
-            firmware:
-              - 'router/**'
-              - '!**/*.md'
 
       # paths-filter finds nothing on a workflow_dispatch (it diffs HEAD
       # against its own merge-base), so a manual run selects every layer here. A
-      # change to `shared` selects every Ansible layer too. The schedule
-      # selects only the firmware.
+      # change to `shared` selects every layer too.
       - name: Select the layers to run
         id: layers
         env:
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
-          SCHEDULE: ${{ github.event_name == 'schedule' }}
           SHARED: ${{ steps.changes.outputs.shared }}
           PROXMOX: ${{ steps.changes.outputs.proxmox }}
           NODE: ${{ steps.changes.outputs.node }}
           K3S: ${{ steps.changes.outputs.k3s }}
           ROUTER: ${{ steps.changes.outputs.router }}
-          FIRMWARE: ${{ steps.changes.outputs.firmware }}
         run: |
           set -euo pipefail
           pick() {
@@ -133,20 +115,6 @@ jobs:
           pick node "$NODE"
           pick k3s "$K3S"
           pick router "$ROUTER"
-          if [ "$DISPATCH" = "true" ] || [ "$SCHEDULE" = "true" ] || [ "$FIRMWARE" = "true" ]; then
-            echo "firmware=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "firmware=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Before WARP: with it connected, the Image Builder container can't reach
-      # downloads.openwrt.org. No secrets go into this image; the router keeps
-      # its own config.
-      - name: Build the router firmware
-        if: steps.layers.outputs.firmware == 'true'
-        env:
-          CONTAINER_RUNTIME: docker
-        run: ./router/build.sh
 
       - name: Connect to Cloudflare Warp
         uses: ./.github/actions/cloudflare-warp
@@ -155,10 +123,9 @@ jobs:
           auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
 
-      # The k3s layer's end-state assertion and the firmware flash (kured's
-      # lock, the post-flash wait) need kubectl.
+      # Only the k3s layer's end-state assertion needs kubectl.
       - name: Setup k8s context
-        if: steps.layers.outputs.k3s == 'true' || steps.layers.outputs.firmware == 'true'
+        if: steps.layers.outputs.k3s == 'true'
         uses: azure/k8s-set-context@v5.0.1
         with:
           method: kubeconfig
@@ -191,7 +158,7 @@ jobs:
           RUN_PROXMOX: ${{ steps.layers.outputs.proxmox }}
           RUN_NODE: ${{ steps.layers.outputs.node }}
           RUN_K3S: ${{ steps.layers.outputs.k3s }}
-          RUN_ROUTER: ${{ steps.layers.outputs.router == 'true' || steps.layers.outputs.firmware == 'true' }}
+          RUN_ROUTER: ${{ steps.layers.outputs.router }}
         run: |
           set -euo pipefail
           if ! nc -zv -w 10 192.168.1.32 6443; then
@@ -268,105 +235,3 @@ jobs:
         uses: ./.github/actions/ansible-apply
         with:
           playbook: router/router.yml
-
-      - name: Compare the router with the build
-        id: firmware
-        if: steps.layers.outputs.firmware == 'true'
-        env:
-          FLASH_ALLOWED: ${{ github.event_name == 'workflow_dispatch' || env.ROUTER_AUTO_FLASH == 'true' }}
-        run: |
-          set -euo pipefail
-          # 0: already running this build; 3: differs; anything else: error.
-          rc=0
-          SSH_KEY=~/.ssh/deploy_key ./router/upgrade.sh check router/out || rc=$?
-          case "$rc" in
-            0) echo "flash=false" >> "$GITHUB_OUTPUT" ;;
-            3)
-              if [ "$FLASH_ALLOWED" = "true" ]; then
-                echo "flash=true" >> "$GITHUB_OUTPUT"
-              else
-                echo "::warning::The router does not run the firmware in router/ (diff above). ROUTER_AUTO_FLASH is off; dispatch this workflow to flash it."
-                echo "flash=false" >> "$GITHUB_OUTPUT"
-              fi
-              ;;
-            *) exit "$rc" ;;
-          esac
-
-      # kured's lock, so no node or proxmox-01 reboot overlaps the flash. Same
-      # format and resourceVersion guard as
-      # deploy/setup/kured/proxmox-reboot/proxmox-reboot.sh.
-      - name: Take kured's reboot lock
-        id: lock
-        if: steps.firmware.outputs.flash == 'true'
-        run: |
-          set -euo pipefail
-          lock=weave.works/kured-node-lock
-          ds=$(kubectl -n kube-system get ds kured -o json)
-          holder=$(jq -r --arg a "$lock" '.metadata.annotations[$a] // empty' <<<"$ds")
-          if [ -n "$holder" ]; then
-            echo "::error::kured's lock is held ($holder): a reboot is in progress. Re-run once it is released."
-            exit 1
-          fi
-          value=$(jq -cn --arg now "$(date -u +%FT%TZ)" \
-            '{nodeID: "router-firmware", metadata: {unschedulable: false}, created: $now, TTL: 0}')
-          kubectl -n kube-system annotate ds kured "$lock=$value" \
-            --resource-version="$(jq -r .metadata.resourceVersion <<<"$ds")"
-
-      - name: Flash the router
-        id: flash
-        if: steps.firmware.outputs.flash == 'true'
-        env:
-          BACKUP: ${{ runner.temp }}/router-backup.tar.gz.age
-        run: |
-          set -euo pipefail
-          SSH_KEY=~/.ssh/deploy_key ./router/upgrade.sh flash router/out 2>&1 \
-            | tee "$RUNNER_TEMP/router-upgrade.log"
-
-      # The flash dropped cloudflared's upstream; the cluster and terraform
-      # jobs reach the LAN through it.
-      - name: Wait for the cluster API and cloudflared
-        if: steps.flash.outcome == 'success'
-        run: |
-          set -euo pipefail
-          for i in $(seq 1 30); do
-            kubectl get --raw /readyz >/dev/null 2>&1 && break
-            [ "$i" -lt 30 ] || { echo "::error::API server not ready 5 min after the flash"; exit 1; }
-            sleep 10
-          done
-          kubectl wait --all-namespaces --for=condition=Ready pod \
-            --selector pod=cloudflared --timeout=300s
-
-      # A failure before the flash releases the lock. A failed flash keeps it,
-      # which pauses kured until someone releases it by hand
-      # (deploy/setup/kured/README.md#the-lock): the router needs a human first.
-      - name: Release kured's reboot lock
-        if: always() && steps.lock.outcome == 'success'
-        env:
-          FLASHED: ${{ steps.flash.outcome }}
-        run: |
-          set -euo pipefail
-          if [ "$FLASHED" = "failure" ] && grep -qx '== flash' "$RUNNER_TEMP/router-upgrade.log" 2>/dev/null; then
-            echo "::error::The flash failed after sysupgrade started. kured's lock stays held until the router is checked; release it by hand."
-            exit 1
-          fi
-          kubectl -n kube-system annotate ds kured weave.works/kured-node-lock-
-
-      - name: Router, reconciled after the flash
-        if: steps.flash.outcome == 'success'
-        uses: ./.github/actions/ansible-apply
-        with:
-          playbook: router/router.yml
-
-      # The backup is encrypted to the committed SSH keys (router/upgrade.sh),
-      # so it is safe in a public repo's artifacts.
-      - name: Keep the firmware manifest and config backup
-        if: always() && steps.firmware.outputs.flash == 'true'
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: router-firmware-${{ github.run_id }}
-          path: |
-            router/out/firmware.manifest
-            ${{ runner.temp }}/router-backup.tar.gz.age
-            ${{ runner.temp }}/router-upgrade.log
-          retention-days: 90
-          if-no-files-found: warn
