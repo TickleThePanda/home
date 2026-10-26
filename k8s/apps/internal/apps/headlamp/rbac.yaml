@@ -4,32 +4,86 @@ metadata:
   name: headlamp
   namespace: headlamp
 ---
-# Headlamp runs with -unsafe-use-service-account-token: every request it
-# makes to the API server uses this ServiceAccount, so its ClusterRole is
-# the effective access level for anyone tinyauth lets through. This is a
-# read-everything role: get/list/watch on every resource (Secrets and pod
-# logs included, unlike the built-in `view`) and no write verbs, so no
-# mutations and no exec.
+# Headlamp signs users in through Pocket ID and calls the API server with
+# each user's ID token, so these bindings are what a user can see. The API
+# server maps the token's `groups` claim to `oidc:<group>`
+# (ansible/group_vars/k3s_cluster.yml). The ServiceAccount above has no
+# bindings.
+#
+# Members of the LLDAP group k8s_admins can read everything except Secrets:
+# the built-in `view` role, plus this role for what `view` leaves out.
+# Secrets can't be subtracted from a wildcard, so the groups are listed.
+# A new CRD group shows up only if its chart aggregates into `view` or it is
+# added here. `nodes/proxy` is deliberately absent: GET on it reaches the
+# kubelet API.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: headlamp-viewer
+  name: headlamp-cluster-reader
 rules:
-  - apiGroups: ["*"]
+  - apiGroups: [""]
+    resources: [nodes, persistentvolumes, namespaces, serviceaccounts]
+    verbs: [get, list, watch]
+  - apiGroups:
+      - admissionregistration.k8s.io
+      - apiextensions.k8s.io
+      - apiregistration.k8s.io
+      - certificates.k8s.io
+      - coordination.k8s.io
+      - flowcontrol.apiserver.k8s.io
+      - networking.k8s.io
+      - node.k8s.io
+      - rbac.authorization.k8s.io
+      - scheduling.k8s.io
+      - storage.k8s.io
+      # CRD groups that don't aggregate into `view`.
+      - externaldns.k8s.io
+      - gateway.networking.k8s.io
+      - helm.cattle.io
+      - hub.traefik.io
+      - k3s.cattle.io
+      - k8s.cni.cncf.io
+      - local.openebs.io
+      - metallb.io
+      - postgresql.cnpg.io
+      - snapshot.storage.k8s.io
+      - traefik.io
     resources: ["*"]
-    verbs: ["get", "list", "watch"]
-  - nonResourceURLs: ["*"]
-    verbs: ["get"]
+    verbs: [get, list, watch]
+  - nonResourceURLs:
+      - /api
+      - /api/*
+      - /apis
+      - /apis/*
+      - /openapi/*
+      - /version
+      - /healthz
+      - /livez
+      - /readyz
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: headlamp-viewer
+  name: headlamp-k8s-admins-view
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: headlamp-viewer
+  name: view
 subjects:
-  - kind: ServiceAccount
-    name: headlamp
-    namespace: headlamp
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:k8s_admins
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-k8s-admins-cluster-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: headlamp-cluster-reader
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:k8s_admins

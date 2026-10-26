@@ -19,15 +19,28 @@ spec:
       containers:
         - name: headlamp
           image: ghcr.io/headlamp-k8s/headlamp:v0.46.0
+          # Users sign in through Pocket ID; Headlamp forwards their ID token
+          # to the API server, which checks it against the same client ID
+          # (ansible/group_vars/k3s_cluster.yml). Access comes from rbac.yaml.
           args:
             - "-in-cluster"
-            - "-unsafe-use-service-account-token"
+            - "-oidc-idp-issuer-url=https://auth.internal.ticklethepanda.co.uk"
+            - "-oidc-client-id=9ee12a8f-0a16-4583-abdd-dbe7abf27e16"
+            - "-oidc-callback-url=https://headlamp.internal.ticklethepanda.co.uk/oidc-callback"
+            - "-oidc-scopes=profile,email,groups,offline_access"
+            - "-oidc-use-pkce"
+            - "-oidc-auto-login"
           ports:
             - name: http
               containerPort: 4466
           env:
             - name: TZ
               value: "Europe/London"
+            - name: HEADLAMP_CONFIG_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: headlamp-oidc
+                  key: client-secret
           readinessProbe:
             httpGet:
               path: /

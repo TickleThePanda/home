@@ -27,6 +27,7 @@ as `deploy` through the same cloudflared tunnel as `node` / `router` /
 | lvm-vg label, server taint, Pi taint (via API) | `tasks/node-labels.yml` |
 | kubelet image GC thresholds (all nodes) | `k3s.yml` -> `/etc/rancher/k3s/config.yaml.d/image-gc.yaml` |
 | docker.io pull auth (all nodes) | `k3s.yml` -> `/etc/rancher/k3s/registries.yaml` |
+| API server OIDC (Pocket ID), issuer hosts entry | `k3s_oidc_*` in `group_vars/k3s_cluster.yml`; `k3s.yml` -> `/etc/rancher/k3s/authentication-config.yaml` |
 
 Not managed: the VMs themselves (that is `ansible/proxmox/`), the etcd datastore
 contents (snapshots are config, above), the cluster token (left as the
@@ -51,6 +52,12 @@ ansible-playbook k3s/k3s.yml --diff -e node_user=deploy
 
 ## Notes
 
+- **OIDC is never on the recovery path.** The API server accepts Pocket ID
+  tokens (Headlamp's per-user logins) as well as client certs and
+  ServiceAccount tokens. It serves normally with Pocket ID or Traefik down;
+  only OIDC logins fail until they're back. Use the admin kubeconfig then.
+  The control VM resolves the issuer through an `/etc/hosts` entry, with
+  cloud-init's `manage_etc_hosts` turned off so a reboot keeps it.
 - **Every run restarts k3s.** `ansible.cfg` sets `forks = 1` so hosts are
   done one at a time. A k3s restart keeps running pods (cloudflared included)
   up -- containerd holds them -- so the cloudflared tunnel only blips;

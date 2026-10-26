@@ -73,3 +73,22 @@ server_config_yaml: |
   # on the server's own address (192.168.1.32:2381) -- plain HTTP,
   # unauthenticated by etcd's own design for this listener.
   etcd-expose-metrics: true
+  # Accepts Pocket ID tokens alongside client certs and ServiceAccount
+  # tokens. ansible/k3s/k3s.yml writes the file; see k3s_oidc_* below.
+  kube-apiserver-arg:
+    - authentication-config=/etc/rancher/k3s/authentication-config.yaml
+
+# Pocket ID as an OIDC issuer for the API server, so Headlamp can act as
+# each signed-in user (k8s/apps/internal/apps/headlamp/). Tokens must be
+# issued to Headlamp's client; usernames and groups get an `oidc:` prefix,
+# so RBAC binds e.g. Group `oidc:k8s_admins`.
+#
+# The API server reloads the file within a minute of a change, no restart
+# needed. If Pocket ID or Traefik is down, only OIDC logins fail: client
+# certs (the admin kubeconfig) and ServiceAccount tokens never touch it.
+k3s_oidc_issuer: https://auth.internal.ticklethepanda.co.uk
+k3s_oidc_client_id: 9ee12a8f-0a16-4583-abdd-dbe7abf27e16
+# The control VM resolves through Quad9 (tasks/node-dns.yml), which doesn't
+# know internal names, so a hosts entry points the issuer at the internal
+# Traefik. Its Let's Encrypt cert validates as normal.
+k3s_oidc_issuer_address: 192.168.1.19

@@ -30,7 +30,8 @@ k3s enforces it with its embedded kube-router policy controller.
 
 Only services that hold credentials and have a short, fixed list of
 destinations get a `restrict-egress` policy: LLDAP, TinyAuth, the SMTP
-relay, Headlamp, Postgres and Pocket ID. Each allows DNS (kube-system's
+relay, Headlamp (API server and Pocket ID via Traefik), Postgres and
+Pocket ID. Each allows DNS (kube-system's
 CoreDNS) plus its known destinations:
 
 - **API server:** `ipBlock: 192.168.1.32/32`, port `6443`. kube-proxy has

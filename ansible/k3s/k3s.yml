@@ -1,7 +1,8 @@
 ---
 # k3s across every node: k3s-vm-control-01 (server) and the Pi plus the two
 # worker VMs (agents), one cluster. Owns the k3s version,
-# /etc/rancher/k3s/config.yaml, the VM node resolver, and the install/join.
+# /etc/rancher/k3s/config.yaml, the API server's OIDC config, the VM node
+# resolver, and the install/join.
 # The layer below k3s on the Pi -- storage, its DNS resolver, swap, sudoers,
 # the fan -- stays in ansible/node/.
 #
@@ -201,6 +202,48 @@
   become: true
   vars_files:
     - vars/versions.yml
+  # Before the role's restart, so server_config_yaml's
+  # authentication-config flag never points at a missing file.
+  pre_tasks:
+    - name: Resolve the OIDC issuer for the API server
+      block:
+        # cloud-init otherwise regenerates /etc/hosts on every boot.
+        - name: Stop cloud-init managing /etc/hosts
+          ansible.builtin.copy:
+            dest: /etc/cloud/cloud.cfg.d/99-manage-etc-hosts.cfg
+            mode: "0644"
+            content: |
+              # Managed by ansible/k3s/k3s.yml. /etc/hosts carries the OIDC
+              # issuer entry, which cloud-init would drop.
+              manage_etc_hosts: false
+
+        - name: Point the issuer's hostname at the internal Traefik
+          ansible.builtin.lineinfile:
+            path: /etc/hosts
+            regexp: '\s{{ k3s_oidc_issuer | urlsplit("hostname") | regex_escape }}$'
+            line: "{{ k3s_oidc_issuer_address }} {{ k3s_oidc_issuer | urlsplit('hostname') }}"
+
+    - name: Write the API server's authentication config
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/authentication-config.yaml
+        mode: "0600"
+        content: |
+          # Managed by ansible/k3s/k3s.yml. See k3s_oidc_* in
+          # group_vars/k3s_cluster.yml.
+          apiVersion: apiserver.config.k8s.io/v1
+          kind: AuthenticationConfiguration
+          jwt:
+            - issuer:
+                url: {{ k3s_oidc_issuer }}
+                audiences:
+                  - {{ k3s_oidc_client_id }}
+              claimMappings:
+                username:
+                  claim: preferred_username
+                  prefix: "oidc:"
+                groups:
+                  claim: groups
+                  prefix: "oidc:"
   roles:
     - role: k3s.orchestration.k3s_server
 

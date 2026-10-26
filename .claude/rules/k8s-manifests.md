@@ -38,7 +38,7 @@ A new service needs:
 - If it has a web UI, an IngressRoute on `int-web-secure` with `tls: {}`,
   ``Host(`<app>.internal.ticklethepanda.co.uk`)`` and the `tinyauth`
   middleware (`namespace: tinyauth`). No DNS change. Copy
-  `k8s/apps/internal/apps/headlamp/ingress.yaml`.
+  `k8s/apps/internal/monitoring/grafana/ingress.yaml`.
 - A Homepage card: `gethomepage.dev/*` annotations on that IngressRoute
   (`enabled`, `href`, `name`, `group`, `icon`, `description`,
   `pod-selector`). `group` is `Applications` or `Administration`, per

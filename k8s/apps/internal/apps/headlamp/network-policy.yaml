@@ -1,5 +1,5 @@
-# Headlamp holds a cluster-wide read token, so only Traefik (behind
-# TinyAuth) may reach it.
+# Only Traefik may reach Headlamp. It has no ServiceAccount access of its own;
+# it acts with each signed-in user's token.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -33,7 +33,8 @@ spec:
         - port: 4466
           protocol: TCP
 ---
-# Headlamp needs only the API server, so its token can't be used elsewhere.
+# Headlamp needs only the API server and Pocket ID, which it reaches
+# through Traefik (auth.internal resolves to 192.168.1.19).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -65,4 +66,14 @@ spec:
             cidr: 192.168.1.32/32
       ports:
         - port: 6443
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - port: 7443
           protocol: TCP
