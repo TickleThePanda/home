@@ -5,6 +5,7 @@ namespace: bind
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./volume.yaml
   - ./service.yaml
   - ./deployment.yaml

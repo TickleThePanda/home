@@ -5,6 +5,7 @@ namespace: pihole
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./volume-conf.yaml
   - ./volume-dns.yaml
   - ./deployment.yaml

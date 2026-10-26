@@ -1,0 +1,50 @@
+# Unbound stubs home.arpa and the reverse zones here. Kea DDNS and
+# ExternalDNS send TSIG-signed updates; ExternalDNS also transfers zones.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: bind
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-clients
+  namespace: bind
+spec:
+  podSelector:
+    matchLabels:
+      app: bind
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: unbound
+          podSelector:
+            matchLabels:
+              app: unbound
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kea
+          podSelector:
+            matchLabels:
+              app: kea
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: external-dns
+          podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [external-dns, external-dns-static]
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

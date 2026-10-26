@@ -1,0 +1,40 @@
+# Pi-hole answers DNS for the whole LAN through pihole-lb (192.168.1.10,
+# externalTrafficPolicy: Local, so client IPs survive) and for the cluster
+# via kube-system's CoreDNS. DNS is open to any source.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: pihole
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pihole
+  namespace: pihole
+spec:
+  podSelector:
+    matchLabels:
+      app: pihole
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - port: 80
+          protocol: TCP

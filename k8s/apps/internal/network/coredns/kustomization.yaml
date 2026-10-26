@@ -5,6 +5,7 @@ namespace: dns
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./deployment.yaml
   - ./service.yaml
 
