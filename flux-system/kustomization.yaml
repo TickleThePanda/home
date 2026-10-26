@@ -1,9 +1,0 @@
-# Temporary: lets the live flux-system Kustomization (path ./flux-system) apply
-# k8s/cluster, whose sync/self.yaml moves it to ./k8s/cluster. Delete once
-# `kubectl -n flux-system get ks flux-system -o jsonpath='{.spec.path}'` shows
-# ./k8s/cluster.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-  - ../k8s/cluster
