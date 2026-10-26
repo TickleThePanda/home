@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       # Bumped by Renovate (renovate.json). Needs the Node version below.
       RENOVATE_VERSION: 44.181.6
