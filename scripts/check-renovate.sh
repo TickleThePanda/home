@@ -10,7 +10,7 @@
 #
 # Needs Node 24.11+, npx, yq (mikefarah), jq, and GITHUB_COM_TOKEN set to any
 # GitHub token (`gh auth token` works); without one, Renovate skips GitHub
-# datasources. RENOVATE_VERSION picks the CLI; validate.yaml pins it.
+# datasources. RENOVATE_VERSION picks the CLI; validate.yaml sets it.
 
 set -Eeuo pipefail
 

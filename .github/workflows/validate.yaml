@@ -24,8 +24,11 @@ jobs:
   validate:
     runs-on: ubuntu-26.04
     env:
-      # Bumped by Renovate (renovate.json). Needs the Node version below.
-      RENOVATE_VERSION: 44.181.11
+      # The CLI's major only: it releases several times a day, and an exact
+      # pin moved on every Renovate run instead of merging. The Mend app runs
+      # the latest release too. Renovate proposes the next major. Needs the
+      # Node version below.
+      RENOVATE_VERSION: 44
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
