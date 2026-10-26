@@ -129,6 +129,7 @@ regex flux-system/instance/flux-instance.yaml fluxcd/flux2
 regex .github/workflows/deploy-cluster.yaml fluxcd/flux2
 regex .github/actions/validate-cluster/action.yml yannh/kubeconform
 regex apps/sync-runner/Dockerfile.librofm librofm
+regex router/version.txt openwrt/openwrt
 pip_requirements .github/actions/ansible-setup/requirements.txt ansible-core
 github-actions .github/workflows/deploy-terraform.yaml terraform
 gomod apps/sync-runner/go.mod go

@@ -1,0 +1,43 @@
+---
+# What the firmware has to provide for the rest of this playbook. Packages
+# come from the image (router/packages.txt, built by router/build.sh), never
+# from opkg/apk here: a sysupgrade replaces the rootfs, so anything installed
+# on the running router is lost at the next flash.
+#
+# One raw call for every package, since each task costs several SSH round
+# trips through the tunnel. Works with opkg (24.10) and apk (25.12+), never
+# touches the network, and reports no change, so the --check idempotence gate
+# stays clean.
+
+- name: Firmware carries the packages this playbook needs
+  ansible.builtin.raw: |
+    for p in {{ router_firmware_packages | join(' ') }}; do
+      if command -v apk >/dev/null; then
+        apk info -e "$p" >/dev/null 2>&1 || echo "$p"
+      else
+        opkg list-installed | grep -q "^$p " || echo "$p"
+      fi
+    done
+  register: router_firmware_missing
+  changed_when: false
+  check_mode: false
+
+- name: No firmware package is missing
+  ansible.builtin.assert:
+    that: router_firmware_missing.stdout | trim | length == 0
+    fail_msg: >-
+      Missing from the firmware: {{ router_firmware_missing.stdout_lines | join(', ') }}.
+      Add them to router/packages.txt and reflash (router/README.md).
+    quiet: true
+
+# sysupgrade keeps /etc/config and each package's conffiles. These are the
+# files this playbook writes outside that set. router/upgrade.sh refuses to
+# flash unless `sysupgrade -l` lists them.
+- name: Keep the playbook's own files across a sysupgrade
+  community.openwrt.copy:
+    dest: /etc/sysupgrade.conf
+    content: |
+      ## Managed by ansible/router/tasks/firmware.yml.
+      ## Files outside OpenWrt's keep list that a sysupgrade must preserve.
+      /etc/resolv.conf
+      /etc/sysctl.d/99-tailscale.conf

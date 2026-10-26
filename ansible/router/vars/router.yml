@@ -6,6 +6,19 @@ router_hostname: gateway
 router_timezone: GMT0BST,M3.5.0/1,M10.5.0
 router_zonename: Europe/London
 
+# Packages the tasks here rely on. They are baked into the firmware
+# (router/packages.txt); tasks/firmware.yml fails if one is missing, and
+# validate.yaml checks each is listed there.
+#
+#   wpad-mbedtls          full hostapd: the IoT SSIDs' per-station VLANs (PPSK);
+#                         the target's default wpad-basic ignores them
+#   avahi-nodbus-daemon   tasks/mdns-reflector.yml
+#   tailscale             tasks/tailscale.yml
+router_firmware_packages:
+  - wpad-mbedtls
+  - avahi-nodbus-daemon
+  - tailscale
+
 router_lan_ipaddr: 192.168.1.1
 router_lan_netmask: 255.255.255.0
 router_lan_ip6assign: "60"

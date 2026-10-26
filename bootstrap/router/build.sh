@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
-# Build a bootstrapped vanilla OpenWrt sysupgrade image for the GL-MT6000
-# (Flint 2). Local only -- not run by CI. Flash the result by hand; see
-# README.md.
+# Build a bootstrapped OpenWrt sysupgrade image for the GL-MT6000 (Flint 2):
+# the production firmware (../../router/build.sh, same release and packages)
+# plus a first-boot config overlay with secrets baked in. Local only -- not
+# run by CI. Flash the result by hand; see README.md.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${VERSION:-24.10.5}"
-PROFILE="glinet_gl-mt6000"
-IMG="${IMAGEBUILDER_IMAGE:-ghcr.io/openwrt/imagebuilder:mediatek-filogic-${VERSION}}"
-RUNTIME="${CONTAINER_RUNTIME:-podman}"
-
-for bin in "$RUNTIME" openssl python3; do
+for bin in openssl python3; do
   command -v "$bin" >/dev/null || { echo "missing: $bin" >&2; exit 1; }
 done
 
@@ -26,8 +22,8 @@ set -a; . ./secrets.env; set +a
   exit 1
 }
 
-rm -rf build out
-mkdir -p build/files/etc/dropbear out
+rm -rf build
+mkdir -p build/files/etc/dropbear
 
 # Carry the current root/LuCI password over. Prefer the existing hash
 # straight from the GL backup (ROUTER_ROOT_PASSWORD_HASH); otherwise hash a
@@ -57,27 +53,5 @@ if grep -rn '{{.*}}' build/files; then
   echo "unrendered template expression above" >&2; exit 1
 fi
 
-# One space-separated list; strip whole-line and trailing comments.
-packages="$(sed 's/#.*//' packages.txt | xargs)"
-
-# The overlay goes in as a read-only bind mount; the built images come back
-# out with `<runtime> cp` rather than an output bind mount. Rootless podman
-# would otherwise need --userns=keep-id for the container's `buildbot` user
-# to write a caller-owned directory, and keep-id + runc trips a
-# remount-private failure on some hosts. A named volume caches downloaded
-# packages between runs (the runtime owns it, so no uid grief).
-cid="$("$RUNTIME" create \
-  -v "$PWD/build/files:/builder/user-files:ro" \
-  -v router-imagebuilder-dl:/builder/dl \
-  "$IMG" \
-  sh -c "[ -d ./scripts ] || ./setup.sh; \
-    make image PROFILE='$PROFILE' PACKAGES='$packages' FILES=/builder/user-files")"
-trap '"$RUNTIME" rm -f "$cid" >/dev/null 2>&1 || true' EXIT
-
-"$RUNTIME" start -a "$cid"
-"$RUNTIME" cp "$cid:/builder/bin/targets" out/
-
-image="$(find out -name "*-${PROFILE}-squashfs-sysupgrade.bin" | head -1)"
-[ -n "$image" ] || { echo "build produced no sysupgrade image" >&2; exit 1; }
-echo
-echo "built: bootstrap/router/$image"
+# The image carries the secrets above, so it stays in the gitignored out/.
+FILES="$PWD/build/files" OUT="$PWD/out" ../../router/build.sh

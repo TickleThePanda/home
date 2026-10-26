@@ -3,7 +3,8 @@ name: Deploy
 # Applied in order by sequential jobs:
 #
 #   preflight   the cluster is reachable
-#   infra       deploy-infra.yaml -- ansible/, every layer: proxmox, node, k3s, router
+#   infra       deploy-infra.yaml -- ansible/, every layer: proxmox, node, k3s, router;
+#               plus router/, the gateway's firmware
 #   cluster     deploy-cluster.yaml -- deploy/, applied with kustomize
 #   terraform   deploy-terraform.yaml -- terraform/cloudflare-zero-trust/, applied last
 #
@@ -24,6 +25,10 @@ name: Deploy
 # Each layer is skipped when the push changed nothing under its own tree
 # (including its own workflow file), and runs on a manual workflow_dispatch.
 # Which Ansible layers run is decided inside deploy-infra.yaml.
+#
+# The monthly schedule runs only the router firmware: it rebuilds the image
+# and flashes it if the package set changed within the pinned release
+# (router/README.md). It runs at midday, clear of the 02:00-06:00 reboot window.
 #
 # preflight exists because CI's only path to any of this is through the cluster
 # itself (cloudflared runs in-cluster) -- checking reachability first gives a
@@ -48,6 +53,7 @@ on:
       - deploy/**
       - flux-system/**
       - ansible/**
+      - router/**
       - terraform/cloudflare-zero-trust/**
       - scripts/check-gather-subset.py
       - scripts/vendor.sh
@@ -61,6 +67,8 @@ on:
       - .github/actions/cloudflare-warp/**
       - '!**/*.md'
   workflow_dispatch: {}
+  schedule:
+    - cron: '0 11 3 * *'
 
 # Never let two runs touch the cluster at once -- the infra job restarts k3s,
 # which takes down the tunnel the cluster job reaches the API through.
@@ -78,7 +86,7 @@ jobs:
       # single expression. paths-filter finds nothing on a
       # workflow_dispatch (it diffs HEAD against its own merge-base), which is
       # why that case has to be handled explicitly.
-      infra: ${{ steps.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' }}
+      infra: ${{ steps.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
       cluster: ${{ steps.changes.outputs.cluster == 'true' || github.event_name == 'workflow_dispatch' }}
       terraform: ${{ steps.changes.outputs.terraform == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
@@ -86,8 +94,9 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       # Markdown never triggers a deploy: `some-with-excludes` drops any file a
-      # `!` pattern matches.
+      # `!` pattern matches. A scheduled run has no diff to filter.
       - name: Detect which layers changed
+        if: github.event_name != 'schedule'
         uses: dorny/paths-filter@v4.0.3
         id: changes
         with:
@@ -95,6 +104,7 @@ jobs:
           filters: |
             infra:
               - 'ansible/**'
+              - 'router/**'
               - 'scripts/check-gather-subset.py'
               - '.github/workflows/deploy-infra.yaml'
               - '.github/actions/ansible-*/**'

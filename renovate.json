@@ -141,12 +141,12 @@
     },
     {
       "customType": "regex",
-      "description": "The OpenWrt release bootstrap/router/build.sh builds",
+      "description": "The gateway's OpenWrt release, which router/build.sh builds and CI flashes",
       "managerFilePatterns": [
-        "/^bootstrap/router/build\\.sh$/"
+        "/^router/version\\.txt$/"
       ],
       "matchStrings": [
-        "VERSION=\"\\$\\{VERSION:-(?<currentValue>[^}]+)\\}\""
+        "^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"
       ],
       "depNameTemplate": "openwrt/openwrt",
       "datasourceTemplate": "github-tags",
@@ -216,6 +216,17 @@
       "automerge": false
     },
     {
+      "description": "A merged OpenWrt release is flashed onto the gateway (router/README.md). Patches merge on their own; a new release series (24.10 -> 25.12 is a major) waits for approval on the Dependency Dashboard.",
+      "matchPackageNames": [
+        "openwrt/openwrt"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
       "description": "The flux CLI in CI and the cluster's Flux move together (scripts/check-versions.sh).",
       "matchPackageNames": [
         "fluxcd/flux2",
@@ -264,7 +275,7 @@
       ]
     },
     {
-      "description": "Nothing applies these on merge: the router image is flashed by hand (bootstrap/router/README.md) and bootstrap/terraform is applied by hand. Leave the PR open as the reminder; merge it once the change is live.",
+      "description": "Nothing applies these on merge: bootstrap/terraform is applied by hand. Leave the PR open as the reminder; merge it once the change is live.",
       "matchFileNames": [
         "bootstrap/**"
       ],

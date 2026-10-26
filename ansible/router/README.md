@@ -4,29 +4,35 @@ The `community.openwrt` playbook that holds the gateway's ongoing config. It
 reproduces the steady state of [`../../bootstrap/router/`](../../bootstrap/router/)
 and is the source of truth from there on.
 
-Applied by the `router` job in `.github/workflows/deploy-infra.yaml` on every push
-touching `ansible/router/**`, over SSH as `root` through the same cloudflared
+Applied by the `router` step in `.github/workflows/deploy-infra.yaml` on every push
+touching `ansible/router/**`, and again after a firmware flash, over SSH as `root` through the same cloudflared
 tunnel the `node` job uses.
 
 ## What it manages
 
 | Area | File |
 |---|---|
+| firmware has `router_firmware_packages`; `/etc/sysupgrade.conf` keeps this playbook's files | `tasks/firmware.yml` |
 | hostname, timezone, NTP server (for the IoT VLANs) | `tasks/system.yml` |
 | dropbear + LuCI on the homelab + trusted gateway addresses | `tasks/mgmt-access.yml` |
 | LAN address, PPPoE WAN, MACs, ULA, `br-trusted` + `br-iot-*` VLAN bridges | `tasks/network.yml` |
-| full `wpad-mbedtls` swap (PPSK support) | `tasks/wpad.yml` |
 | radios, the two `trusted` APs, and the two 2.4 GHz IoT PPSK SSIDs (`wifi-station` / `wifi-vlan`) | `tasks/wireless.yml` |
 | `dhcp.lan` ignored, dnsmasq as a DHCP relay for the trusted + IoT VLANs, `/etc/resolv.conf` → Quad9 | `tasks/dhcp-dns.yml` |
 | `wan` drops, `tailscale0` + `trusted` + IoT zones + forwardings + IoT punch-through rules | `tasks/firewall.yml` |
 | Avahi mDNS reflector (homelab ↔ trusted ↔ every IoT VLAN) | `tasks/mdns-reflector.yml` |
 | forwarding sysctls, `tailscaled` enabled, advertised subnet routes | `tasks/tailscale.yml` |
 
-Not managed: the **root password** (`../../bootstrap/router/` sets it once from
-the GL.iNet backup hash) and the **Tailscale login** (persists in
-`/etc/tailscale/tailscaled.state`; `../../bootstrap/router/`'s hotplug script
-logs in on first WAN up). The advertised routes (`router_tailscale_routes`) *are* enforced
-by `tasks/tailscale.yml`.
+Not managed:
+
+- **Packages.** They are built into the firmware by
+  [`../../router/`](../../router/), which also flashes upgrades.
+- **The root password.** `../../bootstrap/router/` sets it once from the
+  GL.iNet backup hash.
+- **The Tailscale login.** It persists in `/etc/tailscale/tailscaled.state`;
+  `../../bootstrap/router/`'s hotplug script logs in on first WAN up.
+
+The advertised routes (`router_tailscale_routes`) *are* enforced by
+`tasks/tailscale.yml`.
 
 ## Secrets
 
@@ -45,7 +51,7 @@ router's `authorized_keys`).
 
 ## Running it by hand
 
-Do the first apply after any reflash from the LAN, not through CI — a `network`
+Do the first apply after a bootstrap reflash (`sysupgrade -n`) from the LAN, not through CI — a `network`
 reload can briefly drop the tunnel CI rides on.
 
 ```sh
@@ -62,8 +68,8 @@ freshly-flashed router should report few or no changes and no interface bounce.
 
 ## Notes
 
-- `known_hosts` pins the router's dropbear host key. After a reflash regenerates
-  it, refresh with `ssh-keyscan -t ed25519 192.168.1.1` and verify the
+- `known_hosts` pins the router's dropbear host key. A keep-settings upgrade
+  keeps it. After a bootstrap reflash regenerates it, refresh with `ssh-keyscan -t ed25519 192.168.1.1` and verify the
   fingerprint from the console.
 - The playbook assumes `radio0` is 2.4 GHz and `radio1` is 5 GHz; `wireless.yml`
   asserts this and fails clearly if a particular router differs.

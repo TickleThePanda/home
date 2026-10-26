@@ -1,9 +1,13 @@
 # bootstrap/router
 
-A bootstrapped vanilla OpenWrt image for the GL.iNet Flint 2 (GL-MT6000) at
-`192.168.1.1`. `build.sh` runs the OpenWrt Image Builder in a container and bakes
-the network config into `/etc/uci-defaults` scripts that apply on first boot. It
-is built and flashed by hand — CI does not touch it.
+A bootstrapped OpenWrt image for the GL.iNet Flint 2 (GL-MT6000) at
+`192.168.1.1`. `build.sh` builds the production firmware
+([`../../router/`](../../router/): same release, same packages) and adds the
+network config as `/etc/uci-defaults` scripts that apply on first boot. It is
+built and flashed by hand — CI does not touch it.
+
+Routine upgrades don't come through here: CI flashes
+[`../../router/`](../../router/)'s image and keeps the router's settings.
 
 This is the **re-bootstrap / break-glass path**: use it to migrate off stock
 GL.iNet firmware or to rebuild a bricked router from nothing. It sets a
@@ -58,16 +62,20 @@ cp bootstrap/router/secrets.env.example bootstrap/router/secrets.env
 ```
 
 The image lands at
-`bootstrap/router/out/targets/mediatek/filogic/openwrt-*-glinet_gl-mt6000-squashfs-sysupgrade.bin`.
+`bootstrap/router/out/sysupgrade.bin`. It contains the secrets, so keep it
+off CI and out of git (`out/` is gitignored).
 
-Override the release with `VERSION=24.10.6 ./bootstrap/router/build.sh`.
+The release and packages come from `../../router/version.txt` and
+`../../router/packages.txt`. Override the release with
+`VERSION=25.12.6 ./bootstrap/router/build.sh`.
 
 ## Flash
 
 Stage the recovery kit first (below). Then, from a wired client:
 
 - LuCI *System → Backup/Flash Firmware → Flash image*, **"Keep settings" off**, or
-- `scp` the `.bin` to the router and `sysupgrade -n /tmp/<image>.bin`.
+- `ssh root@192.168.1.1 'cat > /tmp/fw.bin' < bootstrap/router/out/sysupgrade.bin`
+  (dropbear has no scp), then `sysupgrade -n /tmp/fw.bin`.
 
 "Keep settings off" is required so the GL config is wiped and the
 `uci-defaults` scripts run.
@@ -124,9 +132,8 @@ from outside, and CI cannot reach the cluster.
 
 | Path | Role |
 |---|---|
-| `build.sh` | render overlay + run Image Builder |
+| `build.sh` | render the overlay, then run `../../router/build.sh` with it |
 | `render.py` | Jinja2: `templates/` → `build/files/` |
-| `packages.txt` | extra packages |
 | `secrets.env.example` | template for the gitignored `secrets.env` |
 | `templates/etc/uci-defaults/*` | first-boot config (`NN-` ordered) |
 | `templates/etc/hotplug.d/iface/99-tailscale-up` | `tailscale up` on WAN up |

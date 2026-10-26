@@ -70,6 +70,10 @@ jobs:
             apps:
               - 'apps/**'
               - '.github/workflows/validate.yaml'
+            router:
+              - 'router/**'
+              - 'ansible/router/vars/router.yml'
+              - '.github/workflows/validate.yaml'
 
       - name: Set up Ansible
         if: steps.changes.outputs.ansible == 'true'
@@ -122,3 +126,36 @@ jobs:
             docker buildx build --platform linux/amd64,linux/arm64 -f "$dockerfile" "$dir"
             echo "::endgroup::"
           done
+
+      # Image Builder resolves router/packages.txt against the release's feeds.
+      # build.sh fails on a package that doesn't resolve or an image that isn't
+      # for the GL-MT6000, so an OpenWrt bump that drops or renames a package
+      # never merges. No secrets: the router keeps its own config.
+      - name: Build the router firmware
+        if: steps.changes.outputs.router == 'true'
+        env:
+          CONTAINER_RUNTIME: docker
+        run: ./router/build.sh
+
+      - name: Check the router playbook's packages are in the firmware
+        if: steps.changes.outputs.router == 'true'
+        run: |
+          set -euo pipefail
+          missing=0
+          for p in $(yq -r '.router_firmware_packages[]' ansible/router/vars/router.yml); do
+            if ! grep -q "^$p - " router/out/firmware.manifest; then
+              echo "::error::$p (router_firmware_packages) is not in the firmware; add it to router/packages.txt"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Record the firmware's packages
+        if: steps.changes.outputs.router == 'true'
+        run: |
+          {
+            echo '### Router firmware'
+            echo '```'
+            cat router/out/firmware.manifest
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -21,7 +21,7 @@
   roles:
     - role: community.openwrt.init
       vars:
-        # The router has busybox base64 + sha256sum; skip the opkg checks so a
+        # The router has busybox base64 + sha256sum; skip the opkg/apk checks so a
         # stale package list can't make a run report "changed".
         openwrt_install_recommended_packages: false
         # Dropbear serves neither sftp nor scp; `smart` probes both (and warns)
@@ -34,6 +34,10 @@
     - vars/secrets.yml
 
   tasks:
+    - name: Firmware packages and sysupgrade keep list
+      ansible.builtin.import_tasks: tasks/firmware.yml
+      tags: [firmware]
+
     - name: System identity
       ansible.builtin.import_tasks: tasks/system.yml
       tags: [system]
@@ -49,10 +53,6 @@
     - name: Network / WAN / LAN
       ansible.builtin.import_tasks: tasks/network.yml
       tags: [network]
-
-    - name: Full wpad (PPSK support)
-      ansible.builtin.import_tasks: tasks/wpad.yml
-      tags: [wpad, wireless]
 
     - name: Wireless
       ansible.builtin.import_tasks: tasks/wireless.yml

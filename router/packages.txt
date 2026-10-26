@@ -1,0 +1,16 @@
+# Extra packages baked into the gateway's firmware, on top of the target
+# defaults. One per line; # comments and blank lines are ignored. A leading
+# `-` removes a default package. build.sh fails if any of these doesn't
+# resolve, and ansible/router/ asserts router_firmware_packages are present.
+#
+# A sysupgrade replaces the whole rootfs and keeps only config, so anything
+# installed on the running router by hand is gone after the next flash. Add it
+# here instead.
+
+luci-ssl              # LuCI over HTTPS -- the manual-recovery UI
+ppp-mod-pppoe         # PPPoE WAN (explicit; usually already in the default set)
+tailscale             # subnet router / exit node
+wpad-mbedtls          # full wpad: per-station VLAN (PPSK) for the IoT SSIDs
+-wpad-basic-mbedtls   # drop the basic build the target ships by default
+avahi-nodbus-daemon   # mDNS reflector (ansible/router/tasks/mdns-reflector.yml)
+tcpdump-mini          # on-router packet capture for debugging
