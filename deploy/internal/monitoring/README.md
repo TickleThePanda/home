@@ -55,6 +55,19 @@ create or rotate.
 - **Prometheus** is ClusterIP-only (no IngressRoute), same trust model as
   the rest of this namespace.
 
+## Alerting
+
+An alert emails only when it needs someone. Rules live in
+`prometheus/rules.yml`, routing in `alertmanager/alertmanager.yml`.
+
+- Each rule's `for:` outlasts routine maintenance: kured and proxmox-01
+  reboots, k3s upgrades, and the brief not-Ready window a deploy causes.
+  A pod restarting once is not an alert; crash-looping or an OOM kill is.
+- Flux's health comes from Flux Operator's `flux_resource_info` and
+  `flux_instance_info` metrics, not Flux's own events.
+- A firing alert repeats daily (critical: every 6h). Resolved alerts don't
+  email; the Alertmanager UI shows current state.
+
 ## Email
 
 Alertmanager sends through `deploy/internal/services/smtp-relay/` (an
