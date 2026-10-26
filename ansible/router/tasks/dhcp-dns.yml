@@ -71,14 +71,3 @@
     name: dnsmasq
     enabled: true
     state: started
-
-- name: System resolver points straight at Quad9
-  community.openwrt.copy:
-    dest: /etc/resolv.conf
-    # Replace the base image's symlink with a plain file; no local daemon,
-    # no netifd dependency.
-    follow: false
-    content: |
-      {% for ns in router_resolvers %}
-      nameserver {{ ns }}
-      {% endfor %}

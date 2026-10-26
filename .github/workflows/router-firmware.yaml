@@ -11,9 +11,6 @@ name: Router firmware
 # It's a job of deploy.yaml rather than a workflow of its own because GitHub
 # keeps one pending run per concurrency group: a separate workflow in the
 # `cluster` group got its pending run cancelled by a deploy queued behind it.
-#
-# The router playbook (infra) writes the sysupgrade keep list this relies
-# on. upgrade.sh refuses to flash while that list is incomplete.
 
 on:
   workflow_call:

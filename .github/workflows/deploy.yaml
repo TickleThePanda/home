@@ -176,8 +176,8 @@ jobs:
 
   firmware:
     needs: [preflight, infra]
-    # Same gate as cluster: after infra passed or was skipped, so the router
-    # playbook's keep list lands before a flash.
+    # Same gate as cluster: after infra passed or was skipped, so a router
+    # config change lands before a flash.
     if: >-
       always() &&
       needs.preflight.result == 'success' &&

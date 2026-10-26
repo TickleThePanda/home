@@ -34,10 +34,6 @@
     - vars/secrets.yml
 
   tasks:
-    - name: Firmware packages and sysupgrade keep list
-      ansible.builtin.import_tasks: tasks/firmware.yml
-      tags: [firmware]
-
     - name: System identity
       ansible.builtin.import_tasks: tasks/system.yml
       tags: [system]

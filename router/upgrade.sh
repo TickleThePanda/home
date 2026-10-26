@@ -18,7 +18,7 @@
 # in-cluster cloudflared, which egresses through this router's WAN. So
 # sysupgrade runs detached, and everything after it only polls. There is no
 # remote rollback. If the router doesn't come back, recovery is physical:
-# bootstrap/router/README.md#recovery.
+# router/README.md#recovery.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
@@ -27,16 +27,16 @@ ROUTER="${ROUTER:-root@192.168.1.1}"
 BOARD=glinet,gl-mt6000
 BOOT_TIMEOUT=900
 
-# Files a keep-settings sysupgrade must carry over. Most are OpenWrt's own
-# keep list; resolv.conf and the sysctl file are added by
-# ansible/router/tasks/sysupgrade.yml. The dropbear host key keeps
-# ansible/known_hosts valid, and tailscaled.state keeps the tailnet identity.
+# Files a keep-settings sysupgrade must carry over, all on OpenWrt's own keep
+# list: the config ansible/router/ writes, plus identity it can't recreate.
+# The dropbear host key keeps ansible/known_hosts valid, and tailscaled.state
+# keeps the tailnet identity. Static files come from the image (router/files/).
 KEEP=(
   /etc/config/network /etc/config/wireless /etc/config/firewall
   /etc/config/dhcp /etc/config/dropbear /etc/config/system
+  /etc/config/uhttpd /etc/avahi/avahi-daemon.conf
   /etc/dropbear/authorized_keys /etc/dropbear/dropbear_ed25519_host_key
   /etc/shadow /etc/tailscale/tailscaled.state
-  /etc/resolv.conf /etc/sysctl.d/99-tailscale.conf
 )
 
 usage() { sed -n '6,8p' "$0" | sed 's/^# //' >&2; exit 2; }
@@ -61,8 +61,8 @@ fi
 want_version="$(sed -nE '1s/^# OpenWrt ([^ ]+) .*/\1/p' "$out/firmware.manifest")"
 packages() { grep -v '^#' | sort; }
 
-# 0 if the router already runs this release with this exact package set.
-# Prints what differs otherwise.
+# 0 if the router already runs this release with this exact package set and
+# router/files/ (the manifest's `@files` line). Prints what differs otherwise.
 matches() {
   local running
   running="$(r 'ubus call system board' | jq -r .release.version)" ||
@@ -75,7 +75,7 @@ matches() {
   # counts as a mismatch, so its first CI flash records one.
   if ! diff <(r 'cat /etc/firmware.manifest 2>/dev/null' | packages) \
     <(packages <"$out/firmware.manifest"); then
-    echo "packages differ from the build (< running, > build)"
+    echo "packages or files differ from the build (< running, > build)"
     return 3
   fi
 }
@@ -94,6 +94,9 @@ verify() {
     fail "wan has no IPv4 address"
 
   step "verify: internet and DNS from the router"
+  # router/files/ replaces the base image's resolv.conf symlink with Quad9.
+  r '[ -f /etc/resolv.conf ] && [ ! -L /etc/resolv.conf ] && grep -q "^nameserver 9.9.9.9$" /etc/resolv.conf' ||
+    fail "/etc/resolv.conf is not the image's Quad9 file"
   r 'ping -c 3 -W 2 9.9.9.9 >/dev/null' || fail "router cannot reach 9.9.9.9"
   r 'nslookup downloads.openwrt.org >/dev/null' || fail "router cannot resolve names"
 
@@ -178,7 +181,7 @@ flash() {
     if [ "$elapsed" -gt "$BOOT_TIMEOUT" ]; then
       fail "router did not come back within $((BOOT_TIMEOUT / 60)) min of the flash.
 It may still be booting, or the flash failed. CI cannot see past it. Check from
-the LAN or Tailscale; recover per bootstrap/router/README.md#recovery. The
+the LAN or Tailscale; recover per router/README.md#recovery. The
 pre-flash config backup is $BACKUP."
     fi
     uptime="$(r 'cut -d. -f1 /proc/uptime' 2>/dev/null)" || uptime=""

@@ -1,16 +1,32 @@
 # router
 
 Firmware for the gateway (GL.iNet Flint 2 / GL-MT6000, `192.168.1.1`). Git
-pins the OpenWrt release and package set. CI builds the image, flashes it
-with settings kept, checks the router and runs
+pins the OpenWrt release, package set and a few static files. CI builds the
+image, flashes it with settings kept, checks the router and runs
 [`../ansible/router/`](../ansible/router/) to reconcile its config.
 
 | File | Role |
 |---|---|
 | `version.txt` | OpenWrt release. Renovate bumps it |
 | `packages.txt` | Packages built into the image, on top of the target defaults |
+| `files/` | Static files baked into the rootfs |
 | `build.sh` | Image Builder run plus output checks. No secrets |
 | `upgrade.sh` | `check` / `flash` / `verify` against the live router |
+
+## Who owns what
+
+A keep-settings sysupgrade replaces the rootfs and keeps only OpenWrt's keep
+list (`sysupgrade -l`). That decides the split:
+
+- **The image** owns packages and files the keep list drops:
+  `files/etc/resolv.conf` (Quad9) and `files/etc/sysctl.d/99-tailscale.conf`
+  (forwarding for the subnet router). `build.sh` also bakes in
+  `ansible/files/ssh-authorized-keys`, so Ansible can reach a wiped router.
+- **Ansible** owns what the keep list carries: UCI config, the Avahi config,
+  `authorized_keys`, the root password and the Tailscale login.
+
+Don't add paths to `/etc/sysupgrade.conf`. A file the router needs that the
+keep list drops goes in `files/`.
 
 [`../bootstrap/router/`](../bootstrap/router/) builds the same image with a
 first-boot config overlay for a wiped or new router. Use that path for
@@ -30,14 +46,15 @@ and the commit it was built from.
 
 1. **Validate (branch).** `validate.yaml` runs `build.sh`. The build fails on
    a package that doesn't resolve, an image not built for
-   `glinet,gl-mt6000`, or a release that differs from `version.txt`. It also
-   fails if a package in `router_firmware_packages` is missing from the
-   image. Renovate merges an OpenWrt patch once this passes. A new release
+   `glinet,gl-mt6000`, or a release that differs from `version.txt`.
+   Renovate merges an OpenWrt patch once this passes. A new release
    series (24.10 → 25.12) waits for approval on the Dependency Dashboard.
 2. **Deploy (`main`).** `deploy.yaml`'s `firmware` job
    (`router-firmware.yaml`) runs after infra on a push that changes
-   `router/`. It rebuilds the image, and `upgrade.sh check` compares the router's release and
-   `/etc/firmware.manifest` with the build. If they differ, the job:
+   `router/`. It rebuilds the image, and `upgrade.sh check` compares the
+   router's release and `/etc/firmware.manifest` with the build. The manifest
+   lists the packages and a hash of `files/` (its `@files` line). If they
+   differ, the job:
    1. takes kured's lock, so no node or proxmox-01 reboot overlaps;
    2. runs `upgrade.sh flash`, then waits for the kube API and cloudflared;
    3. releases the lock and runs the router playbook again;
@@ -52,8 +69,7 @@ and the commit it was built from.
 reports the drift as a warning.
 
 The job runs inside the Deploy run, after infra and before cluster, so a flash
-never overlaps other deploy work that needs the tunnel. Infra's router
-playbook writes the sysupgrade keep list that `upgrade.sh` checks.
+never overlaps other deploy work that needs the tunnel.
 
 ## What `upgrade.sh flash` does
 
@@ -61,9 +77,8 @@ playbook writes the sysupgrade keep list that `upgrade.sh` checks.
 2. Uploads the image to `/tmp`, verifies its checksum and runs
    `sysupgrade -T`.
 3. Checks `sysupgrade -l` keeps the config, the dropbear host key (so
-   `ansible/known_hosts` stays valid), `/etc/shadow`,
-   `/etc/tailscale/tailscaled.state` (the tailnet identity) and the files
-   `ansible/router/tasks/firmware.yml` adds to `/etc/sysupgrade.conf`.
+   `ansible/known_hosts` stays valid), `/etc/shadow` and
+   `/etc/tailscale/tailscaled.state` (the tailnet identity).
 4. Streams `sysupgrade -b -` into `age`, encrypted to
    `ansible/files/ssh-authorized-keys`. The plaintext never touches disk.
 5. Starts `sysupgrade` detached, keeping settings.
@@ -71,7 +86,8 @@ playbook writes the sysupgrade keep list that `upgrade.sh` checks.
 7. Verifies:
    - the release and package manifest;
    - every boot-time interface is up and WAN has an address;
-   - internet and DNS work from the router;
+   - `/etc/resolv.conf` is the image's, and internet and DNS work from the
+     router;
    - every radio and SSID is up;
    - Tailscale reports `Running`;
    - SSH and LuCI listen on `192.168.1.1`.

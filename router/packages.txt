@@ -1,7 +1,7 @@
 # Extra packages baked into the gateway's firmware, on top of the target
 # defaults. One per line; # comments and blank lines are ignored. A leading
 # `-` removes a default package. build.sh fails if any of these doesn't
-# resolve, and ansible/router/ asserts router_firmware_packages are present.
+# resolve. The comment on each names what in ansible/router/ needs it.
 #
 # A sysupgrade replaces the whole rootfs and keeps only config, so anything
 # installed on the running router by hand is gone after the next flash. Add it

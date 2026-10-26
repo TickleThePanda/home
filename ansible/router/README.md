@@ -13,7 +13,6 @@ tunnel the `node` job uses.
 
 | Area | File |
 |---|---|
-| firmware has `router_firmware_packages`; `/etc/sysupgrade.conf` keeps this playbook's files | `tasks/firmware.yml` |
 | hostname, timezone, NTP server (for the IoT VLANs) | `tasks/system.yml` |
 | dropbear + LuCI on the homelab + trusted gateway addresses | `tasks/mgmt-access.yml` |
 | LAN address, PPPoE WAN, MACs, ULA, `br-trusted` + `br-iot-*` VLAN bridges | `tasks/network.yml` |
