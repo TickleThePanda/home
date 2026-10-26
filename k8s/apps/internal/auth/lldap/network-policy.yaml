@@ -1,0 +1,43 @@
+# The web UI is reachable only through Traefik; LDAP only from Pocket ID.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: lldap
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lldap
+  namespace: lldap
+spec:
+  podSelector:
+    matchLabels:
+      app: lldap
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - port: 17170
+          protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pocket-id
+          podSelector:
+            matchLabels:
+              app: pocket-id
+      ports:
+        - port: 3890
+          protocol: TCP

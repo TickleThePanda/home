@@ -1,0 +1,40 @@
+# Browsers reach Pocket ID through Traefik. TinyAuth calls the token and
+# userinfo endpoints directly. Other OIDC clients go through Traefik.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: pocket-id
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pocket-id
+  namespace: pocket-id
+spec:
+  podSelector:
+    matchLabels:
+      app: pocket-id
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tinyauth
+          podSelector:
+            matchLabels:
+              app: tinyauth
+      ports:
+        - port: 1411
+          protocol: TCP

@@ -5,6 +5,7 @@ namespace: monitoring
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./rbac.yaml
   - ./prometheus/volume.yaml
   - ./prometheus/deployment.yaml

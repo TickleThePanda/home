@@ -5,6 +5,7 @@ namespace: smtp-relay
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./deployment.yaml
   - ./service.yaml
   - ./secret.sops.yaml

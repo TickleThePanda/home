@@ -5,6 +5,7 @@ namespace: tinyauth
 
 resources:
 - namespace.yaml
+- network-policy.yaml
 - middleware.yaml
 - service.yaml
 - deployment.yaml

@@ -50,3 +50,7 @@ A new service needs:
   template. Prometheus discovers it without a config change.
 - If internet-facing, an `ext-web` route and a tunnel hostname in
   `terraform/cloudflare-zero-trust/tunnel.tf`.
+- A `network-policy.yaml`: `default-deny-ingress` plus allows for Traefik,
+  Prometheus and any in-cluster clients. Using a protected service (Postgres,
+  SMTP relay, LLDAP) also means adding the app to that service's policy. See
+  `k8s/apps/README.md`.

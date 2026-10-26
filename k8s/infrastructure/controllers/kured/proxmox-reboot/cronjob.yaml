@@ -21,6 +21,10 @@ spec:
       # A failed Job (and its KubeJobFailed alert) clears after a week.
       ttlSecondsAfterFinished: 604800
       template:
+        metadata:
+          # Lets monitoring's NetworkPolicy admit this pod to Prometheus.
+          labels:
+            app.kubernetes.io/name: proxmox-reboot
         spec:
           serviceAccountName: proxmox-reboot
           restartPolicy: Never

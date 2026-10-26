@@ -5,6 +5,7 @@ namespace: lldap
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./deployment.yaml
   - ./service.yaml
   - ./volume.yaml
