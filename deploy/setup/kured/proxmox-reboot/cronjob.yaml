@@ -35,7 +35,7 @@ spec:
             runAsGroup: 65534
           containers:
             - name: proxmox-reboot
-              image: alpine/k8s:1.36.5
+              image: alpine/k8s:1.37.1
               command: [bash, /config/proxmox-reboot.sh]
               env:
                 - name: PVE_TOKEN
