@@ -8,6 +8,7 @@ namespace: home
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./home--cert.yaml
   - ./root
   - ./geopulse-ingest
