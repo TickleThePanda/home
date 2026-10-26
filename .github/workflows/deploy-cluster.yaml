@@ -42,14 +42,19 @@ jobs:
 
       # Flux manages flux-system/ itself (sync/self.yaml); CI never applies
       # it. CI holds no age key, so it can't bootstrap Flux either -- a human
-      # runs flux-system/bootstrap.sh.
+      # runs flux-system/bootstrap.sh. A FluxInstance that exists but isn't
+      # Ready doesn't stop the push: the fix for it may be in this commit, and
+      # the running controllers still apply it.
       - name: Check Flux is bootstrapped
         run: |
           if ! kubectl get crd kustomizations.kustomize.toolkit.fluxcd.io >/dev/null 2>&1 \
             || ! kubectl -n flux-system get secret sops-age >/dev/null 2>&1 \
-            || ! kubectl -n flux-system wait --for=condition=Ready --timeout=10s fluxinstance/flux >/dev/null 2>&1; then
-            echo "::error title=Flux not bootstrapped::Flux CRDs, the sops-age Secret or a Ready FluxInstance are missing; run flux-system/bootstrap.sh"
+            || ! kubectl -n flux-system get fluxinstance/flux >/dev/null 2>&1; then
+            echo "::error title=Flux not bootstrapped::Flux CRDs, the sops-age Secret or the FluxInstance are missing; run flux-system/bootstrap.sh"
             exit 1
+          fi
+          if ! kubectl -n flux-system wait --for=condition=Ready --timeout=10s fluxinstance/flux >/dev/null 2>&1; then
+            echo "::warning title=FluxInstance not Ready::$(kubectl -n flux-system get fluxinstance/flux -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}')"
           fi
 
       - name: Login to DockerHub

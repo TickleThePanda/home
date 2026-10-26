@@ -4,7 +4,8 @@
 # publishes them at different times, the branch holds only one half. This
 # makes that branch fail instead of merging.
 #
-# Needs yq (mikefarah) and git. Doesn't need scripts/vendor.sh.
+# Needs yq (mikefarah), git and curl (it reads raw.githubusercontent.com).
+# Doesn't need scripts/vendor.sh.
 
 set -Eeuo pipefail
 
@@ -70,6 +71,13 @@ flux_ref=$(yq "$flux_step | .uses | sub(\"^fluxcd/flux2/action@v\"; \"\")" .gith
 flux_cli=$(yq "$flux_step | .with.version" .github/workflows/deploy-cluster.yaml)
 [[ $flux_ref == "$version" && $flux_cli == "$version" ]] \
     || fail "flux action ref ($flux_ref) and CLI version ($flux_cli) differ from the FluxInstance ($version)"
+
+# Flux Operator installs only the Flux releases it embeds (config/data/flux/ in
+# its repo). Any other version fails the FluxInstance.
+if ! curl -fsSL -o /dev/null --retry 3 \
+    "https://raw.githubusercontent.com/controlplaneio-fluxcd/flux-operator/v$op/config/data/flux/v$version/source-controller.yaml"; then
+    fail "flux-operator $op doesn't embed Flux $version; wait for an operator release that does"
+fi
 
 # Traefik's chart pins its own image, so the chart version is the only thing
 # to upgrade. An image override would stop chart upgrades from moving it.

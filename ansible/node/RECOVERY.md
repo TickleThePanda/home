@@ -212,8 +212,9 @@ way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`)
     elsewhere). Without the key, no committed Secret can be decrypted and
     they must all be re-created and re-encrypted.
 - Flux itself. CI doesn't install or repair Flux. If Flux's CRDs,
-  `sops-age` or a Ready FluxInstance are missing, the `cluster` job fails
-  with "Flux not bootstrapped". A bad change under `flux-system/` can also break Flux's
+  `sops-age` or the FluxInstance are missing, the `cluster` job fails
+  with "Flux not bootstrapped". A FluxInstance that isn't Ready only warns,
+  so a fix for it can still deploy. A bad change under `flux-system/` can also break Flux's
   own reconciliation. Either way, run `flux-system/bootstrap.sh` from a
   machine with cluster access. It's idempotent, uses the already-promoted
   `deploy` artifact, and needs `DOCKER_USERNAME` / `DOCKER_PASSWORD` only if

@@ -225,10 +225,11 @@
       "automerge": false
     },
     {
-      "description": "The flux CLI in CI and the cluster's Flux move together (scripts/check-versions.sh).",
+      "description": "The flux CLI in CI and the cluster's Flux move together, with Flux Operator, which must embed that Flux release (scripts/check-versions.sh).",
       "matchPackageNames": [
         "fluxcd/flux2",
-        "fluxcd/flux2/action"
+        "fluxcd/flux2/action",
+        "controlplaneio-fluxcd/flux-operator"
       ],
       "groupName": "flux"
     },
