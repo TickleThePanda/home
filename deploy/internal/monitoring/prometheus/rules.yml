@@ -12,14 +12,14 @@ groups:
           100 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|fuse.*"}
           / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|fuse.*"} * 100) > 80
           and node_filesystem_readonly == 0
-        for: 15m
+        for: 1h
         labels:
           severity: warning
         annotations:
           summary: "{{ $labels.hostname }}: {{ $labels.mountpoint }} is {{ $value | printf \"%.1f\" }}% full"
           description: >-
             {{ $labels.mountpoint }} on {{ $labels.hostname }} has been over
-            80% full for 15 minutes.
+            80% full for an hour.
 
       - alert: HostDiskSpaceCritical
         expr: >-
@@ -98,17 +98,37 @@ groups:
 
   - name: kubernetes
     rules:
+      # Not on any restart: node reboots, k3s upgrades and API server restarts
+      # restart pods once (leader-elected controllers exit when they lose
+      # their lease), and that needs nobody.
       - alert: KubePodCrashLooping
-        expr: increase(kube_pod_container_status_restarts_total[15m]) > 0
-        for: 5m
+        expr: max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"}[5m]) >= 1
+        for: 15m
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} is restarting"
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} is crash-looping"
           description: >-
             Container {{ $labels.container }} in pod
-            {{ $labels.namespace }}/{{ $labels.pod }} has restarted in the
-            last 15 minutes.
+            {{ $labels.namespace }}/{{ $labels.pod }} has been in
+            CrashLoopBackOff for 15 minutes.
+
+      # An OOM kill restarts the container, which then runs fine until the
+      # next one, so it never shows as CrashLoopBackOff. The limit needs
+      # raising.
+      - alert: KubeContainerOOMKilled
+        expr: >-
+          increase(kube_pod_container_status_restarts_total[30m]) > 0
+          and on (namespace, pod, container)
+          kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} was OOM-killed"
+          description: >-
+            Container {{ $labels.container }} in pod
+            {{ $labels.namespace }}/{{ $labels.pod }} ran out of memory and
+            was killed. Raise its memory limit.
 
       # The proxmox-reboot CronJob (deploy/setup/kured/). A failure after
       # the reboot keeps kured's lock, so kured stays paused until someone
@@ -125,14 +145,47 @@ groups:
             released: kubectl -n kube-system annotate ds kured
             weave.works/kured-node-lock- (deploy/setup/kured/README.md).
 
+      # 15m outlasts kured's reboots and the Sunday proxmox-01 reboot (5-10m).
       - alert: KubeNodeNotReady
         expr: kube_node_status_condition{condition="Ready", status="true"} == 0
-        for: 5m
+        for: 15m
         labels:
           severity: critical
         annotations:
           summary: "Node {{ $labels.node }} is not Ready"
-          description: "Node {{ $labels.node }} has been NotReady for 5 minutes."
+          description: "Node {{ $labels.node }} has been NotReady for 15 minutes."
+
+  - name: flux
+    rules:
+      # From Flux Operator's metrics. A deploy can leave a resource briefly
+      # not Ready while it reconciles; 30m means Flux won't recover by itself.
+      - alert: FluxResourceNotReady
+        expr: >-
+          max by (kind, exported_namespace, name, reason) (
+            flux_resource_info{ready="False", suspended="False"}
+            or flux_instance_info{ready="False", suspended="False"}
+          )
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Flux {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} is not Ready ({{ $labels.reason }})"
+          description: >-
+            Check it with: flux get all -A --status-selector ready=false, or
+            kubectl -n {{ $labels.exported_namespace }} describe
+            {{ $labels.kind }} {{ $labels.name }}.
+
+      - alert: FluxOperatorMetricsMissing
+        expr: absent(flux_instance_info)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Flux Operator isn't reporting Flux's status"
+          description: >-
+            Prometheus has had no flux_instance_info for 30 minutes, so
+            FluxResourceNotReady can't fire. Check the flux-operator pod in
+            flux-system.
 
   - name: etcd
     rules:
