@@ -241,9 +241,12 @@
       "groupName": "go"
     },
     {
-      "description": "One branch for every non-major GitHub Actions bump.",
+      "description": "One branch for every non-major GitHub Actions bump, except the Python that setup-python installs: a Python minor can wait for months on ansible-core support, and would hold the others back.",
       "matchManagers": [
         "github-actions"
+      ],
+      "matchPackageNames": [
+        "!python"
       ],
       "matchUpdateTypes": [
         "minor",
