@@ -31,3 +31,39 @@ spec:
       ports:
         - port: 3000
           protocol: TCP
+---
+# TinyAuth only calls Pocket ID's token and userinfo endpoints.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-egress
+  namespace: tinyauth
+spec:
+  podSelector:
+    matchLabels:
+      app: tinyauth
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pocket-id
+          podSelector:
+            matchLabels:
+              app: pocket-id
+      ports:
+        - port: 1411
+          protocol: TCP

@@ -38,3 +38,65 @@ spec:
       ports:
         - port: 1411
           protocol: TCP
+---
+# Pocket ID reaches LLDAP, the relay, apps behind Traefik and HTTPS on the internet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-egress
+  namespace: pocket-id
+spec:
+  podSelector:
+    matchLabels:
+      app: pocket-id
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: lldap
+          podSelector:
+            matchLabels:
+              app: lldap
+      ports:
+        - port: 3890
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: smtp-relay
+          podSelector:
+            matchLabels:
+              app: smtp-relay
+      ports:
+        - port: 587
+          protocol: TCP
+    # OIDC clients' back-channel URLs, which resolve to Traefik.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+    # Remote client logos and profile pictures.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10]
+      ports:
+        - port: 443
+          protocol: TCP
