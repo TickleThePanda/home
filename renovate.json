@@ -241,12 +241,13 @@
       "groupName": "go"
     },
     {
-      "description": "One branch for every non-major GitHub Actions bump, except the Python that setup-python installs: a Python minor can wait for months on ansible-core support, and would hold the others back.",
+      "description": "One branch for every non-major GitHub Actions bump, except the Python that setup-python installs (a Python minor can wait for months on ansible-core support, and would hold the others back) and the Flux action, which stays in the flux group.",
       "matchManagers": [
         "github-actions"
       ],
       "matchPackageNames": [
-        "!python"
+        "!actions/python-versions",
+        "!fluxcd/flux2"
       ],
       "matchUpdateTypes": [
         "minor",
