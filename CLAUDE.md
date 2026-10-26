@@ -123,7 +123,8 @@ Documentation and comments: simple, concise, practical.
 - Renovate (Mend app, `renovate.json`) bumps every pinned third-party
   version: images, Helm charts and `vendor.txt`, GitHub Actions, Ansible
   collections and `ansible-core`, k3s, Flux, Terraform and its providers, and
-  `apps/` Dockerfiles. It merges non-major updates into `main` once
+  `apps/` Dockerfiles. It merges non-major updates into `main` once the
+  release is a day old (releases without a date don't wait) and
   `.github/workflows/validate.yaml` passes on its branch. Majors, and each
   minor of `ansible-core` and Python, wait for approval on the Dependency
   Dashboard issue. k3s and `alpine/k8s` minors automerge one at a time

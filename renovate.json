@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Updates container images, Helm charts, vendor.txt, GitHub Actions and runners, Ansible collections and ansible-core, k3s, Flux, Terraform and its providers, app Dockerfiles, the Proxmox VM template image and the router's OpenWrt release. Non-major updates merge into main once .github/workflows/validate.yaml passes, outside 02:00-06:00 London so deploys miss the kured reboot window; majors wait for approval on the Dependency Dashboard.",
+  "description": "Updates container images, Helm charts, vendor.txt, GitHub Actions and runners, Ansible collections and ansible-core, k3s, Flux, Terraform and its providers, app Dockerfiles, the Proxmox VM template image and the router's OpenWrt release. Non-major updates merge into main once a release is a day old and .github/workflows/validate.yaml passes, outside 02:00-06:00 London so deploys miss the kured reboot window; majors wait for approval on the Dependency Dashboard.",
   "extends": [
     "config:recommended",
     ":semanticCommitsDisabled"
@@ -49,6 +49,8 @@
   "automergeSchedule": [
     "* 0-1,6-23 * * *"
   ],
+  "minimumReleaseAge": "1 day",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "customManagers": [
     {
       "customType": "regex",
@@ -283,16 +285,6 @@
         "bootstrap/**"
       ],
       "automerge": false
-    },
-    {
-      "description": "The Renovate CLI releases several times a day. Without a minimum age, each run finds a newer release and restarts Validate, so the branch never merges. CI only uses it to check renovate.json, so a day-old release is new enough.",
-      "matchDepNames": [
-        "renovate"
-      ],
-      "matchDatasources": [
-        "npm"
-      ],
-      "minimumReleaseAge": "1 day"
     },
     {
       "description": "ansible-galaxy passes a git role's whole URL to the github-tags datasource, which expects owner/repo, so the lookup fails.",
