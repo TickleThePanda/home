@@ -2,14 +2,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Anything that's a *consumer* of a controller/webhook installed by
-# k8s/infrastructure/controllers/ -- a CR that needs its owning controller already running to
-# pass admission -- lives here instead, one layer downstream. Mixing these
-# into k8s/infrastructure/controllers/ itself created a real deadlock: Flux dry-runs a whole
-# Kustomization's resources together before applying any of them, so a
-# ClusterIssuer/IPAddressPool failing validation because its controller
-# wasn't up yet blocked the controller's own Deployment from ever being
-# (re)created in the same batch. See k8s/cluster/sync/kustomization-setup-config.yaml's
-# dependsOn.
+# k8s/infrastructure/controllers/ -- a CR that needs its owning controller
+# already running to pass admission -- lives here instead, one layer
+# downstream. Mixing these into k8s/infrastructure/controllers/ itself created
+# a real deadlock: Flux dry-runs a whole Kustomization's resources together
+# before applying any of them, so a ClusterIssuer/IPAddressPool failing
+# validation because its controller wasn't up yet blocked the controller's own
+# Deployment from ever being (re)created in the same batch. See
+# k8s/cluster/sync/kustomization-infrastructure-configs.yaml's dependsOn.
 resources:
   - ./cert-manager
   - ./metallb

@@ -6,7 +6,7 @@ resources:
   - ./oci-repository.yaml
   - ./artifact-generator.yaml
   - ./notifications.yaml
-  - ./kustomization-setup.yaml
-  - ./kustomization-setup-config.yaml
-  - ./kustomization-home.yaml
-  - ./kustomization-internal.yaml
+  - ./kustomization-infrastructure-controllers.yaml
+  - ./kustomization-infrastructure-configs.yaml
+  - ./kustomization-apps-home.yaml
+  - ./kustomization-apps-internal.yaml
