@@ -5,6 +5,7 @@ namespace: homepage
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./rbac.yaml
   - ./deployment.yaml
   - ./service.yaml

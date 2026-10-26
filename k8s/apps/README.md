@@ -50,8 +50,12 @@ path, run a throwaway pod in the client's namespace with matching labels:
 ```sh
 kubectl run np-probe -n geopulse --labels app=geopulse-backend \
   --image=busybox:1.37.0 --restart=Never --rm -it -- \
-  nc -zv -w 3 postgres-rw.postgres 5432
+  sh -c 'sleep 8; nc -zv -w 3 postgres-rw.postgres 5432'
 ```
+
+kube-router takes a few seconds to add a new pod's IP to the allow rules,
+so a pod's first connections can time out. Hence the `sleep`. Real apps
+retry through it.
 
 Policies don't touch the API server, SSH or Traefik, so a bad policy can't
 lock you out. To lift one fast, delete it; Flux restores it within 10

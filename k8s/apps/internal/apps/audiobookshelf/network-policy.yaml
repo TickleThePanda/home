@@ -1,0 +1,65 @@
+# The sync sidecars' trigger ports (8090, 8091) admit only the orchestrator.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: audiobookshelf
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-audiobookshelf
+  namespace: audiobookshelf
+spec:
+  podSelector:
+    matchLabels:
+      app: audiobookshelf
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - port: 80
+          protocol: TCP
+    - from:
+        - podSelector:
+            matchLabels:
+              app: sync-orchestrator
+      ports:
+        - port: 8090
+          protocol: TCP
+        - port: 8091
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-sync-orchestrator
+  namespace: audiobookshelf
+spec:
+  podSelector:
+    matchLabels:
+      app: sync-orchestrator
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - port: 8080
+          protocol: TCP

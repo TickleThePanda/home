@@ -5,6 +5,7 @@ namespace: geopulse
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./volume.yaml
   - ./backend-deployment.yaml
   - ./backend-service.yaml

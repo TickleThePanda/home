@@ -9,6 +9,7 @@ commonLabels:
   app: home-root
 
 resources:
+  - ./network-policy.yaml
   - ./deployment.yaml
   - ./service.yaml
   - ./ingress.yaml

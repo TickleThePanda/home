@@ -5,6 +5,7 @@ namespace: label-studio
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./deployment.yaml
   - ./service.yaml
   - ./volume.yaml

@@ -5,6 +5,7 @@ namespace: audiobookshelf
 
 resources:
   - ./namespace.yaml
+  - ./network-policy.yaml
   - ./volume.yaml
   - ./deployment.yaml
   - ./service.yaml
