@@ -180,7 +180,7 @@ jobs:
       # so it is safe in a public repo's artifacts.
       - name: Keep the firmware manifest and config backup
         if: always() && steps.compare.outputs.flash == 'true'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: router-firmware-${{ github.run_id }}
           path: |
