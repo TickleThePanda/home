@@ -15,10 +15,11 @@ name: Router firmware
 on:
   workflow_call:
 
-# Rollout gate for unattended flashing. While "false", only a manual dispatch
-# flashes the router; a push or the schedule reports the drift and stops.
+# Unattended flashing: a push or the monthly schedule flashes the router when
+# it doesn't run the build. Set "false" to only report the drift, so that
+# only a manual dispatch flashes.
 env:
-  ROUTER_AUTO_FLASH: "false"
+  ROUTER_AUTO_FLASH: "true"
 
 jobs:
   firmware:

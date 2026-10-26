@@ -60,9 +60,10 @@ and the commit it was built from.
    `firmware` job, which rebuilds the image for the pinned release. It flashes only if feed updates changed the
    package set, and is a no-op otherwise.
 
-`ROUTER_AUTO_FLASH` in `router-firmware.yaml` gates steps 2 and 3. While it's
-`"false"`, only a manual dispatch of Deploy flashes. A push or the schedule
-reports the drift as a warning.
+`ROUTER_AUTO_FLASH` in `router-firmware.yaml` gates steps 2 and 3. It's
+`"true"`, so merges and the monthly rebuild flash unattended. Set it to
+`"false"` to have a push or the schedule only report the drift as a warning;
+a manual dispatch of Deploy still flashes.
 
 The job runs inside the Deploy run, after infra and before cluster, so a flash
 never overlaps other deploy work that needs the tunnel.
