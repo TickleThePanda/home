@@ -10,7 +10,7 @@
 # - k3s.yml's first play refuses to deploy a minor that any node would skip,
 #   so a failed upgrade halts the chain until a human fixes it.
 
-k3s_version: "v1.34.12+k3s1"
+k3s_version: "v1.35.9+k3s1"
 
 # The disabled k3s addons live in server_config_yaml
 # (group_vars/k3s_cluster.yml), not here -- they are k3s config, not a version.
