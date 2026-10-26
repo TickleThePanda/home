@@ -278,6 +278,13 @@
         "bootstrap/**"
       ],
       "automerge": false
+    },
+    {
+      "description": "ansible-galaxy passes a git role's whole URL to the github-tags datasource, which expects owner/repo, so the lookup fails.",
+      "matchPackageNames": [
+        "https://github.com/k3s-io/k3s-ansible.git"
+      ],
+      "overridePackageName": "k3s-io/k3s-ansible"
     }
   ],
   "customDatasources": {
