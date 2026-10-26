@@ -39,14 +39,16 @@ mkdir -p "$OUT"
 # out with `<runtime> cp` rather than an output bind mount. Rootless podman
 # would otherwise need --userns=keep-id for the container's `buildbot` user
 # to write a caller-owned directory, and keep-id + runc trips a
-# remount-private failure on some hosts. A named volume caches downloaded
-# packages between runs.
+# remount-private failure on some hosts. Under podman, a named volume caches
+# downloaded packages between runs. Docker creates that volume root-owned,
+# which the container's user can't write, so CI builds without the cache.
 #
 # `make manifest` resolves the same package set `make image` installs, so its
 # output can go into the image as /etc/firmware.manifest. The router then
 # records exactly which package versions it runs, and upgrade.sh compares
 # against it. Both runs share one downloaded package index.
-mounts=(-v router-imagebuilder-dl:/builder/dl)
+mounts=()
+[ "$RUNTIME" = podman ] && mounts+=(-v router-imagebuilder-dl:/builder/dl)
 [ -n "$FILES" ] && mounts+=(-v "$(cd "$FILES" && pwd):/builder/user-files:ro")
 
 # shellcheck disable=SC2016 # expanded by the container's shell

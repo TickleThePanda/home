@@ -139,6 +139,15 @@ jobs:
             echo "firmware=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Before WARP: with it connected, the Image Builder container can't reach
+      # downloads.openwrt.org. No secrets go into this image; the router keeps
+      # its own config.
+      - name: Build the router firmware
+        if: steps.layers.outputs.firmware == 'true'
+        env:
+          CONTAINER_RUNTIME: docker
+        run: ./router/build.sh
+
       - name: Connect to Cloudflare Warp
         uses: ./.github/actions/cloudflare-warp
         with:
@@ -259,13 +268,6 @@ jobs:
         uses: ./.github/actions/ansible-apply
         with:
           playbook: router/router.yml
-
-      # No secrets go into this image; the router keeps its own config.
-      - name: Build the router firmware
-        if: steps.layers.outputs.firmware == 'true'
-        env:
-          CONTAINER_RUNTIME: docker
-        run: ./router/build.sh
 
       - name: Compare the router with the build
         id: firmware
