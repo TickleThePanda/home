@@ -1,5 +1,5 @@
 ---
-# Host metrics for Prometheus (deploy/internal/monitoring/): CPU, memory,
+# Host metrics for Prometheus (k8s/apps/internal/monitoring/): CPU, memory,
 # load, filesystem, disk I/O, network, temperature -- every default
 # collector, with real device/mountpoint/interface labels instead of
 # Glances' name-encodes-identity scheme. Replaces the glances role.

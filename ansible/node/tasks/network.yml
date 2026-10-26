@@ -4,7 +4,7 @@
 # otherwise being unmanaged (see site.yml). Quad9's own anycast pair only,
 # not Pi-hole-plus-fallback, so the dependency is actually removed rather
 # than just made less likely. Pod DNS is unaffected -- kube-dns/CoreDNS
-# still forwards to Pi-hole/Unbound as configured in deploy/.
+# still forwards to Pi-hole/Unbound as configured in k8s/.
 #
 # Editing this: touch ipv4.dns only, never ip4/gw4/method -- this connection
 # is ipv4.method: manual, and those are what would strand SSH/the API if

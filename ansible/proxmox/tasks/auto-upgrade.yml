@@ -1,6 +1,6 @@
 ---
 # Weekly unattended upgrades for proxmox-01, and the narrow API identity the
-# proxmox-reboot CronJob (deploy/setup/kured/proxmox-reboot/) reboots it
+# proxmox-reboot CronJob (k8s/infrastructure/controllers/kured/proxmox-reboot/) reboots it
 # with. The upgrade runs Sunday 01:30 and never reboots; the CronJob reboots
 # at 03:00 if /run/reboot-required exists.
 
@@ -77,7 +77,7 @@
     proxmox_kured_acls: "{{ proxmox_access.results[2].stdout | from_json | selectattr('path', '==', '/nodes/' ~ proxmox_node_name) | selectattr('roleid', '==', 'KuredReboot') | map(attribute='ugid') | list }}"
 
 - name: Create the kured@pve user
-  ansible.builtin.command: pveum user add kured@pve --comment "Reboots proxmox-01 for deploy/setup/kured/proxmox-reboot"
+  ansible.builtin.command: pveum user add kured@pve --comment "Reboots proxmox-01 for k8s/infrastructure/controllers/kured/proxmox-reboot"
   when: not proxmox_kured_user_exists
   changed_when: true
 

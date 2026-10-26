@@ -14,7 +14,7 @@
 # 2. `flux-system` applies, since it may change the other Kustomizations' specs.
 # 3. Every other Kustomization is Ready on its source's revision. A transient
 #    Ready=False doesn't fail the run: dependsOn retries (see
-#    flux-system/sync/artifact-generator.yaml). Stalled=True does.
+#    k8s/cluster/sync/artifact-generator.yaml). Stalled=True does.
 #
 # Usage: scripts/wait-flux-deploy.sh <commit-sha>
 # Env:   TIMEOUT (seconds, default 600) for the whole run.

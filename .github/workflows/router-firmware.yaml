@@ -106,7 +106,7 @@ jobs:
 
       # kured's lock, so no node or proxmox-01 reboot overlaps the flash. Same
       # format and resourceVersion guard as
-      # deploy/setup/kured/proxmox-reboot/proxmox-reboot.sh.
+      # k8s/infrastructure/controllers/kured/proxmox-reboot/proxmox-reboot.sh.
       - name: Take kured's reboot lock
         id: lock
         if: steps.compare.outputs.flash == 'true'
@@ -150,7 +150,7 @@ jobs:
 
       # A failure before the flash releases the lock. A failed flash keeps it,
       # which pauses kured until someone releases it by hand
-      # (deploy/setup/kured/README.md#the-lock): the router needs a human first.
+      # (k8s/infrastructure/controllers/kured/README.md#the-lock): the router needs a human first.
       - name: Release kured's reboot lock
         if: always() && steps.lock.outcome == 'success'
         env:

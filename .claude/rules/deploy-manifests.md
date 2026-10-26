@@ -1,7 +1,6 @@
 ---
 paths:
-  - "deploy/**"
-  - "flux-system/**"
+  - "k8s/**"
 ---
 
 # Kubernetes manifests
@@ -25,7 +24,7 @@ paths:
   for an unusual tag scheme (like Kea's even minors).
 - Send app mail through `smtp-relay.smtp-relay.svc:587` as
   `hello@ticklethepanda.dev` (see the relay's README).
-- `deploy/home/` sets `namespace: home` once at its top level. Internal apps
+- `k8s/apps/home/` sets `namespace: home` once at its top level. Internal apps
   each set their own.
 
 ## Adding a service
@@ -33,13 +32,13 @@ paths:
 A new service needs:
 
 - Its own directory with `namespace.yaml` and a `kustomization.yaml`, listed
-  in its parent's `resources:` (`deploy/internal/kustomization.yaml`).
+  in its parent's `resources:` (`k8s/apps/internal/kustomization.yaml`).
 - A multi-arch image with an exact version tag (above).
 - If it has state, a sized `lvm-data` PVC and `Recreate` strategy (above).
 - If it has a web UI, an IngressRoute on `int-web-secure` with `tls: {}`,
   ``Host(`<app>.internal.ticklethepanda.co.uk`)`` and the `tinyauth`
   middleware (`namespace: tinyauth`). No DNS change. Copy
-  `deploy/internal/apps/headlamp/ingress.yaml`.
+  `k8s/apps/internal/apps/headlamp/ingress.yaml`.
 - A Homepage card: `gethomepage.dev/*` annotations on that IngressRoute
   (`enabled`, `href`, `name`, `group`, `icon`, `description`,
   `pod-selector`). `group` is `Applications` or `Administration`, per

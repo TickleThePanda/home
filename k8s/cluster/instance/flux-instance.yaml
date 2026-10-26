@@ -1,0 +1,33 @@
+# Flux Operator installs and upgrades the Flux controllers from this. To
+# upgrade Flux, change distribution.version; to upgrade the operator, change
+# its release in vendor.txt first. Never delete it: deleting the FluxInstance
+# uninstalls Flux. Pause the operator instead by annotating it with
+# fluxcd.controlplane.io/reconcile=disabled.
+#
+# spec.sync stays unset: ./sync/self.yaml reconciles k8s/cluster/ with SOPS
+# decryption, which the operator's generated sync can't configure.
+apiVersion: fluxcd.controlplane.io/v1
+kind: FluxInstance
+metadata:
+  name: flux
+  namespace: flux-system
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  distribution:
+    # Exact, not a range: the operator would otherwise upgrade Flux to the
+    # newest patch it bundles.
+    version: "2.10.0"
+    registry: ghcr.io/fluxcd
+  components:
+    - source-controller
+    - kustomize-controller
+    - helm-controller
+    - notification-controller
+    - image-reflector-controller
+    - image-automation-controller
+    - source-watcher
+  cluster:
+    type: kubernetes
+    size: small
+    networkPolicy: true

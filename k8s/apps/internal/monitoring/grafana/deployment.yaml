@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      # The image runs as uid 472; without this it can't write to its own
+      # emptyDir at /var/lib/grafana.
+      securityContext:
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: grafana/grafana:13.2.4
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            # Auth is tinyauth's job, not Grafana's own login form -- the
+            # IngressRoute already puts every request through the tinyauth
+            # Middleware before it reaches here, same as Prometheus and
+            # Alertmanager have no auth of their own behind their
+            # ClusterIP-only Services. Grafana trusts the Remote-User header
+            # tinyauth sets (auth.proxy) -- see
+            # k8s/apps/internal/auth/tinyauth/middleware.yaml, tinyauth's own
+            # header names, not X-User/X-Email -- auto-provisioning that
+            # user, no separate password to create or rotate.
+            - name: GF_AUTH_PROXY_ENABLED
+              value: "true"
+            - name: GF_AUTH_PROXY_HEADER_NAME
+              value: "Remote-User"
+            - name: GF_AUTH_PROXY_HEADER_PROPERTY
+              value: "username"
+            - name: GF_AUTH_PROXY_HEADERS
+              value: "Email:Remote-Email"
+            - name: GF_AUTH_PROXY_AUTO_SIGN_UP
+              value: "true"
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "true"
+            # Read-only: dashboards are provisioned from this repo, not
+            # clicked together in the UI, and there's no PVC any more (see
+            # volumes: data below) to persist UI-made changes past a pod
+            # restart anyway.
+            - name: GF_USERS_AUTO_ASSIGN_ORG_ROLE
+              value: "Viewer"
+          ports:
+            - name: http
+              containerPort: 3000
+          # Longer timeout/failureThreshold than the Kubernetes defaults
+          # (1s / 3) -- this and Prometheus both land on the Pi (the only
+          # node with lvm-data), which is a 4-core/4GB board already running
+          # a dozen other pods. A brief slowdown there shouldn't kill and
+          # restart the container.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 256Mi
+            limits:
+              # 384Mi was a guess that turned out too low -- Grafana 13's
+              # bundled search indexing and plugin set genuinely sit around
+              # 280-300Mi steady state (confirmed live via kubectl top),
+              # leaving no headroom and OOMKilling it repeatedly. The worker
+              # VMs have ~6GB each with room to spare.
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+              subPath: dashboards.yaml
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/hosts.json
+              subPath: hosts.json
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/cluster.json
+              subPath: cluster.json
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/storage.json
+              subPath: storage.json
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/traefik.json
+              subPath: traefik.json
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/postgres.json
+              subPath: postgres.json
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/etcd.json
+              subPath: etcd.json
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards

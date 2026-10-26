@@ -18,29 +18,29 @@ fail() { echo "FAIL: $*" >&2; failed=1; }
 # vendor.txt's version column for a destination.
 vendored() { awk -v dest="$1" '$1 == dest { print $2 }' vendor.txt; }
 
-# Every `image: <repo>:<tag>` in tracked deploy/ manifests, as "<repo> <tag>".
-images=$(git ls-files deploy | grep -E '\.ya?ml$' | xargs sed -nE 's/^\s*(-\s+)?image:\s*([^ #]+).*/\2/p' \
+# Every `image: <repo>:<tag>` in tracked k8s/ manifests, as "<repo> <tag>".
+images=$(git ls-files k8s | grep -E '\.ya?ml$' | xargs sed -nE 's/^\s*(-\s+)?image:\s*([^ #]+).*/\2/p' \
     | sed -E 's/:([^:/]+)$/ \1/' | sort -u)
-[[ -n $images ]] || { echo "FAIL: no image lines found in deploy/" >&2; exit 1; }
+[[ -n $images ]] || { echo "FAIL: no image lines found in k8s/" >&2; exit 1; }
 tag() { awk -v repo="$1" '$1 == repo { print $2 }' <<<"$images"; }
 
 # One image, one tag: external-dns runs twice, and both must move together.
 while read -r repo count; do
-    fail "$repo has $count different tags in deploy/: $(tag "$repo" | tr '\n' ' ')"
+    fail "$repo has $count different tags in k8s/: $(tag "$repo" | tr '\n' ' ')"
 done < <(awk '{ print $1 }' <<<"$images" | uniq -c | awk '$1 > 1 { print $2, $1 }')
 
 # The Flux Operator install and the CRD schemas validate-manifests.sh checks
 # against must come from the same release.
-op=$(vendored flux-system/operator/flux-operator.vendored.yaml)
+op=$(vendored k8s/cluster/operator/flux-operator.vendored.yaml)
 schemas=$(vendored scripts/flux-operator-crd-schemas.vendored.tar.gz)
 [[ -n $op && $op == "$schemas" ]] \
     || fail "flux-operator ($op) and its CRD schemas ($schemas) differ in vendor.txt"
 
 # lvm-localpv's manifest ships `openebs/lvm-driver:ci`; its kustomization pins
 # the image to the manifest's release.
-lvm=$(vendored deploy/setup/lvm-localpv/lvm-operator.vendored.yaml)
+lvm=$(vendored k8s/infrastructure/controllers/lvm-localpv/lvm-operator.vendored.yaml)
 lvm_tag=$(yq '.images[] | select(.name == "openebs/lvm-driver") | .newTag' \
-    deploy/setup/lvm-localpv/kustomization.yaml)
+    k8s/infrastructure/controllers/lvm-localpv/kustomization.yaml)
 [[ -n $lvm && $lvm == "$lvm_tag" ]] \
     || fail "lvm-localpv manifest ($lvm) and openebs/lvm-driver image ($lvm_tag) differ"
 
@@ -56,12 +56,12 @@ backend=$(tag tess1o/geopulse-backend)
 # Exact pins only: a range lets helm-controller or Flux Operator upgrade on
 # their own, outside this repo's validation.
 exact='^v?[0-9]+\.[0-9]+\.[0-9]+$'
-releases=$(git ls-files deploy | xargs grep -l '^kind: HelmRelease')
+releases=$(git ls-files k8s | xargs grep -l '^kind: HelmRelease')
 for f in $releases; do
     version=$(yq 'select(.kind == "HelmRelease") | .spec.chart.spec.version' "$f")
     [[ $version =~ $exact ]] || fail "$f: chart version '$version' is not an exact version"
 done
-version=$(yq '.spec.distribution.version' flux-system/instance/flux-instance.yaml)
+version=$(yq '.spec.distribution.version' k8s/cluster/instance/flux-instance.yaml)
 [[ $version =~ $exact ]] || fail "FluxInstance version '$version' is not an exact version"
 
 # The flux CLI that CI pushes artifacts with is the cluster's Flux release:
@@ -81,8 +81,8 @@ fi
 
 # Traefik's chart pins its own image, so the chart version is the only thing
 # to upgrade. An image override would stop chart upgrades from moving it.
-[[ $(yq '.spec.values.image // ""' deploy/setup/traefik/helm-release.yaml) == "" ]] \
-    || fail "deploy/setup/traefik/helm-release.yaml overrides the chart's image"
+[[ $(yq '.spec.values.image // ""' k8s/infrastructure/controllers/traefik/helm-release.yaml) == "" ]] \
+    || fail "k8s/infrastructure/controllers/traefik/helm-release.yaml overrides the chart's image"
 
 # k3s and alpine/k8s (kubectl) minors automerge, but Kubernetes can't skip a
 # minor. Renovate opens a branch per minor at once, so fail all but the next
@@ -93,7 +93,7 @@ k3s=$(minor "$(yq '.k3s_version' "$k3s_vars")")
 kubectl=$(minor "$(tag alpine/k8s)")
 if git rev-parse --verify -q origin/main >/dev/null; then
     main_k3s=$(minor "$(git show "origin/main:$k3s_vars" | yq '.k3s_version')")
-    main_kubectl=$(minor "$(git grep -h -E 'image:\s*alpine/k8s:' origin/main -- deploy \
+    main_kubectl=$(minor "$(git grep -h -E 'image:\s*alpine/k8s:' origin/main -- k8s \
         | sed -nE 's/.*alpine\/k8s:([^ #]+).*/\1/p' | head -n1)")
     step_ok() { [[ ${1%.*} == "${2%.*}" ]] && (( ${2#*.} - ${1#*.} <= 1 )); }
     step_ok "$main_k3s" "$k3s" || fail "k3s moves from $main_k3s to $k3s; upgrade one minor at a time"

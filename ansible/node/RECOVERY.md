@@ -7,7 +7,7 @@ lost datastore see [`../k3s/RECOVERY.md`](../k3s/RECOVERY.md).
 ## Why this file exists
 
 CI reaches the LAN through the `cloudflared` Deployment running **inside** the
-cluster (`deploy/setup/cloudflared/tunnel.yaml`). Its logs show
+cluster (`k8s/infrastructure/controllers/cloudflared/tunnel.yaml`). Its logs show
 `originService=warp-routing` carrying traffic to `192.168.1.2:22` and
 `192.168.1.32:6443` — that pod is the Cloudflare Zero Trust private-network
 connector, and it runs on the two worker VMs.
@@ -62,7 +62,7 @@ KUBECONFIG=~/.kube/config kubectl get pods -n cloudflared -l pod=cloudflared -o 
 - **agent up, cloudflared not Ready** → the cluster is fine and only remote
   access is broken. cloudflared runs on the worker VMs; check the
   `tunnel-token` Secret exists (SOPS-encrypted in
-  `deploy/setup/cloudflared/secret.sops.yaml`; if Flux can't decrypt it, see
+  `k8s/infrastructure/controllers/cloudflared/secret.sops.yaml`; if Flux can't decrypt it, see
   `sops-age` under "out-of-band Secrets" below).
 
 ## k3s-agent will not start
@@ -208,26 +208,26 @@ way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`)
   `.claude/rules/secrets.md`.
   - `sops-age`: restore the private key from the owner's backup (the same key
     is `~/.config/sops/age/keys.txt` on their machine), then run
-    `flux-system/bootstrap.sh` (set `SOPS_AGE_KEY_FILE` if the key is
+    `k8s/cluster/bootstrap.sh` (set `SOPS_AGE_KEY_FILE` if the key is
     elsewhere). Without the key, no committed Secret can be decrypted and
     they must all be re-created and re-encrypted.
 - Flux itself. CI doesn't install or repair Flux. If Flux's CRDs,
   `sops-age` or the FluxInstance are missing, the `cluster` job fails
   with "Flux not bootstrapped". A FluxInstance that isn't Ready only warns,
-  so a fix for it can still deploy. A bad change under `flux-system/` can also break Flux's
-  own reconciliation. Either way, run `flux-system/bootstrap.sh` from a
+  so a fix for it can still deploy. A bad change under `k8s/cluster/` can also break Flux's
+  own reconciliation. Either way, run `k8s/cluster/bootstrap.sh` from a
   machine with cluster access. It's idempotent, uses the already-promoted
   `deploy` artifact, and needs `DOCKER_USERNAME` / `DOCKER_PASSWORD` only if
   `dockerhub-deploy-pull` is gone.
   - Flux Operator installs the controllers from `fluxinstance/flux`
-    (`flux-system/instance/`). Deleting it uninstalls Flux. To stop the
+    (`k8s/cluster/instance/`). Deleting it uninstalls Flux. To stop the
     operator touching the controllers while you fix them by hand:
     ```sh
     kubectl -n flux-system annotate fluxinstance flux fluxcd.controlplane.io/reconcile=disabled
     ```
     Remove the annotation (`...reconcile-`) afterwards. To upgrade, bump the
     operator's release in `vendor.txt` first, then `distribution.version`.
-  - `tunnel-token` is in git (`deploy/setup/cloudflared/secret.sops.yaml`).
+  - `tunnel-token` is in git (`k8s/infrastructure/controllers/cloudflared/secret.sops.yaml`).
     A bad edit can cut CI off from the LAN, since it reaches the cluster only
     through this tunnel. Recover from a human path (Tailscale, then
     `kubectl`), not CI.

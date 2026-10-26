@@ -102,7 +102,7 @@ after step 5 only polls. There is no remote rollback.
 - **"did not come back within 15 min"** or a failed check: the router needs a
   human. kured's lock stays held, which pauses node reboots on purpose.
   Release it once the router is fixed
-  ([`deploy/setup/kured/README.md`](../deploy/setup/kured/README.md#the-lock)).
+  ([`k8s/infrastructure/controllers/kured/README.md`](../k8s/infrastructure/controllers/kured/README.md#the-lock)).
   Reach the router over Tailscale or the LAN. If it's down, follow
   [Recovery](#recovery).
 

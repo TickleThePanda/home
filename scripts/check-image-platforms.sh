@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check that every image in the deploy/ manifests changed since <base> exists
+# Check that every image in the k8s/ manifests changed since <base> exists
 # and is published for linux/amd64 and linux/arm64. A stateless pod can land
 # on any node, and the Pi is arm64.
 #
@@ -17,9 +17,9 @@ cd "$repo_root"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 base=${1:?usage: $0 <base-ref>}
-changed=$(git diff --name-only --diff-filter=d "$base" -- 'deploy/**.yaml' 'deploy/**.yml')
+changed=$(git diff --name-only --diff-filter=d "$base" -- 'k8s/**.yaml' 'k8s/**.yml')
 if [[ -z $changed ]]; then
-    echo "OK: no deploy/ manifests changed"
+    echo "OK: no k8s/ manifests changed"
     exit 0
 fi
 

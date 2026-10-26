@@ -5,7 +5,7 @@ name: Deploy
 #   preflight   the cluster is reachable
 #   infra       deploy-infra.yaml -- ansible/, every layer: proxmox, node, k3s, router
 #   firmware    router-firmware.yaml -- router/, the gateway's firmware
-#   cluster     deploy-cluster.yaml -- deploy/, applied with kustomize
+#   cluster     deploy-cluster.yaml -- k8s/, applied with kustomize
 #   terraform   deploy-terraform.yaml -- terraform/cloudflare-zero-trust/, applied last
 #
 # Each of infra/cluster/terraform is a separate file, called here via
@@ -51,8 +51,7 @@ on:
   push:
     branches: main
     paths:
-      - deploy/**
-      - flux-system/**
+      - k8s/**
       - ansible/**
       - router/**
       - terraform/cloudflare-zero-trust/**
@@ -116,8 +115,7 @@ jobs:
               - '.github/workflows/router-firmware.yaml'
               - '!**/*.md'
             cluster:
-              - 'deploy/**'
-              - 'flux-system/**'
+              - 'k8s/**'
               - 'vendor.txt'
               - 'scripts/vendor.sh'
               - 'scripts/check-versions.sh'
@@ -188,7 +186,7 @@ jobs:
 
   cluster:
     needs: [preflight, infra, firmware]
-    # Runs when deploy/ or flux-system/ changed (or on a manual dispatch), and
+    # Runs when k8s/ changed (or on a manual dispatch), and
     # only after infra either passed or was itself skipped -- every Ansible
     # layer lands before Flux reconciles through the same tunnel. always() plus
     # an explicit result check: a genuine infra failure blocks cluster, a skip

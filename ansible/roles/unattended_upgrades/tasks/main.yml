@@ -1,7 +1,7 @@
 ---
 # Daily unattended upgrades from the repositories in
 # unattended_upgrades_origins. Lists refresh at 01:00 and upgrades install at
-# 01:30, ahead of kured's 03:00-05:00 reboot window (deploy/setup/kured/).
+# 01:30, ahead of kured's 03:00-05:00 reboot window (k8s/infrastructure/controllers/kured/).
 # A package that needs a reboot writes /var/run/reboot-required, and kured
 # reboots the node for it. Nothing here reboots.
 

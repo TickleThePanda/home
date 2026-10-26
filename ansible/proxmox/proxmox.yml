@@ -13,7 +13,7 @@
 # e1000e I219-V offload workaround is version-controlled, and installs two
 # watchdogs -- see tasks/host-network.yml / nic-watchdog.yml / host-watchdog.yml.
 # Packages upgrade weekly (tasks/auto-upgrade.yml); the proxmox-reboot
-# CronJob in deploy/setup/kured/ reboots the host when that needs it.
+# CronJob in k8s/infrastructure/controllers/kured/ reboots the host when that needs it.
 # Networking changes need care: CI reaches this box through a pod on it, so a
 # bad one is not remotely recoverable. The interfaces template only lands; a
 # human applies it with `ifreload -a` from the LAN.

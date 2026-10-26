@@ -34,11 +34,11 @@ docker_pull_username: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_USERNAME') 
 docker_pull_token: "{{ lookup('ansible.builtin.env', 'DOCKER_PULL_TOKEN') | default('', true) }}"
 
 # Written to /etc/rancher/k3s/config.yaml on the server. These addons are
-# vendored into deploy/setup/ instead (see CLAUDE.md); MetalLB replaces
+# vendored into k8s/infrastructure/controllers/ instead (see CLAUDE.md); MetalLB replaces
 # servicelb and every volume is on the lvm-data StorageClass.
 #
 # disable-helm-controller turns off k3s's embedded helm.cattle.io controller.
-# Flux HelmReleases in deploy/setup/ own every chart; a k3s HelmChart does
+# Flux HelmReleases in k8s/infrastructure/controllers/ own every chart; a k3s HelmChart does
 # nothing.
 #
 # cluster-init keeps the embedded-etcd datastore (a single member) selected;

@@ -1,0 +1,52 @@
+# Splits the `deploy` OCI artifact into one ExternalArtifact per k8s/
+# layer. An ExternalArtifact's revision is a hash of its content, so a push
+# only reconciles the layers whose files changed.
+#
+# originRevision copies the artifact's `main@sha1:<commit>` onto every
+# ExternalArtifact, changed or not. Kustomizations forward it to GitHub commit
+# statuses (notifications.yaml), and scripts/wait-flux-deploy.sh uses it to
+# tell when this generator has handled a push.
+#
+# Ordering: dependsOn checks that the dependency applied the same revision
+# only when both read one source. Across these artifacts it only checks the
+# dependency is Ready, so in one push, a dependent layer can apply before its
+# dependency has finished. When a change needs strict order across layers
+# (a CRD in setup, its first CR in setup-config), ship it in two pushes, or
+# gate the dependent with a dependsOn readyExpr.
+apiVersion: source.extensions.fluxcd.io/v1beta1
+kind: ArtifactGenerator
+metadata:
+  name: deploy
+  namespace: flux-system
+spec:
+  sources:
+    - alias: repo
+      kind: OCIRepository
+      name: deploy
+  # Each layer is self-contained: nothing under a layer references a
+  # path outside it. The artifact keeps the repo-relative path.
+  artifacts:
+    - name: deploy-setup
+      originRevision: "@repo"
+      copy:
+        - from: "@repo/k8s/infrastructure/controllers/**"
+          to: "@artifact/k8s/infrastructure/controllers/"
+          exclude: ["*.md"]
+    - name: deploy-setup-config
+      originRevision: "@repo"
+      copy:
+        - from: "@repo/k8s/infrastructure/configs/**"
+          to: "@artifact/k8s/infrastructure/configs/"
+          exclude: ["*.md"]
+    - name: deploy-home
+      originRevision: "@repo"
+      copy:
+        - from: "@repo/k8s/apps/home/**"
+          to: "@artifact/k8s/apps/home/"
+          exclude: ["*.md"]
+    - name: deploy-internal
+      originRevision: "@repo"
+      copy:
+        - from: "@repo/k8s/apps/internal/**"
+          to: "@artifact/k8s/apps/internal/"
+          exclude: ["*.md"]

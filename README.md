@@ -15,7 +15,11 @@ declarative and applied by CI — there is nothing to install by hand:
   - `ansible/k3s/` — k3s on every node (version, config, agent join), via the
     `k3s.orchestration` collection.
   - `ansible/router/` — the gateway (OpenWrt).
-- `deploy/` owns everything inside the cluster, applied with kustomize.
+- `k8s/` owns everything inside the cluster, applied by Flux:
+  - `k8s/infrastructure/` — controllers (`controllers/`) and the config they
+    need running first (`configs/`).
+  - `k8s/apps/` — the `home` and `internal` apps.
+  - `k8s/cluster/` — Flux itself.
 - `apps/` holds the source for the apps built into images by CI.
 - `router/` is the gateway's firmware: the pinned OpenWrt release,
   packages and static files, which CI builds and flashes.

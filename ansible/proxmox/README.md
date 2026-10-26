@@ -96,5 +96,5 @@ scope a run.
   `/run/reboot-required`, and the `proxmox-reboot` CronJob reboots the host
   at 03:00. That job authenticates as the `kured@pve!reboot` API token,
   which only has `Sys.PowerMgmt` and `Sys.Audit` on this node. Create the
-  token by hand: see `deploy/setup/kured/README.md`. Majors stay manual,
+  token by hand: see `k8s/infrastructure/controllers/kured/README.md`. Majors stay manual,
   because `proxmox_apt_suite` pins the suite.

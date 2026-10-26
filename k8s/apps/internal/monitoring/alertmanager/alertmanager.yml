@@ -1,0 +1,36 @@
+global:
+  # k8s/apps/internal/services/smtp-relay/ -- an in-cluster null relay that
+  # forwards to ProtonMail itself. No auth from this side: the relay's own
+  # POSTFIX_mynetworks already trusts anything in-cluster, and TLS happens
+  # on the relay's upstream leg, not this one.
+  smtp_smarthost: "smtp-relay.smtp-relay.svc:587"
+  # The only sender the relay's credential allows -- see its README.
+  smtp_from: "hello@ticklethepanda.dev"
+  smtp_require_tls: false
+
+# Email only for something that needs the owner. The rules' `for:` durations
+# outlast routine maintenance (reboots, upgrades, deploys), and a firing alert
+# repeats daily, not every few hours. The Alertmanager UI shows what's firing.
+route:
+  receiver: email
+  group_by: ["alertname"]
+  group_wait: 1m
+  group_interval: 15m
+  repeat_interval: 24h
+  routes:
+    - matchers: ['severity="critical"']
+      receiver: email
+      repeat_interval: 6h
+
+# A critical disk or LVM alert covers its warning.
+inhibit_rules:
+  - source_matchers: ['alertname=~"HostDiskSpaceCritical|LvmVolumeGroupSpaceCritical"']
+    target_matchers: ['alertname=~"HostDiskSpaceLow|LvmVolumeGroupSpaceLow"']
+    equal: ["hostname", "mountpoint", "name"]
+
+receivers:
+  - name: email
+    email_configs:
+      - to: "panda@ticklethepanda.dev"
+        # A resolved alert needs nothing.
+        send_resolved: false

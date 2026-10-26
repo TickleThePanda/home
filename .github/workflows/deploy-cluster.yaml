@@ -1,7 +1,7 @@
 name: Deploy - cluster
 
 # Called by deploy.yaml's `cluster` job once infra has landed. Promotes the
-# repo as an OCI artifact; Flux applies deploy/ and flux-system/ from it.
+# repo as an OCI artifact; Flux applies k8s/ from it.
 
 on:
   workflow_call:
@@ -40,9 +40,9 @@ jobs:
         with:
           version: 2.10.0
 
-      # Flux manages flux-system/ itself (sync/self.yaml); CI never applies
+      # Flux manages k8s/cluster/ itself (sync/self.yaml); CI never applies
       # it. CI holds no age key, so it can't bootstrap Flux either -- a human
-      # runs flux-system/bootstrap.sh. A FluxInstance that exists but isn't
+      # runs k8s/cluster/bootstrap.sh. A FluxInstance that exists but isn't
       # Ready doesn't stop the push: the fix for it may be in this commit, and
       # the running controllers still apply it.
       - name: Check Flux is bootstrapped
@@ -50,7 +50,7 @@ jobs:
           if ! kubectl get crd kustomizations.kustomize.toolkit.fluxcd.io >/dev/null 2>&1 \
             || ! kubectl -n flux-system get secret sops-age >/dev/null 2>&1 \
             || ! kubectl -n flux-system get fluxinstance/flux >/dev/null 2>&1; then
-            echo "::error title=Flux not bootstrapped::Flux CRDs, the sops-age Secret or the FluxInstance are missing; run flux-system/bootstrap.sh"
+            echo "::error title=Flux not bootstrapped::Flux CRDs, the sops-age Secret or the FluxInstance are missing; run k8s/cluster/bootstrap.sh"
             exit 1
           fi
           if ! kubectl -n flux-system wait --for=condition=Ready --timeout=10s fluxinstance/flux >/dev/null 2>&1; then
@@ -63,8 +63,8 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Lets flux-system/sync/oci-repository.yaml's OCIRepository pull the
-      # promoted deploy/ artifact from a private Docker Hub repo. Reuses
+      # Lets k8s/cluster/sync/oci-repository.yaml's OCIRepository pull the
+      # promoted k8s/ artifact from a private Docker Hub repo. Reuses
       # the credentials already in this job rather than a new secret.
       - name: Provision the OCIRepository pull secret
         run: |
@@ -83,9 +83,9 @@ jobs:
         uses: ./.github/actions/validate-cluster
 
       # Push as one sha-tagged OCI artifact, then move the moving `deploy`
-      # tag to point at it -- the promotion boundary flux-system/sync/
-      # oci-repository.yaml's OCIRepository follows for both deploy/ and
-      # flux-system/. Neither tree is watched straight off `main`, so Flux
+      # tag to point at it -- the promotion boundary k8s/cluster/sync/
+      # oci-repository.yaml's OCIRepository follows for all of k8s/. Nothing
+      # is watched straight off `main`, so Flux
       # only ever reconciles revisions this job has vetted.
       - name: Push and promote the OCI artifact
         run: |
@@ -100,7 +100,7 @@ jobs:
 
       # Trigger reconciliation immediately rather than waiting for the
       # OCIRepository's own polling interval. Only the source needs it:
-      # flux-system/sync/artifact-generator.yaml regenerates the per-layer
+      # k8s/cluster/sync/artifact-generator.yaml regenerates the per-layer
       # artifacts from it, and each Kustomization reconciles only when its
       # own artifact's revision changes.
       - name: Trigger Flux reconciliation

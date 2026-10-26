@@ -4,7 +4,7 @@
 # Weekly full upgrade of Debian and PVE packages. Proxmox needs full-upgrade,
 # not upgrade: new kernels and PVE components arrive as new packages. Nothing
 # here reboots. When a reboot is due it writes /run/reboot-required, and the
-# proxmox-reboot CronJob (deploy/setup/kured/proxmox-reboot/) reboots the
+# proxmox-reboot CronJob (k8s/infrastructure/controllers/kured/proxmox-reboot/) reboots the
 # host in the Sunday window, under kured's lock.
 
 set -Eeuo pipefail

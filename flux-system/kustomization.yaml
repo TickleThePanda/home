@@ -1,20 +1,9 @@
-# Flux's own definition, reconciled by Flux itself (./sync/self.yaml, path:
-# ./flux-system) with SOPS decryption. Nothing else applies this directory in
-# normal operation.
-#
-# ./operator is Flux Operator; ./instance is the FluxInstance it installs the
-# Flux controllers from. ./sync points Flux at the `deploy` artifact.
-#
-# ./bootstrap.sh is the emergency path. It applies ./operator, ./instance and
-# ./sync with plain kubectl, waiting for each pass's CRDs and controllers, and
-# never ./secrets, which only Flux can decrypt. kustomize-controller handles
-# the CRD-then-CR ordering within one apply, so only that bootstrap needs the
-# split.
+# Temporary: lets the live flux-system Kustomization (path ./flux-system) apply
+# k8s/cluster, whose sync/self.yaml moves it to ./k8s/cluster. Delete once
+# `kubectl -n flux-system get ks flux-system -o jsonpath='{.spec.path}'` shows
+# ./k8s/cluster.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ./operator
-  - ./instance
-  - ./sync
-  - ./secrets
+  - ../k8s/cluster

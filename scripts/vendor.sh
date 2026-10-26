@@ -3,7 +3,7 @@
 # A failed download fails the script, so this also checks every URL resolves.
 #
 # The files are gitignored (*.vendored.yaml). Run this before any local
-# `kustomize build`; CI, flux-system/bootstrap.sh and apply-subset.sh run it
+# `kustomize build`; CI, k8s/cluster/bootstrap.sh and apply-subset.sh run it
 # themselves. Always re-downloads, so a version change takes effect.
 
 set -Eeuo pipefail

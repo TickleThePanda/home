@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Check renovate.json is valid and that Renovate still finds every dependency
-# it should update: images, charts and kustomize pins in deploy/, vendor.txt,
+# it should update: images, charts and kustomize pins in k8s/, vendor.txt,
 # GitHub Actions, Ansible collections, app Dockerfiles and single version
 # pins. A file Renovate can't parse is otherwise silently never updated.
 #
@@ -44,7 +44,7 @@ deps=$(jq -r '.repositories.local.packageFiles | to_entries[] | .key as $m
 
 # What Renovate should find, listed before any loop: a failure inside a
 # process substitution would otherwise go unnoticed and check nothing.
-manifests=$(git ls-files deploy | grep -E '\.ya?ml$')
+manifests=$(git ls-files k8s | grep -E '\.ya?ml$')
 image_lines=$(xargs grep -HE '^\s*(-\s+)?image:' <<<"$manifests" \
     | sed -nE 's/^([^:]+):\s*(-\s+)?image:\s*([^ #]+).*/\1 \3/p')
 helm_releases=$(xargs grep -l '^kind: HelmRelease' <<<"$manifests")
@@ -74,7 +74,7 @@ while read -r manager file dep value reason; do
     failed=1
 done <<<"$deps"
 
-# Every image line in deploy/. Extract mode doesn't parse versions, so also
+# Every image line in k8s/. Extract mode doesn't parse versions, so also
 # require a tag that docker versioning can order: a number first, optionally
 # after `v` (`v1.2.3`, `2026.10.0`, `1.39.1-native-compat`).
 while read -r file image; do
@@ -125,7 +125,7 @@ while read -r manager file dep; do
 done <<'PINS'
 regex .github/workflows/validate.yaml renovate
 regex ansible/k3s/vars/versions.yml k3s-io/k3s
-regex flux-system/instance/flux-instance.yaml fluxcd/flux2
+regex k8s/cluster/instance/flux-instance.yaml fluxcd/flux2
 regex .github/workflows/deploy-cluster.yaml fluxcd/flux2
 regex .github/actions/validate-cluster/action.yml yannh/kubeconform
 regex apps/sync-runner/Dockerfile.librofm librofm

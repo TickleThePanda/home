@@ -67,7 +67,7 @@ Documentation and comments: simple, concise, practical.
 - `homelab` address bands: `.1` gateway, `.2–.9` physical hosts, `.10–.31`
   cluster service IPs (MetalLB + Kea), `.32–.63` Proxmox guests, `.64–.127`
   other static, `.128–.254` DHCP. Put new addresses in their band. Only the
-  Kea pool and `deploy/setup-config/metallb/` enforce it.
+  Kea pool and `k8s/infrastructure/configs/metallb/` enforce it.
 - **MetalLB** L2 pools: `external`, `internal`, `pihole`. **Traefik** is the
   only ingress. Internal apps use
   ``Host(`<app>.internal.ticklethepanda.co.uk`)`` on `int-web-secure`
@@ -101,25 +101,29 @@ Documentation and comments: simple, concise, practical.
 - `cluster` pushes the repo as an OCI artifact and moves its `deploy` tag.
   Flux reconciles only that tag, never `main`, through Kustomizations
   `setup` → `setup-config` → `home` / `internal` (plus `flux-system`), with
-  `prune` and `wait`, every 10m.
-- The ArtifactGenerator in `flux-system/sync/artifact-generator.yaml` splits
-  the artifact per `deploy/` layer, so a push reconciles only the layers it
+  `prune` and `wait`, every 10m. Their paths:
+  - `setup`: `k8s/infrastructure/controllers/` (controllers, CRDs, charts)
+  - `setup-config`: `k8s/infrastructure/configs/` (CRs those need running)
+  - `home` / `internal`: `k8s/apps/home/` / `k8s/apps/internal/`
+  - `flux-system`: `k8s/cluster/` (Flux itself)
+- The ArtifactGenerator in `k8s/cluster/sync/artifact-generator.yaml` splits
+  the artifact per `k8s/` layer, so a push reconciles only the layers it
   changed. `dependsOn` then only checks that a dependency is Ready, not that it
   applied the same commit. Ship a cross-layer change that needs strict order
   (a CRD and its first CR) in two pushes. `scripts/wait-flux-deploy.sh`
   is CI's pass/fail gate.
-- Flux manages `flux-system/` itself; CI never applies it. Flux Operator
+- Flux manages `k8s/cluster/` itself; CI never applies it. Flux Operator
   installs the controllers from the FluxInstance in
-  `flux-system/instance/`. Never delete it: that uninstalls Flux.
-  `flux-system/bootstrap.sh` is the manual path for a cold start or a Flux
+  `k8s/cluster/instance/`. Never delete it: that uninstalls Flux.
+  `k8s/cluster/bootstrap.sh` is the manual path for a cold start or a Flux
   too broken to fix itself.
 - **Flux reverts manual changes.** `kubectl edit`/`patch` or
-  `./apply-subset.sh` on anything under `deploy/` is undone within 10
+  `./apply-subset.sh` on anything under `k8s/` is undone within 10
   minutes unless committed and pushed. Objects Flux doesn't own (PVCs
   created by operators, cert-manager CertificateRequests) are not reverted.
 - For an out-of-band fix to one component, use
-  `./apply-subset.sh <deploy-subdir> [kubectl apply args...]`, never
-  `kubectl apply -f` or `kubectl apply -k deploy/<subdir>`.
+  `./apply-subset.sh <k8s-subdir> [kubectl apply args...]`, never
+  `kubectl apply -f` or `kubectl apply -k k8s/<subdir>`.
 - Renovate (Mend app, `renovate.json`) bumps every pinned third-party
   version: images, Helm charts and `vendor.txt`, GitHub Actions, Ansible
   collections and `ansible-core`, k3s, Flux, Terraform and its providers, and
@@ -139,7 +143,8 @@ Documentation and comments: simple, concise, practical.
   CronJob reboots it at 03:00, which takes down the VMs, CI's tunnel and
   home DNS for 5–10 minutes. Both share kured's lock, the
   `weave.works/kured-node-lock` annotation on `ds/kured`. Take it before
-  rebooting anything by hand. See `deploy/setup/kured/README.md`.
+  rebooting anything by hand. See
+  `k8s/infrastructure/controllers/kured/README.md`.
 - Run Ansible by whole layer playbook (`ansible/site.yml` lists them), never
   with `--limit` alone. The Pi is in both `pi` and `agent`, so `--limit pi`
   still runs the k3s agent play on it.
@@ -147,14 +152,14 @@ Documentation and comments: simple, concise, practical.
   `/var/lib/rancher/k3s/server/manifests/` on every restart. If the repo
   owns a resource k3s also bundles, disable the addon in `server_config_yaml`
   (`ansible/group_vars/k3s_cluster.yml`) and vendor the resource, as with
-  `deploy/setup/traefik/`. Disabling an addon is a real Helm uninstall and
-  can cascade (Traefik's took its CRDs, and every IngressRoute/TLSStore with
-  them). Afterwards, reapply affected apps and re-check TLS, since a missing
+  `k8s/infrastructure/controllers/traefik/`. Disabling an addon is a real
+  Helm uninstall and can cascade (Traefik's took its CRDs, and every
+  IngressRoute/TLSStore with them). Afterwards, reapply affected apps and re-check TLS, since a missing
   `TLSStore` silently falls back to a self-signed cert.
 - k3s's helm-controller is disabled, so a `helm.cattle.io` HelmChart does
   nothing. Third-party charts are Flux `HelmRelease`s in `kube-system`,
-  under `deploy/setup/`, with exact chart versions. See
-  `deploy/setup/README.md` before deleting or renaming one.
+  under `k8s/infrastructure/controllers/`, with exact chart versions. See
+  `k8s/infrastructure/controllers/README.md` before deleting or renaming one.
 - Objects stuck `Terminating` drift invisibly while `apply` keeps
   "succeeding". Spot check:
   `kubectl get svc -A -o json | jq -r '.items[] | select(.metadata.deletionTimestamp != null) | "\(.metadata.namespace)/\(.metadata.name)"'`

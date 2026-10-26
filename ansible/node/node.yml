@@ -4,12 +4,12 @@
 # k3s itself (version, /etc/rancher/k3s/config.yaml, install) is owned by
 # ansible/k3s/, which manages the Pi and the Proxmox VM agents as one cluster
 # via the k3s.orchestration collection. Everything inside the cluster is owned
-# by kustomize (deploy/). This playbook owns what is left: the LVM volumes and
+# by kustomize (k8s/). This playbook owns what is left: the LVM volumes and
 # mounts behind the PVs, the deploy user's trusted SSH keys, the sudoers
 # entries, the node's DNS resolver, swap, the Argon ONE fan,
 # unattended-upgrades and node_exporter (host metrics, plus -- Pi only -- the
 # lvm-prom-collector pair that makes the `data` VG's free space visible to
-# Prometheus, deploy/internal/monitoring/).
+# Prometheus, k8s/apps/internal/monitoring/).
 #
 # Deliberately NOT managed:
 #   /etc/rancher/k3s/config.yaml            -- owned by ansible/k3s/ (agent config)
@@ -62,7 +62,7 @@
         node_exporter_lvm_collector: true
       tags: [node-exporter]
 
-    - name: unattended-upgrades (kured reboots, deploy/setup/kured/)
+    - name: unattended-upgrades (kured reboots, k8s/infrastructure/controllers/kured/)
       ansible.builtin.import_role:
         name: unattended_upgrades
       tags: [unattended-upgrades]

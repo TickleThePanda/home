@@ -4,8 +4,8 @@
 # that too. Run scripts/vendor.sh first. Needs kustomize, kubeconform, helm and
 # yq (mikefarah).
 #
-# Each deploy/ layer builds from a copy holding only that layer, since its
-# ExternalArtifact (flux-system/sync/artifact-generator.yaml) contains nothing
+# Each k8s/ layer builds from a copy holding only that layer, since its
+# ExternalArtifact (k8s/cluster/sync/artifact-generator.yaml) contains nothing
 # else. A reference outside the layer fails here, not after promotion.
 #
 # Skipped kinds:
@@ -38,7 +38,7 @@ operator_schemas+='/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 # Remote resources are fetched by kustomize-controller on every reconcile.
 # Upstream manifests belong in vendor.txt instead.
 if remote=$(grep -rn --include=kustomization.yaml -E '^\s*-\s*https?://' \
-        "$repo_root/deploy" "$repo_root/flux-system"); then
+        "$repo_root/k8s"); then
     fail "remote resources found; add them to vendor.txt instead:"$'\n'"$remote"
 fi
 
@@ -49,9 +49,9 @@ validate_file() {
 }
 validate() { kustomize build "$1" | validate_file; }
 
-mapfile -t layers < <(grep -oE '@repo/deploy/[^/"]+' \
-    "$repo_root/flux-system/sync/artifact-generator.yaml" | sed 's|^@repo/||' | sort -u)
-(( ${#layers[@]} > 0 )) || fail "no deploy/ layers in flux-system/sync/artifact-generator.yaml"
+mapfile -t layers < <(grep -oE '@repo/k8s/[^"*]+' \
+    "$repo_root/k8s/cluster/sync/artifact-generator.yaml" | sed 's|^@repo/||; s|/$||' | sort -u)
+(( ${#layers[@]} > 0 )) || fail "no k8s/ layers in k8s/cluster/sync/artifact-generator.yaml"
 
 for layer in "${layers[@]}"; do
     echo "== $layer"
@@ -71,9 +71,9 @@ kube_version=$(yq '.k3s_version' "$repo_root/ansible/k3s/vars/versions.yml")
 kube_version=${kube_version%%+*}
 [[ $kube_version == v* ]] || fail "no k3s_version in ansible/k3s/vars/versions.yml"
 
-mapfile -t releases < <(cd "$repo_root" && git ls-files deploy | grep -E '\.ya?ml$' \
+mapfile -t releases < <(cd "$repo_root" && git ls-files k8s | grep -E '\.ya?ml$' \
     | xargs grep -l '^kind: HelmRelease')
-(( ${#releases[@]} > 0 )) || fail "no HelmReleases found under deploy/"
+(( ${#releases[@]} > 0 )) || fail "no HelmReleases found under k8s/"
 for file in "${releases[@]}"; do
     echo "== $file"
     dir=$(dirname "$repo_root/$file")
@@ -95,13 +95,13 @@ for file in "${releases[@]}"; do
     validate_file "$charts_root/$name.yaml" || fail "$file: rendered chart does not validate"
 done
 
-# self.yaml reads the whole OCIRepository, so flux-system builds in place.
-echo "== flux-system"
-validate "$repo_root/flux-system" || fail "flux-system does not validate"
+# self.yaml reads the whole OCIRepository, so k8s/cluster builds in place.
+echo "== k8s/cluster"
+validate "$repo_root/k8s/cluster" || fail "k8s/cluster does not validate"
 
 # A missing schema fails here, unlike above: the FluxInstance controls the
 # whole Flux install.
-echo "== flux-system/instance"
+echo "== k8s/cluster/instance"
 kubeconform -strict -summary -schema-location "$operator_schemas" \
-        "$repo_root/flux-system/instance/flux-instance.yaml" \
-    || fail "flux-system/instance does not validate"
+        "$repo_root/k8s/cluster/instance/flux-instance.yaml" \
+    || fail "k8s/cluster/instance does not validate"

@@ -9,7 +9,7 @@ and installing/joining k3s on each node, via the official `k3s.orchestration`
 collection (`k3s-io/k3s-ansible`, pinned in `requirements.yml`). Everything
 *below* k3s on the Pi -- LVM/mounts, the Pi's DNS resolver, swap, the Argon
 fan, sudoers -- stays in `ansible/node/`. Everything *inside* the cluster stays in
-`deploy/`.
+`k8s/`.
 
 Applied by the `infra` job in `.github/workflows/deploy-infra.yaml`, over SSH
 as `deploy` through the same cloudflared tunnel as `node` / `router` /
@@ -30,7 +30,7 @@ as `deploy` through the same cloudflared tunnel as `node` / `router` /
 
 Not managed: the VMs themselves (that is `ansible/proxmox/`), the etcd datastore
 contents (snapshots are config, above), the cluster token (left as the
-existing one), anything in `deploy/`.
+existing one), anything in `k8s/`.
 
 ## Running it by hand
 

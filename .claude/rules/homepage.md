@@ -1,6 +1,6 @@
 ---
 paths:
-  - "deploy/internal/homepage/**"
+  - "k8s/apps/internal/homepage/**"
 ---
 
 # Homepage

@@ -7,6 +7,6 @@ Unattended-Upgrade::Origins-Pattern {
 {% endfor %}
 };
 
-// kured reboots, inside its window (deploy/setup/kured/).
+// kured reboots, inside its window (k8s/infrastructure/controllers/kured/).
 Unattended-Upgrade::Automatic-Reboot "false";
 Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";

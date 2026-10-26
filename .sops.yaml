@@ -1,7 +1,7 @@
-# Encrypts Kubernetes Secrets committed under deploy/ and flux-system/. Flux
+# Encrypts Kubernetes Secrets committed under k8s/. Flux
 # decrypts them with the `sops-age` Secret in flux-system (see
 # .claude/rules/secrets.md).
 creation_rules:
-  - path_regex: ^(deploy|flux-system)/.*\.sops\.yaml$
+  - path_regex: ^k8s/.*\.sops\.yaml$
     encrypted_regex: ^(data|stringData)$
     age: age1stp5zpp4jcapgudf6ry3f7zx3927h3kzega9js22ukx8z5hwtdpqxfdjyy
