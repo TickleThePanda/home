@@ -10,10 +10,23 @@ on:
         description: Revision Flux was pointed at; empty if the push never completed.
         value: ${{ jobs.cluster.outputs.promoted }}
 
+# The deploy artifact is signed keyless with Cosign: the certificate names
+# this workflow on main, and k8s/cluster/sync/oci-repository.yaml refuses an
+# artifact without that signature. The prod environment only deploys main, so
+# a branch can't run this job to get a matching certificate.
+env:
+  ARTIFACT: docker.io/ticklethepanda/home-deploy
+  SIGNER: https://github.com/TickleThePanda/home/.github/workflows/deploy-cluster.yaml@refs/heads/main
+  SIGNER_ISSUER: https://token.actions.githubusercontent.com
+
 jobs:
   cluster:
     runs-on: ubuntu-26.04
     environment: prod
+    permissions:
+      contents: read
+      # Keyless signing: GitHub's OIDC token gets a short-lived certificate.
+      id-token: write
     outputs:
       promoted: ${{ steps.revision.outputs.promoted }}
     steps:
@@ -82,21 +95,54 @@ jobs:
       - name: Vendor and validate
         uses: ./.github/actions/validate-cluster
 
-      # Push as one sha-tagged OCI artifact, then move the moving `deploy`
-      # tag to point at it -- the promotion boundary k8s/cluster/sync/
-      # oci-repository.yaml's OCIRepository follows for all of k8s/. Nothing
-      # is watched straight off `main`, so Flux
-      # only ever reconciles revisions this job has vetted.
-      - name: Push and promote the OCI artifact
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: v3.1.4
+
+      # Push as one sha-tagged OCI artifact, sign its digest, then move the
+      # `deploy` tag to it -- the promotion boundary
+      # k8s/cluster/sync/oci-repository.yaml's OCIRepository follows for all of
+      # k8s/. Nothing is watched straight off `main`, so Flux only ever
+      # reconciles revisions this job has vetted and signed.
+      - name: Push the OCI artifact
+        id: push
         run: |
           set -euo pipefail
-          sha="${GITHUB_SHA::12}"
-          flux push artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
+          digest=$(flux push artifact "oci://${ARTIFACT}:sha-${GITHUB_SHA::12}" \
             --path="." \
             --source="$(git config --get remote.origin.url)" \
-            --revision="main@sha1:${GITHUB_SHA}"
-          flux tag artifact "oci://docker.io/ticklethepanda/home-deploy:sha-${sha}" \
-            --tag deploy
+            --revision="main@sha1:${GITHUB_SHA}" \
+            --output json | jq -re .digest)
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      # Signs the digest, not a tag, so moving a tag can't reuse it.
+      - name: Sign the artifact
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: cosign sign --yes "${ARTIFACT}@${DIGEST}"
+
+      # The same check Flux makes, plus the caller's ref: deploy.yaml on main.
+      - name: Verify the signature
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          cosign verify "${ARTIFACT}@${DIGEST}" \
+            --certificate-identity "$SIGNER" \
+            --certificate-oidc-issuer "$SIGNER_ISSUER" \
+            --certificate-github-workflow-repository TickleThePanda/home \
+            --certificate-github-workflow-ref refs/heads/main >/dev/null
+
+      # Re-verifies through the sha tag, so the tag still points at the signed
+      # digest when `deploy` moves to it.
+      - name: Promote the artifact
+        run: |
+          set -euo pipefail
+          tagged="${ARTIFACT}:sha-${GITHUB_SHA::12}"
+          cosign verify "$tagged" \
+            --certificate-identity "$SIGNER" \
+            --certificate-oidc-issuer "$SIGNER_ISSUER" >/dev/null
+          flux tag artifact "oci://${tagged}" --tag deploy
 
       # Trigger reconciliation immediately rather than waiting for the
       # OCIRepository's own polling interval. Only the source needs it:

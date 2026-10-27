@@ -197,6 +197,10 @@ jobs:
       (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
       (needs.firmware.result == 'success' || needs.firmware.result == 'skipped') &&
       needs.preflight.outputs.cluster == 'true'
+    # id-token: keyless Cosign signing of the deploy artifact.
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/deploy-cluster.yaml
     secrets: inherit
 
