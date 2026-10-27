@@ -1,27 +1,25 @@
 name: Validate
 
-# Cluster-independent checks on every push to a branch other than main.
-# Renovate merges its branches into main only once this passes
-# (renovate.json); a failure leaves it as a PR instead. Pushes to main get
-# the manifest checks from deploy-cluster.yaml, which runs them before it
+# Cluster-independent checks on every push to a branch other than main,
+# whatever it changed. Renovate merges its branches into main only once this
+# passes (renovate.json); a failure leaves it as a PR instead. Pushes to main
+# get the manifest checks from deploy-cluster.yaml, which runs them before it
 # promotes.
 #
 # Needs no cluster, WARP or environment secrets, so it also runs while the
-# cluster is down.
+# cluster is down. The jobs run in parallel.
 
 on:
   push:
     branches-ignore:
       - main
-    paths-ignore:
-      - '**/*.md'
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
 jobs:
-  validate:
+  cluster:
     runs-on: ubuntu-26.04
     env:
       # The CLI's major only: it releases several times a day, and an exact
@@ -39,7 +37,8 @@ jobs:
       - name: Vendor and validate
         uses: ./.github/actions/validate-cluster
 
-      # Only the images the branch changed since it forked from main.
+      # Only changed images: checking every image on every push would hit
+      # Docker Hub's pull rate limit.
       - name: Check changed images are multi-arch
         run: ./scripts/check-image-platforms.sh "$(git merge-base origin/main HEAD)"
 
@@ -53,33 +52,15 @@ jobs:
           GITHUB_COM_TOKEN: ${{ github.token }}
         run: ./scripts/check-renovate.sh
 
-      # The checks below cover what Renovate also bumps outside k8s/. They
-      # run only when the branch touches that tree, since the deploy and build
-      # workflows otherwise first exercise it after the merge.
-      - name: Detect which trees changed
-        uses: dorny/paths-filter@v4.0.3
-        id: changes
-        with:
-          base: main
-          filters: |
-            ansible:
-              - 'ansible/**'
-              - '.github/actions/ansible-setup/**'
-              - '.github/workflows/validate.yaml'
-            terraform:
-              - 'terraform/**'
-              - 'bootstrap/terraform/**'
-              - '.github/workflows/validate.yaml'
-            apps:
-              - 'apps/**'
-              - '.github/workflows/validate.yaml'
-            router:
-              - 'router/**'
-              - 'ansible/files/ssh-authorized-keys'
-              - '.github/workflows/validate.yaml'
+  # The jobs below cover what Renovate also bumps outside k8s/: a collection,
+  # provider, base image or OpenWrt bump that breaks the build.
+  ansible:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Ansible
-        if: steps.changes.outputs.ansible == 'true'
         uses: ./.github/actions/ansible-setup
         with:
           working-directory: ansible
@@ -88,12 +69,16 @@ jobs:
       # Catches a collection or ansible-core bump that drops a module or
       # option the playbooks use.
       - name: Check the Ansible syntax
-        if: steps.changes.outputs.ansible == 'true'
         working-directory: ansible
         run: ansible-playbook site.yml --syntax-check
 
+  terraform:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
       - name: Set up Terraform
-        if: steps.changes.outputs.terraform == 'true'
         uses: hashicorp/setup-terraform@v4.0.1
         with:
           terraform_version: "1.17.0"
@@ -101,47 +86,50 @@ jobs:
 
       # Catches a provider bump that removes an attribute the config sets.
       - name: Validate the Terraform roots
-        if: steps.changes.outputs.terraform == 'true'
         run: |
           for root in terraform/cloudflare-zero-trust bootstrap/terraform; do
             terraform -chdir="$root" init -backend=false -input=false
             terraform -chdir="$root" validate
           done
 
+  apps:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
       - name: Set up QEMU
-        if: steps.changes.outputs.apps == 'true'
         uses: docker/setup-qemu-action@v4.4.0
 
       - name: Set up Docker Buildx
-        if: steps.changes.outputs.apps == 'true'
         uses: docker/setup-buildx-action@v4.4.1
 
       # Builds without pushing, for both cluster architectures. Catches a base
       # image bump that breaks the build or drops an architecture.
-      - name: Build the changed app images
-        if: steps.changes.outputs.apps == 'true'
+      - name: Build the app images
         run: |
-          base=$(git merge-base origin/main HEAD)
           for dockerfile in $(git ls-files 'apps/*/Dockerfile*'); do
-            dir=$(dirname "$dockerfile")
-            git diff --quiet "$base" HEAD -- "$dir" .github/workflows/validate.yaml && continue
             echo "::group::$dockerfile"
-            docker buildx build --platform linux/amd64,linux/arm64 -f "$dockerfile" "$dir"
+            docker buildx build --platform linux/amd64,linux/arm64 -f "$dockerfile" "$(dirname "$dockerfile")"
             echo "::endgroup::"
           done
+
+  router:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
 
       # Image Builder resolves router/packages.txt against the release's feeds.
       # build.sh fails on a package that doesn't resolve or an image that isn't
       # for the GL-MT6000, so an OpenWrt bump that drops or renames a package
       # never merges. No secrets: the router keeps its own config.
       - name: Build the router firmware
-        if: steps.changes.outputs.router == 'true'
         env:
           CONTAINER_RUNTIME: docker
         run: ./router/build.sh
 
       - name: Record the firmware's packages
-        if: steps.changes.outputs.router == 'true'
         run: |
           {
             echo '### Router firmware'
