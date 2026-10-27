@@ -4,7 +4,12 @@
 # Flux never reconciles a revision before CI has proven the
 # underlying infrastructure (the `node` job) is ready. See
 # .github/workflows/deploy-cluster.yaml's `cluster` job, which pushes a sha-tagged
-# artifact and only then moves the `deploy` tag to point at it.
+# artifact, signs it, and only then moves the `deploy` tag to point at it.
+#
+# Flux accepts an artifact only with a keyless Cosign signature from that job
+# on main, so write access to Docker Hub alone can't deploy anything. A
+# failed check leaves the last verified artifact in place: nothing downstream
+# changes. Recovery: k8s/cluster/README.md#signed-artifacts.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:
@@ -17,3 +22,11 @@ spec:
     tag: deploy
   secretRef:
     name: dockerhub-deploy-pull
+  verify:
+    provider: cosign
+    # The signing certificate names the called workflow, deploy-cluster.yaml,
+    # not deploy.yaml. The prod environment only runs on main, so a branch
+    # can't get this identity.
+    matchOIDCIdentity:
+      - issuer: ^https://token\.actions\.githubusercontent\.com$
+        subject: ^https://github\.com/TickleThePanda/home/\.github/workflows/deploy-cluster\.yaml@refs/heads/main$
