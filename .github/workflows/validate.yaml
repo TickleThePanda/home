@@ -137,3 +137,19 @@ jobs:
             cat router/out/firmware.manifest
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # The one check the ruleset on main requires: it passes only if every job
+  # above passed, so adding a job needs no ruleset change.
+  validate:
+    needs: [cluster, ansible, terraform, apps, router]
+    if: always()
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check every job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            [[ $result == success ]] || exit 1
+          done
