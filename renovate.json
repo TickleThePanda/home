@@ -153,6 +153,18 @@
       "depNameTemplate": "openwrt/openwrt",
       "datasourceTemplate": "github-tags",
       "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "The Cosign release cosign-installer installs to sign the deploy artifact. A major waits for approval: the deploy signs with flags Cosign has deprecated (.github/workflows/deploy-cluster.yaml).",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "cosign-release: (?<currentValue>v\\S+)"
+      ],
+      "depNameTemplate": "sigstore/cosign",
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
