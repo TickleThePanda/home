@@ -216,9 +216,9 @@ way (`gh secret set KUBE_CONFIG --env prod`, server `https://192.168.1.32:6443`)
   with "Flux not bootstrapped". A FluxInstance that isn't Ready only warns,
   so a fix for it can still deploy. A bad change under `k8s/cluster/` can also break Flux's
   own reconciliation. Either way, run `k8s/cluster/bootstrap.sh` from a
-  machine with cluster access. It's idempotent, uses the already-promoted
-  `deploy` artifact, and needs `DOCKER_USERNAME` / `DOCKER_PASSWORD` only if
-  `dockerhub-deploy-pull` is gone.
+  machine with cluster access and `sops`. It's idempotent, uses the
+  already-promoted `deploy` artifact, and decrypts Flux's registry token
+  (`k8s/cluster/secrets/dockerhub-deploy-pull.sops.yaml`) with the age key.
   - Flux Operator installs the controllers from `fluxinstance/flux`
     (`k8s/cluster/instance/`). Deleting it uninstalls Flux. To stop the
     operator touching the controllers while you fix them by hand:

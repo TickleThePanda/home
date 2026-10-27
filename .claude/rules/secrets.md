@@ -15,8 +15,10 @@ the public key and encrypts only `data` / `stringData`.
   backup outside the cluster. Without it, every committed Secret is
   unrecoverable.
 - **Out-of-band bootstrap Secret:** `sops-age` only. Everything else comes
-  from git. Secrets created by operators or CI (cert-manager TLS,
-  CNPG, `dockerhub-deploy-pull`) stay out of git.
+  from git. Secrets created by operators (cert-manager TLS, CNPG) stay out
+  of git. `dockerhub-deploy-pull` (a read-only Docker Hub token) is in
+  `k8s/cluster/secrets/`; `bootstrap.sh` also applies it, since Flux needs it
+  to pull the artifact that carries it.
 - **Flux's own Secrets** live in `k8s/cluster/secrets/`, never under
   `k8s/cluster/operator`, `k8s/cluster/instance` or `k8s/cluster/sync`.
   `k8s/cluster/bootstrap.sh` applies those with plain `kubectl apply -k`,

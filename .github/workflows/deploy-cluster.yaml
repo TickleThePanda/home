@@ -76,18 +76,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Lets k8s/cluster/sync/oci-repository.yaml's OCIRepository pull the
-      # promoted k8s/ artifact from a private Docker Hub repo. Reuses
-      # the credentials already in this job rather than a new secret.
-      - name: Provision the OCIRepository pull secret
-        run: |
-          set -euo pipefail
-          kubectl create secret docker-registry dockerhub-deploy-pull \
-            --docker-username="${{ secrets.DOCKER_USERNAME }}" \
-            --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
-            --namespace flux-system \
-            --dry-run=client --validate=false -o yaml | kubectl apply -f -
-
       # Vendors vendor.txt into the tree, so the artifact is self-contained and
       # Flux never fetches from GitHub, then validates everything Flux
       # reconciles, so a broken manifest fails here instead of after promotion.
@@ -95,6 +83,10 @@ jobs:
       - name: Vendor and validate
         uses: ./.github/actions/validate-cluster
 
+      # Signatures use Cosign's classic format (a .sig tag beside the digest):
+      # the newer bundle format, Cosign 3's default, isn't found again on
+      # Docker Hub. The flags for it are deprecated, so a Cosign major that
+      # drops them needs another look.
       - name: Install Cosign
         uses: sigstore/cosign-installer@v4.1.2
         with:
@@ -120,14 +112,14 @@ jobs:
       - name: Sign the artifact
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
-        run: cosign sign --yes "${ARTIFACT}@${DIGEST}"
+        run: cosign sign --yes --new-bundle-format=false --use-signing-config=false "${ARTIFACT}@${DIGEST}"
 
       # The same check Flux makes, plus the caller's ref: deploy.yaml on main.
       - name: Verify the signature
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          cosign verify "${ARTIFACT}@${DIGEST}" \
+          cosign verify "${ARTIFACT}@${DIGEST}" --new-bundle-format=false \
             --certificate-identity "$SIGNER" \
             --certificate-oidc-issuer "$SIGNER_ISSUER" \
             --certificate-github-workflow-repository TickleThePanda/home \
@@ -139,7 +131,7 @@ jobs:
         run: |
           set -euo pipefail
           tagged="${ARTIFACT}:sha-${GITHUB_SHA::12}"
-          cosign verify "$tagged" \
+          cosign verify "$tagged" --new-bundle-format=false \
             --certificate-identity "$SIGNER" \
             --certificate-oidc-issuer "$SIGNER_ISSUER" >/dev/null
           flux tag artifact "oci://${tagged}" --tag deploy
@@ -168,3 +160,29 @@ jobs:
       - name: Confirm the promoted commit reconciles
         timeout-minutes: 12
         run: ./scripts/wait-flux-deploy.sh "${GITHUB_SHA}"
+
+      # Flux's pull secret (k8s/cluster/secrets/dockerhub-deploy-pull.sops.yaml)
+      # must hold a read-only token, so a leak from the cluster can't replace
+      # the artifact. Docker Hub's token endpoint shows what it may do: pull
+      # must be granted, and asking for push or delete must be refused (a
+      # read-only token gets a 401) or granted only pull. Runs after
+      # reconciling, so it checks the Secret this commit applied.
+      - name: Check Flux's registry token is read-only
+        run: |
+          set -euo pipefail
+          auth=$(kubectl -n flux-system get secret dockerhub-deploy-pull -o jsonpath='{.data.\.dockerconfigjson}' \
+            | base64 -d | jq -r '.auths[].auth' | head -n1 | base64 -d)
+          granted() {
+            local body
+            body=$(curl -sS -w '\n%{http_code}' -u "$auth" \
+              "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${ARTIFACT#docker.io/}:$1")
+            [[ ${body##*$'\n'} == 200 ]] || { echo "refused"; return; }
+            jq -r '.token | split(".")[1] | gsub("-"; "+") | gsub("_"; "/") | @base64d | fromjson
+              | [.access[]?.actions[]] | unique | join(",")' <<<"${body%$'\n'*}"
+          }
+          pull=$(granted pull)
+          write=$(granted pull,push,delete)
+          if [[ $pull != pull || ( $write != refused && $write != pull ) ]]; then
+            echo "::error title=Flux registry token not read-only::dockerhub-deploy-pull: pull gets '${pull}', push/delete gets '${write}'; it must pull and nothing more"
+            exit 1
+          fi

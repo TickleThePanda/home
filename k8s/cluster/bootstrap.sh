@@ -16,10 +16,7 @@ set -euo pipefail
 # Inputs:
 #   current kubectl context    the target cluster
 #   SOPS_AGE_KEY_FILE          age private key (default ~/.config/sops/age/keys.txt)
-#   DOCKER_USERNAME / DOCKER_PASSWORD
-#                              Docker Hub credentials for the private artifact.
-#                              Only needed if dockerhub-deploy-pull is missing;
-#                              CI refreshes it on every deploy.
+#   sops                       decrypts secrets/dockerhub-deploy-pull.sops.yaml
 #
 # Usage: k8s/cluster/bootstrap.sh
 
@@ -56,15 +53,9 @@ kubectl -n flux-system create secret generic sops-age \
   --from-file=age.agekey="$key_file" \
   --dry-run=client -o yaml | apply_secret
 
-if [[ -n "${DOCKER_USERNAME:-}" && -n "${DOCKER_PASSWORD:-}" ]]; then
-  kubectl -n flux-system create secret docker-registry dockerhub-deploy-pull \
-    --docker-username="$DOCKER_USERNAME" \
-    --docker-password="$DOCKER_PASSWORD" \
-    --dry-run=client -o yaml | apply_secret
-elif ! kubectl -n flux-system get secret dockerhub-deploy-pull >/dev/null 2>&1; then
-  echo "error: dockerhub-deploy-pull is missing; set DOCKER_USERNAME and DOCKER_PASSWORD" >&2
-  exit 1
-fi
+# Flux needs the registry token to pull the artifact that carries it, so
+# apply it here; Flux manages it from git afterwards.
+SOPS_AGE_KEY_FILE="$key_file" sops -d secrets/dockerhub-deploy-pull.sops.yaml | apply_secret
 
 # Flux Operator installs the controllers and Flux's CRDs from the FluxInstance.
 kubectl apply -k instance
