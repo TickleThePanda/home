@@ -87,8 +87,9 @@ spec:
             - name: GEOPULSE_OIDC_PROVIDER_GENERIC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: geopulse-oidc
-                  key: client-secret
+                  # Issued by pocket-id-operator, mirrored by Reflector.
+                  name: geopulse-oidc-credentials
+                  key: client_secret
           # timeoutSeconds/failureThreshold widened past the 1s/3-strikes default —
           # a heavy import (e.g. reverse-geocoding a large historical GPS history)
           # can make /api/health slow to answer on this hardware without the

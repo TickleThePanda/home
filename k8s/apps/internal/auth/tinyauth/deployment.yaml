@@ -46,5 +46,6 @@ spec:
             - name: TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET
               valueFrom:
                 secretKeyRef:
-                  name: tinyauth-secrets
-                  key: CLIENT_SECRET
+                  # Issued by pocket-id-operator, mirrored by Reflector.
+                  name: tinyauth-oidc-credentials
+                  key: client_secret

@@ -39,8 +39,9 @@ spec:
             - name: HEADLAMP_CONFIG_OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: headlamp-oidc
-                  key: client-secret
+                  # Issued by pocket-id-operator, mirrored by Reflector.
+                  name: headlamp-oidc-credentials
+                  key: client_secret
           readinessProbe:
             httpGet:
               path: /
