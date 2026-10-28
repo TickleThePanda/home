@@ -10,6 +10,11 @@
 set -Eeuo pipefail
 
 repo=https://pkg-staging.cloudflareclient.com
+# Cloudflare's package signing key, the one pkg.cloudflareclient.com (the
+# production repo) also serves and signs with. Check it independently of the
+# staging repo before trusting a new one: `curl -fsSL
+# https://pkg.cloudflareclient.com/pubkey.gpg | gpg --show-keys`.
+fingerprint=C068A2B5771775193CBE1F2F6E2DD2174FA1C3BA
 keyring=/usr/share/keyrings/cloudflare-mesh-archive-keyring.gpg
 timeout=60
 
@@ -32,10 +37,21 @@ sudo sh -c 'umask 077; cat > /var/lib/cloudflare-warp/mdm.xml' <<EOF
 </dict>
 EOF
 
-curl -fsSL "$repo/pubkey.gpg" | sudo gpg --yes --dearmor -o "$keyring" \
+key=$(mktemp)
+trap 'rm -f "$key"' EXIT
+curl -fsSL -o "$key" "$repo/pubkey.gpg" \
     || fail "couldn't fetch the signing key from $repo"
+# Every key and subkey in the file, so an extra one can't ride along.
+fingerprints=$(gpg --show-keys --with-colons "$key" | awk -F: '$1 == "fpr" { print $10 }')
+[[ $fingerprints == "$fingerprint" ]] \
+    || fail "$repo/pubkey.gpg has fingerprint(s) ${fingerprints//$'\n'/ } -- expected $fingerprint"
+sudo gpg --yes --dearmor -o "$keyring" "$key" \
+    || fail "couldn't install the signing key"
 echo "deb [signed-by=$keyring] $repo/ $(lsb_release -cs) nightly" \
     | sudo tee /etc/apt/sources.list.d/cloudflare-mesh.list >/dev/null
+# A bad repo signature is only a warning, and apt then falls back to the
+# previous index. With none, it can't find cloudflare-mesh and fails.
+sudo rm -f /var/lib/apt/lists/"${repo#https://}"_*
 
 sudo apt-get -o DPkg::Lock::Timeout=-1 update -q \
     || fail "apt-get update failed"
