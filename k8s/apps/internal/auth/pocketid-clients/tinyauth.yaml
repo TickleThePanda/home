@@ -12,6 +12,13 @@ spec:
     - groupName: internal_user
   logo:
     autoGenerate: false
+  # The operator issues the secret and writes tinyauth-oidc-credentials.
+  # Reflector mirrors it into tinyauth, where the app reads client_secret.
   secret:
-    enabled: false
-    storeClientSecret: false
+    additionalAnnotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: tinyauth
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+      reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: tinyauth
+  # A replaced secret stays valid this long, so the app can roll over.
+  clientSecretOverlap: 24h

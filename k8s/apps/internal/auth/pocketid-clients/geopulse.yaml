@@ -13,6 +13,13 @@ spec:
     - groupName: internal_user
   logo:
     autoGenerate: false
+  # The operator issues the secret and writes geopulse-oidc-credentials.
+  # Reflector mirrors it into geopulse, where the app reads client_secret.
   secret:
-    enabled: false
-    storeClientSecret: false
+    additionalAnnotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: geopulse
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+      reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: geopulse
+  # A replaced secret stays valid this long, so the app can roll over.
+  clientSecretOverlap: 24h

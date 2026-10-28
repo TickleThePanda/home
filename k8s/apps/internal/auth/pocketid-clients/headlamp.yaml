@@ -15,6 +15,13 @@ spec:
     - groupName: k8s_admins
   logo:
     autoGenerate: false
+  # The operator issues the secret and writes headlamp-oidc-credentials.
+  # Reflector mirrors it into headlamp, where the app reads client_secret.
   secret:
-    enabled: false
-    storeClientSecret: false
+    additionalAnnotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: headlamp
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+      reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: headlamp
+  # A replaced secret stays valid this long, so the app can roll over.
+  clientSecretOverlap: 24h
