@@ -93,13 +93,13 @@ jobs:
       terraform: ${{ steps.changes.outputs.terraform == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Markdown never triggers a deploy: `some-with-excludes` drops any file a
       # `!` pattern matches. A scheduled run has no diff to filter.
       - name: Detect which layers changed
         if: github.event_name != 'schedule'
-        uses: dorny/paths-filter@v4.0.3
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: changes
         with:
           predicate-quantifier: 'some-with-excludes'
@@ -137,7 +137,7 @@ jobs:
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
 
       - name: Setup k8s context
-        uses: azure/k8s-set-context@v5.0.1
+        uses: azure/k8s-set-context@8698eba2499e9012f0d5085f8798077cce4bc526 # v5.0.1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
