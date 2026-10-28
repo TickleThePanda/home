@@ -88,8 +88,17 @@ while read -r file image; do
         || { echo "FAIL: $file: Renovate can't order tag '$tag' of $repo" >&2; failed=1; }
 done <<<"$image_lines"
 
-# Every HelmRelease's chart.
+# Every HelmRelease's chart. A chartRef release's version is the tag of the
+# OCIRepository next to it.
 while read -r file; do
+    if [[ $(yq 'select(.kind == "HelmRelease") | .spec.chartRef.kind' "$file") == OCIRepository ]]; then
+        repo=$(yq 'select(.kind == "HelmRelease") | .spec.chartRef.name' "$file")
+        source=$(grep -lE '^kind: OCIRepository' "$(dirname "$file")"/*.yaml \
+            | xargs yq "select(.kind == \"OCIRepository\" and .metadata.name == \"$repo\") | filename")
+        url=$(yq '.spec.url' "$source")
+        grep -qE "^flux $source ${url#oci://} " <<<"$deps" || missing "chart ${url#oci://} in $source"
+        continue
+    fi
     chart=$(yq 'select(.kind == "HelmRelease") | .spec.chart.spec.chart' "$file")
     grep -qE "^flux $file $chart " <<<"$deps" || missing "chart $chart in $file"
 done <<<"$helm_releases"

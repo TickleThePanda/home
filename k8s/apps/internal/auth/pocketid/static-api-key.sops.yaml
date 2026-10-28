@@ -1,0 +1,31 @@
+# Pocket ID's STATIC_API_KEY, which the operator authenticates with.
+# Reflector mirrors it into pocket-id-clients, where the external
+# PocketIDInstance reads it. See k8s/apps/internal/auth/pocketid-clients/.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: pocket-id-static-api-key
+    namespace: pocket-id
+    annotations:
+        reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: pocket-id-clients
+        reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+        reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: pocket-id-clients
+type: Opaque
+stringData:
+    token: ENC[AES256_GCM,data:7mv9745l/0FK9yXdxPTvLWdBY6ZyWTaBi7JRhPFlBMfC7vgMO49pymSq0jmxeT3s,iv:ov+kyUI6usvmvLulWcob+76sTV6KAdsYpwemP0YBcTw=,tag:xRzDymOGiERQSW/4R237VQ==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBLQmRMNEhiN29oc3RpQTRL
+            VVRNSENvV25scGZKd2pyalNMbkRBbTF0Q1dvCkRtSFRYVXdGMG1McnNkZ2pIQ3JL
+            T0JpalFVejNOb1JVNGNKMkFkL29tTlUKLS0tIElPL0xDclV2Ymk0bU94eDRjRkdW
+            OVIzaHFZQjZrNFJEU2RiMElYejF5OUkKWswtpCa6Kfz/SUpZAkCPiyLjBn91THI4
+            6wPNNeN789oj55XcyTdbEA4ckywNN0N4U4TUYXeuIcW0E18JDrwDdw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1stp5zpp4jcapgudf6ry3f7zx3927h3kzega9js22ukx8z5hwtdpqxfdjyy
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-28T00:32:38Z"
+    mac: ENC[AES256_GCM,data:gCUthppji2qt6KyYQwU6DO7PEerxlXM2it5HSdvmkrbfuMW1oF9l/UCNTA7+Ksm45/YTTLj//CIEYCFqWA6N56cvCbAPMh+Tu9JNrHq3o22Ev6h9X0KTcQGKSX1NvTLqDk/Ofc7Danpd69thoO5GJEjv4lywmcKPqogpOGu6i8U=,iv:esul4Sg8D1FKdL7iNmahjGQaUVg5FHGmxI832XN200w=,tag:q+4AJKz4+CKbPsVe8vcsfg==,type:str]
+    version: 3.13.3

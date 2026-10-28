@@ -9,3 +9,4 @@ resources:
 - service.yaml
 - ingress.yaml
 - secret.sops.yaml
+- static-api-key.sops.yaml

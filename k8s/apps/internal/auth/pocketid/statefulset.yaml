@@ -36,6 +36,13 @@ spec:
                 secretKeyRef:
                   name: pocket-id-secret
                   key: ENCRYPTION_KEY
+            # Admin API access for pocket-id-operator, which manages the OIDC
+            # clients (k8s/apps/internal/auth/pocketid-clients/).
+            - name: STATIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pocket-id-static-api-key
+                  key: token
             - name: UI_CONFIG_DISABLED
               value: "true"
             - name: LDAP_ENABLED

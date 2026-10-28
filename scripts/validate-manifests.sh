@@ -79,16 +79,28 @@ for file in "${releases[@]}"; do
     dir=$(dirname "$repo_root/$file")
     release=$(yq 'select(.kind == "HelmRelease")' "$repo_root/$file")
     name=$(yq '.spec.releaseName // .metadata.name' <<<"$release")
-    namespace=$(yq '.metadata.namespace' <<<"$release")
-    chart=$(yq '.spec.chart.spec.chart' <<<"$release")
-    version=$(yq '.spec.chart.spec.version' <<<"$release")
-    repo=$(yq '.spec.chart.spec.sourceRef.name' <<<"$release")
-    url=$(yq ea "select(.kind == \"HelmRepository\" and .metadata.name == \"$repo\") | .spec.url" \
-        "$dir"/*.yaml)
-    [[ -n $url ]] || fail "$file: no HelmRepository '$repo' next to it"
+    namespace=$(yq '.spec.targetNamespace // .metadata.namespace' <<<"$release")
+    if [[ $(yq '.spec.chartRef.kind // ""' <<<"$release") == OCIRepository ]]; then
+        # A chartRef names an OCIRepository holding the chart itself.
+        repo=$(yq '.spec.chartRef.name' <<<"$release")
+        source=$(yq ea "select(.kind == \"OCIRepository\" and .metadata.name == \"$repo\")" "$dir"/*.yaml)
+        url=$(yq '.spec.url // ""' <<<"$source")
+        version=$(yq '.spec.ref.tag // ""' <<<"$source")
+        [[ -n $url && -n $version ]] || fail "$file: no OCIRepository '$repo' with a tag next to it"
+        chart=${url##*/}
+        chart_args=("$url")
+    else
+        chart=$(yq '.spec.chart.spec.chart' <<<"$release")
+        version=$(yq '.spec.chart.spec.version' <<<"$release")
+        repo=$(yq '.spec.chart.spec.sourceRef.name' <<<"$release")
+        url=$(yq ea "select(.kind == \"HelmRepository\" and .metadata.name == \"$repo\") | .spec.url" \
+            "$dir"/*.yaml)
+        [[ -n $url ]] || fail "$file: no HelmRepository '$repo' next to it"
+        chart_args=("$chart" --repo "$url")
+    fi
     values="$charts_root/${name}-values.yaml"
     yq '.spec.values // {}' <<<"$release" > "$values"
-    helm template "$name" "$chart" --repo "$url" --version "$version" \
+    helm template "$name" "${chart_args[@]}" --version "$version" \
             --namespace "$namespace" --kube-version "$kube_version" \
             --include-crds --values "$values" > "$charts_root/$name.yaml" \
         || fail "$file: chart $chart $version does not render"

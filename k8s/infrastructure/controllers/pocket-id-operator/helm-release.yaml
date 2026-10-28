@@ -1,0 +1,46 @@
+# pocket-id-operator manages Pocket ID's OIDC clients from the
+# PocketIDOIDCClient resources in k8s/apps/internal/auth/pocketid-clients/.
+# It never deploys Pocket ID: the StatefulSet in auth/pocketid/ stays
+# hand-written, and the operator talks to it as an external instance.
+#
+# It watches only pocket-id-clients and has no RBAC anywhere else, nor on any
+# workload kind. See README.md.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: pocket-id-operator
+  namespace: kube-system
+spec:
+  interval: 10m
+  releaseName: pocket-id-operator
+  targetNamespace: pocket-id-operator
+  chartRef:
+    kind: OCIRepository
+    name: pocket-id-operator
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  driftDetection:
+    mode: enabled
+  values:
+    instance:
+      enabled: false
+    operator:
+      watchNamespaces:
+        - pocket-id-clients
+      manageWorkloads: false
+      # Clients keep the logos set in Pocket ID; the operator sets none.
+      autoGenerateLogos: false
+      defaultLogoUrl: ""
+      defaultDarkLogoUrl: ""
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    metrics:
+      enabled: true

@@ -1,0 +1,23 @@
+# The chart, published from the fork at TickleThePanda/pocket-id-operator,
+# which adds namespace-scoped RBAC. It pins the operator image by digest, so
+# this tag is the only version to move. See README.md.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: pocket-id-operator
+  namespace: kube-system
+spec:
+  interval: 1h
+  url: oci://ghcr.io/ticklethepanda/charts/pocket-id-operator
+  ref:
+    tag: 0.16.2-ticklethepanda.1
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  # The fork's push-chart workflow signs each chart keylessly. Only a run on
+  # its main or deploy branch carries this identity.
+  verify:
+    provider: cosign
+    matchOIDCIdentity:
+      - issuer: ^https://token\.actions\.githubusercontent\.com$
+        subject: ^https://github\.com/TickleThePanda/pocket-id-operator/\.github/workflows/push-chart\.yaml@refs/heads/(main|deploy/ticklethepanda)$

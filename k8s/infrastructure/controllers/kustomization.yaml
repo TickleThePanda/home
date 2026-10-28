@@ -13,3 +13,4 @@ resources:
   - ./multus
   - ./dnsendpoint-crd
   - ./kured
+  - ./pocket-id-operator
