@@ -1,0 +1,18 @@
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: geopulse
+spec:
+  clientID: afe758b7-62e2-478e-8de8-073e2c4bcb73
+  name: GeoPulse
+  callbackUrls:
+    - https://geopulse.internal.ticklethepanda.co.uk/api/auth/oidc/callback
+    - https://geopulse.internal.ticklethepanda.co.uk/oidc/callback
+  skipConsent: true
+  allowedUserGroups:
+    - groupName: internal_user
+  logo:
+    autoGenerate: false
+  secret:
+    enabled: false
+    storeClientSecret: false

@@ -10,6 +10,7 @@ resources:
 - ./apps/label-studio
 - ./auth/lldap
 - ./auth/pocketid
+- ./auth/pocketid-clients
 - ./auth/tinyauth
 - ./homepage
 - ./monitoring

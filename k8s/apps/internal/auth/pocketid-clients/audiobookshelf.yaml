@@ -1,0 +1,24 @@
+# Audiobookshelf keeps its client secret in its own database (set in its
+# admin UI), not in a Kubernetes Secret, so the operator never touches it.
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: audiobookshelf
+spec:
+  clientID: 082ac464-2065-42e5-82f9-bb241c673a7b
+  name: Audiobookshelf
+  # As registered in Pocket ID. The last entry is two URLs joined by a space,
+  # so it matches nothing; the second URL in it is also missing as an entry
+  # of its own.
+  callbackUrls:
+    - https://audiobooks.internal.ticklethepanda.co.uk/auth/openid/callback
+    - https://audiobooks.internal.ticklethepanda.co.uk/auth/openid/mobile-redirect
+    - https://audiobooks.internal.ticklethepanda.co.uk/audiobookshelf/auth/openid/callback
+    - https://audiobooks.internal.ticklethepanda.co.uk/audiobookshelf/auth/openid/callback https://audiobooks.internal.ticklethepanda.co.uk/audiobookshelf/auth/openid/mobile-redirect
+  allowedUserGroups:
+    - groupName: internal_user
+  logo:
+    autoGenerate: false
+  secret:
+    enabled: false
+    storeClientSecret: false

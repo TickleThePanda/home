@@ -1,0 +1,20 @@
+# Headlamp signs users in to the API server. The client ID must match
+# k3s_oidc_client_id in ansible/group_vars/k3s_cluster.yml, which the API
+# server accepts tokens for; scripts/check-oidc-client-ids.sh checks it.
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: headlamp
+spec:
+  clientID: 9ee12a8f-0a16-4583-abdd-dbe7abf27e16
+  name: Headlamp
+  callbackUrls:
+    - https://headlamp.internal.ticklethepanda.co.uk/oidc-callback
+  skipConsent: true
+  allowedUserGroups:
+    - groupName: k8s_admins
+  logo:
+    autoGenerate: false
+  secret:
+    enabled: false
+    storeClientSecret: false

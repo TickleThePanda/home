@@ -27,6 +27,10 @@ runs:
       shell: bash
       run: ./scripts/check-versions.sh
 
+    - name: Check Headlamp's OIDC client ID
+      shell: bash
+      run: ./scripts/check-oidc-client-ids.sh
+
     - name: Validate manifests and charts
       shell: bash
       run: ./scripts/validate-manifests.sh

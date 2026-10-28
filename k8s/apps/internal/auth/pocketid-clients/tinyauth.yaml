@@ -1,0 +1,17 @@
+# TinyAuth's forward-auth login for internal apps.
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: tinyauth
+spec:
+  clientID: 47a54fd4-c771-4e4a-979f-23112cd995a3
+  name: Internal Apps
+  callbackUrls:
+    - https://forward-auth.internal.ticklethepanda.co.uk/api/oauth/callback/pocketid
+  allowedUserGroups:
+    - groupName: internal_user
+  logo:
+    autoGenerate: false
+  secret:
+    enabled: false
+    storeClientSecret: false

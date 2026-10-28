@@ -1,0 +1,21 @@
+# Home Assistant runs outside the cluster (192.168.1.5). It is a public
+# client with PKCE, so it has no secret to manage.
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: home-assistant
+spec:
+  clientID: 546d3d2e-8764-417b-90ee-1910308b9c1a
+  name: Home Assistant
+  launchUrl: https://ha.internal.ticklethepanda.co.uk
+  callbackUrls:
+    - https://ha.internal.ticklethepanda.co.uk/auth/oidc/callback
+    - https://ha.ticklethepanda.co.uk/auth/oidc/callback
+  isPublic: true
+  pkceEnabled: true
+  allowedUserGroups:
+    - groupName: ha_user
+  logo:
+    autoGenerate: false
+  secret:
+    enabled: false
