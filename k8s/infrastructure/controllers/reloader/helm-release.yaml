@@ -1,0 +1,48 @@
+# Reloader restarts a workload when a Secret or ConfigMap it reads changes,
+# which env vars and subPath mounts otherwise never pick up. It acts only on
+# workloads that opt in with an annotation on the Deployment, e.g.
+#
+#   secret.reloader.stakater.com/reload: "headlamp-oidc-credentials"
+#
+# It records each reload in a pod-template annotation that Flux doesn't
+# manage, so Flux never reverts it. Its ClusterRole can read every Secret
+# and ConfigMap and patch Deployments, DaemonSets and StatefulSets.
+# Upgrade by changing `version`; it pins the Reloader image too.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: reloader
+  namespace: kube-system
+spec:
+  interval: 10m
+  releaseName: reloader
+  targetNamespace: reloader
+  chart:
+    spec:
+      chart: reloader
+      version: "2.2.18"
+      sourceRef:
+        kind: HelmRepository
+        name: stakater
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  driftDetection:
+    mode: enabled
+  values:
+    reloader:
+      reloadStrategy: annotations
+      # No Job or CronJob here needs restarting, and ignoring them drops
+      # Reloader's right to create and delete Jobs.
+      ignoreJobs: true
+      ignoreCronJobs: true
+      readOnlyRootFileSystem: true
+      deployment:
+        pod:
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9090"

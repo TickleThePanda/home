@@ -37,6 +37,19 @@ workload kind. It can't read Secrets in any other namespace.
   (`auth/pocketid/static-api-key.sops.yaml`). Reflector mirrors it into
   `pocket-id-clients`.
 
+## Credentials
+
+Headlamp, TinyAuth and GeoPulse read `client_secret` from
+`<client>-oidc-credentials`, which the operator writes here and Reflector
+mirrors into each app's namespace. Audiobookshelf keeps its secret in its own
+database and Home Assistant is a public client, so the operator manages no
+secret for either.
+
+To replace a secret, annotate the client with
+`pocketid.internal/regenerate-client-secret: "true"`. The old secret stays
+valid for `clientSecretOverlap` (24h), and Reloader restarts the app when the
+mirror changes. No rotation is scheduled.
+
 ## Deleting clients
 
 Deleting a `PocketIDOIDCClient` deletes its client from Pocket ID. Flux never

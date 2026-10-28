@@ -4,6 +4,10 @@ metadata:
   name: geopulse-backend
   labels:
     app: geopulse-backend
+  annotations:
+    # Restarts the pod when pocket-id-operator replaces its client secret
+    # (k8s/infrastructure/controllers/reloader/).
+    secret.reloader.stakater.com/reload: geopulse-oidc-credentials
 spec:
   replicas: 1
   selector:

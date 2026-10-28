@@ -40,7 +40,10 @@ pointing at `keys.txt`.
 ## Rotate
 
 Edit the value with `sops`, commit, push. Pods that read the Secret through
-env vars need a restart. Mounted files update on their own.
+env vars need a restart, unless their Deployment opts in to Reloader with
+`secret.reloader.stakater.com/reload: <secret>` (see
+`k8s/infrastructure/controllers/reloader/`). Mounted files update on their
+own.
 
 ## Recreate `sops-age`
 
