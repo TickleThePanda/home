@@ -31,9 +31,10 @@ Services, PVCs and HTTPRoutes. Upstream can create and delete those anywhere.
   `pocket-id-operator`. No rules on any workload kind. Like Reflector, it can
   read every Secret, `sops-age` included.
 - **Network:** `network-policy.yaml` denies all ingress, and all egress except
-  the API server and the Pocket ID pod. It has no DNS: it calls Pocket ID at
-  its pinned Service IP (`auth/pocketid/service.yaml`). So it can read every
-  Secret but has nowhere to send them. Metrics are off for the same reason.
+  DNS, the API server and the Pocket ID pod, which it calls at
+  `pocket-id.pocket-id.svc` rather than through Traefik. So it can read every
+  Secret but has no direct path to send them anywhere. Metrics are off, so
+  nothing needs to reach it.
 - **Pocket ID:** full admin, through Pocket ID's `STATIC_API_KEY`
   (`auth/pocketid/static-api-key.sops.yaml`). Reflector mirrors it into
   `pocket-id-clients`. The key crosses the LAN unencrypted (flannel VXLAN), as
