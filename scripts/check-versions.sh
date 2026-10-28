@@ -56,10 +56,19 @@ backend=$(tag tess1o/geopulse-backend)
 # Exact pins only: a range lets helm-controller or Flux Operator upgrade on
 # their own, outside this repo's validation.
 exact='^v?[0-9]+\.[0-9]+\.[0-9]+$'
+# A prerelease (`0.16.2-ticklethepanda.1`) still names one chart.
+exact_chart='^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
 releases=$(git ls-files k8s | xargs grep -l '^kind: HelmRelease')
 for f in $releases; do
-    version=$(yq 'select(.kind == "HelmRelease") | .spec.chart.spec.version' "$f")
-    [[ $version =~ $exact ]] || fail "$f: chart version '$version' is not an exact version"
+    # A chartRef release's version is the tag of the OCIRepository next to it.
+    if [[ $(yq 'select(.kind == "HelmRelease") | .spec.chartRef.kind' "$f") == OCIRepository ]]; then
+        repo=$(yq 'select(.kind == "HelmRelease") | .spec.chartRef.name' "$f")
+        version=$(yq ea "select(.kind == \"OCIRepository\" and .metadata.name == \"$repo\") | .spec.ref.tag" \
+            "$(dirname "$f")"/*.yaml)
+    else
+        version=$(yq 'select(.kind == "HelmRelease") | .spec.chart.spec.version' "$f")
+    fi
+    [[ $version =~ $exact_chart ]] || fail "$f: chart version '$version' is not an exact version"
 done
 version=$(yq '.spec.distribution.version' k8s/cluster/instance/flux-instance.yaml)
 [[ $version =~ $exact ]] || fail "FluxInstance version '$version' is not an exact version"
