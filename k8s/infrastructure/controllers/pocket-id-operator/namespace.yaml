@@ -3,12 +3,10 @@ kind: Namespace
 metadata:
   name: pocket-id-operator
 ---
-# Holds the operator's custom resources and the Secrets it writes, and is the
-# only namespace it can read. Deleting the namespace would delete every
-# PocketIDOIDCClient in it, and the operator would then delete the live
-# clients from Pocket ID, so Flux never prunes it. The Role the chart grants
-# lives here, so the namespace sits in this layer, ahead of its contents in
-# k8s/apps/internal/auth/pocketid-clients/.
+# Holds the operator's custom resources and the Secrets it writes, from
+# k8s/apps/internal/auth/pocketid-clients/. Deleting the namespace would
+# delete every PocketIDOIDCClient in it, and the operator would then delete
+# the live clients from Pocket ID, so Flux never prunes it.
 apiVersion: v1
 kind: Namespace
 metadata:

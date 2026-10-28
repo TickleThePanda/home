@@ -10,7 +10,7 @@ spec:
   interval: 1h
   url: oci://ghcr.io/ticklethepanda/charts/pocket-id-operator
   ref:
-    tag: 0.16.2-ticklethepanda.1
+    tag: 0.16.2-ticklethepanda.2
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy

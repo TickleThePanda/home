@@ -1,42 +1,22 @@
-# The operator only needs the API server and Pocket ID, which it reaches
-# through Traefik at auth.internal.ticklethepanda.co.uk.
+# The operator can reach only the API server and the Pocket ID pod, and
+# nothing can reach it. It has no DNS: it calls the API server by the address
+# Kubernetes injects, and Pocket ID by its pinned Service IP. So it has no
+# path to send what it reads (every Secret in the cluster) anywhere else.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: default-deny-ingress
+  name: default-deny
   namespace: pocket-id-operator
 spec:
   podSelector: {}
   policyTypes:
     - Ingress
+    - Egress
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-prometheus
-  namespace: pocket-id-operator
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: pocket-id-operator
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: monitoring
-          podSelector:
-            matchLabels:
-              app: prometheus
-      ports:
-        - port: 8080
-          protocol: TCP
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: restrict-egress
+  name: allow-egress
   namespace: pocket-id-operator
 spec:
   podSelector:
@@ -46,18 +26,6 @@ spec:
     - Egress
   egress:
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
-          protocol: TCP
-    - to:
         - ipBlock:
             cidr: 192.168.1.32/32
       ports:
@@ -66,10 +34,10 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: kube-system
+              kubernetes.io/metadata.name: pocket-id
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: traefik
+              app: pocket-id
       ports:
-        - port: 7443
+        - port: 1411
           protocol: TCP

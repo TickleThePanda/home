@@ -3,8 +3,9 @@
 # It never deploys Pocket ID: the StatefulSet in auth/pocketid/ stays
 # hand-written, and the operator talks to it as an external instance.
 #
-# It watches only pocket-id-clients and has no RBAC anywhere else, nor on any
-# workload kind. See README.md.
+# It can read and write every Secret in the cluster but has no RBAC on any
+# workload kind, and its network policy lets it reach only the API server and
+# Pocket ID. See README.md.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -32,15 +33,11 @@ spec:
     instance:
       enabled: false
     operator:
-      watchNamespaces:
-        - pocket-id-clients
       manageWorkloads: false
       # Clients keep the logos set in Pocket ID; the operator sets none.
       autoGenerateLogos: false
       defaultLogoUrl: ""
       defaultDarkLogoUrl: ""
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
+    # Off, so nothing needs to reach the operator.
     metrics:
-      enabled: true
+      enabled: false

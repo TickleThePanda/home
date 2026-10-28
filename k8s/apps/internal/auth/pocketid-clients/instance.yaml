@@ -1,14 +1,17 @@
 # The hand-written Pocket ID in k8s/apps/internal/auth/pocketid/, adopted as
-# an external instance. The operator reaches it through Traefik, so the
-# endpoints it writes into credentials Secrets are the public ones. The API
-# key is Pocket ID's STATIC_API_KEY, mirrored here by Reflector.
+# an external instance. The operator calls it at its pinned Service IP, so it
+# needs no DNS or route through Traefik (see its network-policy.yaml). The
+# endpoint keys it writes into credentials Secrets (issuer_url, token_url, ...)
+# therefore carry this address; apps take their issuer from their own config
+# and read only client_secret. The API key is Pocket ID's STATIC_API_KEY,
+# mirrored here by Reflector.
 apiVersion: pocketid.internal/v1alpha1
 kind: PocketIDInstance
 metadata:
   name: pocket-id
 spec:
   external:
-    url: https://auth.internal.ticklethepanda.co.uk
+    url: http://10.43.217.64
     apiKeySecretRef:
       name: pocket-id-static-api-key
       key: token
