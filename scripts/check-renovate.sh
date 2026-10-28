@@ -49,9 +49,12 @@ image_lines=$(xargs grep -HE '^\s*(-\s+)?image:' <<<"$manifests" \
     | sed -nE 's/^([^:]+):\s*(-\s+)?image:\s*([^ #]+).*/\1 \3/p')
 helm_releases=$(xargs grep -l '^kind: HelmRelease' <<<"$manifests")
 kustomizations=$(git ls-files | grep -E '(^|/)kustomization\.yaml$')
-# "<file> <owner>/<repo> <ref>" for every remote action, minus any subpath.
+# "<file> <owner>/<repo> <version>" for every remote action, minus any
+# subpath. Renovate pins actions to a digest and keeps the version in a
+# comment (`@<sha> # v7.0.1`); the comment, if any, is the version.
 action_lines=$(git ls-files .github | grep -E '\.ya?ml$' | xargs grep -HE '^\s*(-\s+)?uses:\s*[^.]' \
-    | sed -nE 's#^([^:]+):\s*(-\s+)?uses:\s*([^/@ ]+/[^/@ ]+)[^@ ]*@([^ #]+).*#\1 \3 \4#p')
+    | sed -nE 's#^([^:]+):\s*(-\s+)?uses:\s*([^/@ ]+/[^/@ ]+)[^@ ]*@([^ #]+)(\s+\#\s*([^ ]+))?.*#\1 \3 \4 \6#p' \
+    | awk '{ print $1, $2, ($4 != "" ? $4 : $3) }')
 # "<name> <version>"; Renovate names a git collection by its host and path.
 collections=$(yq '.collections[] | .name + " " + .version' ansible/requirements.yml \
     | sed -E 's#^https://([^ ]+)\.git #\1 #')
@@ -104,8 +107,8 @@ found=$(grep -c '^regex vendor.txt ' <<<"$deps" || true)
 (( found == expected )) || missing "every vendor.txt entry: $found of $expected (each needs a # renovate: comment)"
 
 # Every remote GitHub Action.
-while read -r file action ref; do
-    grep -qxF "github-actions $file $action $ref -" <<<"$deps" || missing "$action@$ref in $file"
+while read -r file action version; do
+    grep -qxF "github-actions $file $action $version -" <<<"$deps" || missing "$action $version in $file"
 done <<<"$action_lines"
 
 # Every Ansible collection.

@@ -67,7 +67,9 @@ version=$(yq '.spec.distribution.version' k8s/cluster/instance/flux-instance.yam
 # The flux CLI that CI pushes artifacts with is the cluster's Flux release:
 # the action ref and the version it installs.
 flux_step='.jobs[].steps[] | select((.uses // "") | test("^fluxcd/flux2/action@"))'
-flux_ref=$(yq "$flux_step | .uses | sub(\"^fluxcd/flux2/action@v\"; \"\")" .github/workflows/deploy-cluster.yaml)
+# Renovate pins the action to a digest, with the version as a line comment.
+flux_ref=$(yq "$flux_step | .uses | (if line_comment != \"\" then line_comment else sub(\"^fluxcd/flux2/action@\"; \"\") end) | sub(\"^v\"; \"\")" \
+    .github/workflows/deploy-cluster.yaml)
 flux_cli=$(yq "$flux_step | .with.version" .github/workflows/deploy-cluster.yaml)
 [[ $flux_ref == "$version" && $flux_cli == "$version" ]] \
     || fail "flux action ref ($flux_ref) and CLI version ($flux_cli) differ from the FluxInstance ($version)"
