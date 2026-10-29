@@ -25,6 +25,6 @@ k8s/infrastructure/controllers/reflector/reflector.vendored.yaml         10.0.69
 # Flux Operator and its CRD schemas (used by scripts/validate-manifests.sh).
 # Both must be on the same release; scripts/check-versions.sh checks they are.
 # renovate: datasource=github-releases depName=controlplaneio-fluxcd/flux-operator
-k8s/cluster/operator/flux-operator.vendored.yaml                         0.62.0   https://github.com/controlplaneio-fluxcd/flux-operator/releases/download/v{version}/install.yaml
+k8s/cluster/operator/flux-operator.vendored.yaml                         0.62.1   https://github.com/controlplaneio-fluxcd/flux-operator/releases/download/v{version}/install.yaml
 # renovate: datasource=github-releases depName=controlplaneio-fluxcd/flux-operator
-scripts/flux-operator-crd-schemas.vendored.tar.gz                        0.62.0   https://github.com/controlplaneio-fluxcd/flux-operator/releases/download/v{version}/crd-schemas.tar.gz
+scripts/flux-operator-crd-schemas.vendored.tar.gz                        0.62.1   https://github.com/controlplaneio-fluxcd/flux-operator/releases/download/v{version}/crd-schemas.tar.gz
