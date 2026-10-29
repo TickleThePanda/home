@@ -3,7 +3,7 @@ WORKDIR /src
 COPY go.mod main.go ./
 RUN CGO_ENABLED=0 go build -o /sync-runner .
 
-FROM rmcrackan/libation:14.2.3
+FROM rmcrackan/libation:14.2.5
 COPY --from=builder /sync-runner /usr/local/bin/sync-runner
 ENV RUNNER_MODE=libation
 ENV RUNNER_PORT=8091
