@@ -21,7 +21,7 @@ k8s/infrastructure/controllers/lvm-localpv/lvm-operator.vendored.yaml    1.10.1 
 # renovate: datasource=github-tags depName=k8snetworkplumbingwg/network-attachment-definition-client
 k8s/infrastructure/controllers/multus/networks-crd.vendored.yaml         1.7.7    https://raw.githubusercontent.com/k8snetworkplumbingwg/network-attachment-definition-client/v{version}/artifacts/networks-crd.yaml
 # renovate: datasource=github-releases depName=emberstack/kubernetes-reflector
-k8s/infrastructure/controllers/reflector/reflector.vendored.yaml         10.0.69  https://github.com/emberstack/kubernetes-reflector/releases/download/v{version}/reflector.yaml
+k8s/infrastructure/controllers/reflector/reflector.vendored.yaml         10.0.70  https://github.com/emberstack/kubernetes-reflector/releases/download/v{version}/reflector.yaml
 # Flux Operator and its CRD schemas (used by scripts/validate-manifests.sh).
 # Both must be on the same release; scripts/check-versions.sh checks they are.
 # renovate: datasource=github-releases depName=controlplaneio-fluxcd/flux-operator
