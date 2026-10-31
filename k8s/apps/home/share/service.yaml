@@ -1,0 +1,22 @@
+# Two Services, so the external route can't name the admin port by mistake.
+apiVersion: v1
+kind: Service
+metadata:
+  name: share-admin
+spec:
+  selector:
+    app: share
+  ports:
+    - port: 80
+      targetPort: admin
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: share-public
+spec:
+  selector:
+    app: share
+  ports:
+    - port: 80
+      targetPort: public

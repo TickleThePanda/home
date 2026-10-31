@@ -1,0 +1,54 @@
+name: Build and deploy share
+
+on:
+  push:
+    branches: main
+    paths:
+    - apps/share/**
+    - .github/workflows/build--share.yml
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    environment: prod
+    steps:
+      - name: checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Connect to Cloudflare Warp
+        uses: ./.github/actions/cloudflare-warp
+        with:
+          organization: ticklethepanda
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: network=host
+      - name: Login to DockerHub
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: build the image
+        run: |
+          docker buildx build --push \
+          --tag ticklethepanda/share:latest \
+          --platform linux/amd64,linux/arm64 ./apps/share/
+      - name: Verify multi-arch manifest
+        run: |
+          got=$(docker buildx imagetools inspect --raw ticklethepanda/share:latest \
+            | jq -r '.manifests[].platform | [.os, .architecture, .variant] | map(select(.)) | join("/")')
+          echo "$got"
+          for want in linux/amd64 linux/arm64; do
+            grep -qxF "$want" <<<"$got" || { echo "::error::share image missing $want"; exit 1; }
+          done
+      - name: Setup k8s context
+        uses: azure/k8s-set-context@8698eba2499e9012f0d5085f8798077cce4bc526 # v5.0.1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+      - name: Rollout latest image
+        run: kubectl rollout restart deployment/share --namespace=home

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Share</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+  body { max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+  form.upload { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; padding: 1rem; border: 1px solid #8884; border-radius: .5rem; }
+  label { display: flex; flex-direction: column; gap: .25rem; font-size: .9rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+  th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #8883; vertical-align: top; }
+  .notice { padding: .75rem 1rem; border-radius: .5rem; margin-bottom: 1rem; }
+  .ok { background: #2a72; } .err { background: #c332; }
+  .link { font-family: ui-monospace, monospace; font-size: .85rem; word-break: break-all; }
+  .muted { opacity: .7; font-size: .85rem; }
+</style>
+</head>
+<body>
+<h1>Share</h1>
+
+{{with .Created}}<div class="notice ok">Shared at <a class="link" href="{{$.PublicURL}}/{{.}}/">{{$.PublicURL}}/{{.}}/</a></div>{{end}}
+{{with .Error}}<div class="notice err">{{.}}</div>{{end}}
+
+<form class="upload" method="post" action="/upload" enctype="multipart/form-data">
+  <label>Zip file <input type="file" name="file" accept=".zip,application/zip" required></label>
+  <label>Name <input type="text" name="name" placeholder="defaults to file name" maxlength="200"></label>
+  <label>Expires
+    <select name="ttl">
+      <option value="1d">in 1 day</option>
+      <option value="7d" selected>in 7 days</option>
+      <option value="30d">in 30 days</option>
+      <option value="never">never</option>
+    </select>
+  </label>
+  <button type="submit">Upload</button>
+  <span class="muted">Max {{bytes .MaxUpload}}</span>
+</form>
+
+{{if .Shares}}
+<table>
+  <tr><th>Name</th><th>Link</th><th>Contents</th><th>Expires</th><th></th></tr>
+  {{range .Shares}}
+  <tr>
+    <td>{{.Name}}<div class="muted">{{.Created.Format "2006-01-02 15:04"}}</div></td>
+    <td><a class="link" href="{{$.PublicURL}}/{{.Secret}}/">{{$.PublicURL}}/{{.Secret}}/</a></td>
+    <td>{{.Files}} files, {{bytes .Bytes}}</td>
+    <td>{{with .Expires}}{{if $.Now.After .}}expired{{else}}{{.Format "2006-01-02 15:04"}}{{end}}{{else}}never{{end}}</td>
+    <td><form method="post" action="/delete/{{.Secret}}" onsubmit="return confirm('Delete {{.Name}}?')"><button>Delete</button></form></td>
+  </tr>
+  {{end}}
+</table>
+{{else}}
+<p class="muted">No shares yet.</p>
+{{end}}
+</body>
+</html>

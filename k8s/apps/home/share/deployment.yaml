@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: share
+  labels:
+    app: share
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: share
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: share
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: share
+          image: ticklethepanda/share:latest
+          env:
+            # tinyauth's Remote-Email must match this to use the admin UI.
+            - name: ADMIN_EMAIL
+              value: panda@ticklethepanda.dev
+            - name: PUBLIC_URL
+              value: https://home.ticklethepanda.co.uk/share
+          ports:
+            - name: admin
+              containerPort: 8080
+            - name: public
+              containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: public
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - mountPath: /data
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: share

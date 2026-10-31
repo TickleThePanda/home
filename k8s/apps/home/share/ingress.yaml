@@ -1,0 +1,42 @@
+# Admin UI (upload, list, delete): internal only, behind tinyauth.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: share-admin
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/href: https://share.internal.ticklethepanda.co.uk
+    gethomepage.dev/name: Share
+    gethomepage.dev/group: Applications
+    gethomepage.dev/icon: mdi-folder-zip
+    gethomepage.dev/description: Host a zip at a secret public URL
+    gethomepage.dev/pod-selector: app=share
+spec:
+  entryPoints:
+    - int-web-secure
+  tls: {}
+  routes:
+    - kind: Rule
+      match: Host(`share.internal.ticklethepanda.co.uk`)
+      middlewares:
+        - name: tinyauth
+          namespace: tinyauth
+      services:
+        - name: share-admin
+          port: 80
+---
+# Hosted files: public, through the Cloudflare tunnel's existing
+# home.ticklethepanda.co.uk hostname. Only the read-only port is routed.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: share-public
+spec:
+  entryPoints:
+    - ext-web
+  routes:
+    - kind: Rule
+      match: Host(`home.ticklethepanda.co.uk`) && PathPrefix(`/share/`)
+      services:
+        - name: share-public
+          port: 80

@@ -62,6 +62,10 @@ Source for the apps this repo builds and deploys. Each has its own
 `apps/<app>/` and restarts its Deployment.
 
 - `home-root` — a root site linking to the other services.
+- `share` — hosts an uploaded zip's contents at
+  `home.ticklethepanda.co.uk/share/<secret>/`. Upload and delete at
+  `share.internal.ticklethepanda.co.uk` (tinyauth, owner's email only).
+  Shares expire after 1, 7 or 30 days, or never.
 
 ### `ansible/proxmox`
 

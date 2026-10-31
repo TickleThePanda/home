@@ -12,3 +12,4 @@ resources:
   - ./home--cert.yaml
   - ./root
   - ./geopulse-ingest
+  - ./share
