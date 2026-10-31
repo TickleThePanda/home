@@ -16,12 +16,7 @@ spec:
       labels:
         app: smtp-relay
     spec:
-      # This pod never talks to the Kubernetes API. Without this, the
-      # default service-account token auto-mounts at
-      # /var/run/secrets/kubernetes.io/serviceaccount -- which collides
-      # with relay-password below (/var/run is a symlink to /run), and the
-      # container can't create that mountpoint inside our read-only Secret
-      # mount.
+      # This pod never talks to the Kubernetes API.
       automountServiceAccountToken: false
       containers:
         - name: smtp-relay
@@ -36,7 +31,7 @@ spec:
                   name: smtp-relay-credentials
                   key: RELAYHOST_USERNAME
             - name: RELAYHOST_PASSWORD_FILE
-              value: /run/secrets/RELAYHOST_PASSWORD
+              value: /etc/smtp-relay-secrets/RELAYHOST_PASSWORD
             - name: POSTFIX_smtp_tls_security_level
               value: "encrypt"
             - name: ALLOWED_SENDER_DOMAINS
@@ -61,7 +56,10 @@ spec:
               memory: 128Mi
           volumeMounts:
             - name: relay-password
-              mountPath: /run/secrets
+              # Not under /run: the image declares /var/run (a symlink to
+              # /run) as a VOLUME, and that anonymous volume hides any
+              # mount beneath it.
+              mountPath: /etc/smtp-relay-secrets
               readOnly: true
       volumes:
         - name: relay-password
