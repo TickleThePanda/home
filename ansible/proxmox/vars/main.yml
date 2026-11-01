@@ -45,7 +45,7 @@ proxmox_api_token_secret: "{{ lookup('ansible.builtin.env', 'PROXMOX_API_TOKEN_S
 # so a rebuild is reproducible. Renovate bumps it monthly.
 proxmox_template_vmid: 9000
 proxmox_template_name: debian-13-cloud
-proxmox_template_image_build: "20261021-2638"
+proxmox_template_image_build: "20261026-2643"
 proxmox_template_image_base: "https://cloud.debian.org/images/cloud/trixie/{{ proxmox_template_image_build }}"
 proxmox_template_image_path: /var/lib/vz/template/iso/debian-13-genericcloud-amd64.qcow2
 
