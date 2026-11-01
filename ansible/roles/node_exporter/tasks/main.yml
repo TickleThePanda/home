@@ -30,6 +30,36 @@
       ARGS="--web.listen-address={{ node_exporter_bind_address }}:{{ node_exporter_port }} --collector.textfile.directory={{ node_exporter_textfile_dir }}"
   notify: restart prometheus-node-exporter
 
+# node_exporter binds to one address, which doesn't exist until networking
+# is up. Debian's unit isn't ordered after the network, so at boot it fails
+# with "cannot assign requested address", burns its five restarts in under a
+# second and stays failed.
+- name: Create node_exporter's systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/prometheus-node-exporter.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Start node_exporter after the network is up
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/prometheus-node-exporter.service.d/network-online.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by the node_exporter role. Do not edit on the host.
+      [Unit]
+      Wants=network-online.target
+      After=network-online.target
+      # Retry for longer than the network can take to come up.
+      StartLimitIntervalSec=0
+
+      [Service]
+      RestartSec=5
+  notify: restart prometheus-node-exporter
+
 - name: Enable and start node_exporter
   ansible.builtin.systemd_service:
     name: prometheus-node-exporter
