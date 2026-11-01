@@ -159,12 +159,18 @@ jobs:
           echo "::error::API server did not report ready after 60s -- the cluster may genuinely be down, not just slow. See ansible/node/RECOVERY.md."
           exit 1
 
-      # cloudflared is itself a pod inside the cluster this pipeline manages --
-      # confirm it's healthy, not just that the API responds.
-      - name: Confirm cloudflared is Ready
+      # cloudflared is itself a pod inside the cluster this pipeline manages.
+      # One Ready replica carries CI's tunnel, so that's enough to start. The
+      # Deployment's count ignores pods left Completed by a node shutdown.
+      - name: Confirm a cloudflared replica is Ready
         run: |
-          kubectl wait --all-namespaces --for=condition=Ready pod \
-            --selector pod=cloudflared --timeout=30s
+          ready=$(kubectl -n cloudflared get deployment cloudflared-deployment \
+            -o jsonpath='{.status.readyReplicas}')
+          if (( ${ready:-0} < 1 )); then
+            echo "::error::No cloudflared replica is Ready. See ansible/node/RECOVERY.md."
+            exit 1
+          fi
+          echo "$ready cloudflared replica(s) Ready"
 
   infra:
     needs: preflight
