@@ -20,7 +20,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: smtp-relay
-          image: boky/postfix:5.2.0
+          image: boky/postfix:5.2.1
           imagePullPolicy: IfNotPresent
           env:
             - name: RELAYHOST
