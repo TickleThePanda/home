@@ -144,6 +144,9 @@ groups:
             If it failed after the reboot, kured is paused until the lock is
             released: kubectl -n kube-system annotate ds kured
             weave.works/kured-node-lock- (k8s/infrastructure/controllers/kured/README.md).
+            Releasing the lock doesn't clear this alert. Once the failure is
+            dealt with, delete the Job:
+            kubectl -n kube-system delete job {{ $labels.job_name }}
 
       # 15m outlasts kured's reboots and the Sunday proxmox-01 reboot (5-10m).
       - alert: KubeNodeNotReady

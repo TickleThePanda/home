@@ -50,7 +50,13 @@ While it runs, the control plane, both workers, CI's tunnel and home DNS
 
 A failure before step 4 undoes steps 2–3. A failure after it keeps the
 lock, so kured stays paused, and fires `ProxmoxRebootFailed`. Read the
-Job's log, fix the problem, then release the lock (below).
+Job's log, fix the problem, then release the lock (below). The alert stays
+firing until the failed Job is gone, which takes a week on its own. Delete
+it to clear the alert sooner:
+
+```sh
+kubectl -n kube-system delete job <job-name>
+```
 
 ### The API token
 
