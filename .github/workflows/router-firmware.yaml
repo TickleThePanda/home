@@ -14,10 +14,17 @@ name: Router firmware
 
 on:
   workflow_call:
+    inputs:
+      # Set when the maintenance/router-firmware CronJob dispatched the run.
+      # It already holds kured's lock as router-firmware/<lock> and releases
+      # it once the run ends, so this run never takes or releases it
+      # (k8s/infrastructure/configs/maintenance/README.md).
+      lock:
+        type: string
+        default: ''
 
-# Unattended flashing: a push or the monthly schedule flashes the router when
-# it doesn't run the build. Set "false" to only report the drift, so that
-# only a manual dispatch flashes.
+# Unattended flashing: a push or a dispatch flashes the router when it
+# doesn't run the build. Set "false" to have a push only report the drift.
 env:
   ROUTER_AUTO_FLASH: "true"
 
@@ -107,14 +114,26 @@ jobs:
       # kured's lock, so no node or proxmox-01 reboot overlaps the flash. Same
       # format and resourceVersion guard as
       # k8s/infrastructure/controllers/kured/proxmox-reboot/proxmox-reboot.sh.
+      # A run with a `lock` input only checks that the CronJob holds it.
       - name: Take kured's reboot lock
         id: lock
         if: steps.compare.outputs.flash == 'true'
+        env:
+          LOCK_ID: ${{ inputs.lock }}
         run: |
           set -euo pipefail
           lock=weave.works/kured-node-lock
           ds=$(kubectl -n kube-system get ds kured -o json)
           holder=$(jq -r --arg a "$lock" '.metadata.annotations[$a] // empty' <<<"$ds")
+          if [ -n "$LOCK_ID" ]; then
+            owner=$(jq -r '.nodeID // empty' <<<"$holder")
+            if [ "$owner" != "router-firmware/$LOCK_ID" ]; then
+              echo "::error::kured's lock isn't held for this run (holder: ${holder:-none})."
+              exit 1
+            fi
+            echo "kured's lock is held for this run by $owner"
+            exit 0
+          fi
           if [ -n "$holder" ]; then
             echo "::error::kured's lock is held ($holder): a reboot is in progress. Re-run once it is released."
             exit 1
@@ -134,6 +153,19 @@ jobs:
           SSH_KEY=~/.ssh/deploy_key ./router/upgrade.sh flash router/out 2>&1 \
             | tee "$RUNNER_TEMP/router-upgrade.log"
 
+      # Fails if the flash failed after sysupgrade started: the router may be
+      # down or half-flashed. The release below keeps kured's lock when it
+      # does, and so does the maintenance/router-firmware CronJob, which
+      # matches this step by name.
+      - name: Check the flash stopped before sysupgrade
+        id: started
+        if: always() && (steps.flash.outcome == 'failure' || steps.flash.outcome == 'cancelled')
+        run: |
+          if grep -qx '== flash' "$RUNNER_TEMP/router-upgrade.log" 2>/dev/null; then
+            echo "::error::The flash failed after sysupgrade started. Check the router."
+            exit 1
+          fi
+
       # The flash dropped cloudflared's upstream; the next deploy reaches the
       # LAN through it.
       - name: Wait for the cluster API and cloudflared
@@ -148,16 +180,17 @@ jobs:
           kubectl wait --all-namespaces --for=condition=Ready pod \
             --selector pod=cloudflared --timeout=300s
 
-      # A failure before the flash releases the lock. A failed flash keeps it,
-      # which pauses kured until someone releases it by hand
+      # A failure before sysupgrade releases the lock. One after it keeps the
+      # lock, which pauses kured until someone releases it by hand
       # (k8s/infrastructure/controllers/kured/README.md#the-lock): the router needs a human first.
+      # A dispatched run leaves the lock to the CronJob that holds it.
       - name: Release kured's reboot lock
-        if: always() && steps.lock.outcome == 'success'
+        if: always() && steps.lock.outcome == 'success' && inputs.lock == ''
         env:
-          FLASHED: ${{ steps.flash.outcome }}
+          STARTED: ${{ steps.started.outcome }}
         run: |
           set -euo pipefail
-          if [ "$FLASHED" = "failure" ] && grep -qx '== flash' "$RUNNER_TEMP/router-upgrade.log" 2>/dev/null; then
+          if [ "$STARTED" = "failure" ]; then
             echo "::error::The flash failed after sysupgrade started. kured's lock stays held until the router is checked; release it by hand."
             exit 1
           fi

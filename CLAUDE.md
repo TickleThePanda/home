@@ -94,8 +94,9 @@ Documentation and comments: simple, concise, practical.
   `.github/workflows/router-firmware.yaml`, which `deploy.yaml` calls as its
   `firmware` job between `infra` and `cluster`. Git pins the OpenWrt release and packages. CI builds the
   image and flashes it with settings kept, under kured's lock, then reruns the
-  router playbook. A monthly scheduled run rebuilds the image and flashes if
-  the package set moved. A flash cuts CI's tunnel for a few
+  router playbook. Early each Saturday, the `router-firmware` CronJob
+  (`k8s/infrastructure/configs/maintenance/`) takes kured's lock and
+  dispatches a firmware-only Deploy, which flashes if the package set moved. A flash cuts CI's tunnel for a few
   minutes. Install packages via `router/packages.txt`, never `opkg`/`apk` on
   the router. See `router/README.md`.
 - `cluster` pushes the repo as an OCI artifact and moves its `deploy` tag.
@@ -141,7 +142,8 @@ Documentation and comments: simple, concise, practical.
   daily on the k3s nodes; kured reboots them Mon–Sat 03:00–05:00 London,
   one at a time. proxmox-01 upgrades Sunday 01:30, and the `proxmox-reboot`
   CronJob reboots it at 03:00, which takes down the VMs, CI's tunnel and
-  home DNS for 5–10 minutes. Both share kured's lock, the
+  home DNS for 5–10 minutes. The router firmware flashes Saturday from
+  01:00. All three share kured's lock, the
   `weave.works/kured-node-lock` annotation on `ds/kured`. Take it before
   rebooting anything by hand. See
   `k8s/infrastructure/controllers/kured/README.md`.

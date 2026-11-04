@@ -2,7 +2,9 @@
 
 kured reboots k3s nodes after unattended-upgrades installs something that
 needs a reboot (usually a kernel), one node at a time. The `proxmox-reboot`
-CronJob does the same for proxmox-01, under the same lock.
+CronJob does the same for proxmox-01, under the same lock. So does the
+weekly router firmware flash
+([`router-firmware`](../../configs/maintenance/README.md)).
 
 ## Schedule (Europe/London)
 
@@ -10,6 +12,7 @@ CronJob does the same for proxmox-01, under the same lock.
 |---|---|
 | Daily 01:00 / 01:30 | apt-daily / unattended-upgrades on the VMs and the Pi (`ansible/roles/unattended_upgrades/`) |
 | Mon–Sat 03:00–05:00 | kured reboots any node with `/var/run/reboot-required` |
+| Sat 01:00 | `router-firmware` flashes the router if its package set moved ([`maintenance/`](../../configs/maintenance/README.md)) |
 | Sun 01:30 | proxmox-01 runs `apt full-upgrade` (`ansible/proxmox/tasks/auto-upgrade.yml`) |
 | Sun 03:00 | `proxmox-reboot` reboots proxmox-01 if it needs it |
 

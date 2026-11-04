@@ -148,6 +148,26 @@ groups:
             dealt with, delete the Job:
             kubectl -n kube-system delete job {{ $labels.job_name }}
 
+      # The router-firmware CronJob (k8s/infrastructure/configs/maintenance/).
+      # A flash that failed after sysupgrade started keeps kured's lock, so
+      # kured stays paused. Failed Jobs are deleted after a week, which
+      # clears this.
+      - alert: RouterFirmwareFailed
+        expr: kube_job_status_failed{namespace="maintenance", job_name=~"router-firmware-.*"} > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "router-firmware Job {{ $labels.job_name }} failed"
+          description: >-
+            Read its log (kubectl -n maintenance logs job/{{ $labels.job_name }}).
+            A dispatch error usually means the GitHub token was revoked.
+            If the flash failed after sysupgrade started, check the router,
+            then release kured's lock: kubectl -n kube-system annotate ds
+            kured weave.works/kured-node-lock-
+            (k8s/infrastructure/configs/maintenance/README.md). Once the
+            failure is dealt with, delete the Job:
+            kubectl -n maintenance delete job {{ $labels.job_name }}
+
       # 15m outlasts kured's reboots and the Sunday proxmox-01 reboot (5-10m).
       - alert: KubeNodeNotReady
         expr: kube_node_status_condition{condition="Ready", status="true"} == 0

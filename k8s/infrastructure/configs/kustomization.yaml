@@ -12,5 +12,6 @@ kind: Kustomization
 # k8s/cluster/sync/kustomization-infrastructure-configs.yaml's dependsOn.
 resources:
   - ./cert-manager
+  - ./maintenance
   - ./metallb
   - ./traefik

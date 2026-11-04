@@ -56,14 +56,17 @@ and the commit it was built from.
    3. releases the lock and runs the router playbook again;
    4. keeps the manifest, the encrypted config backup and the log as a
       90-day artifact.
-3. **Monthly rebuild.** On the 3rd at 11:00 UTC, `deploy.yaml` runs only the
-   `firmware` job, which rebuilds the image for the pinned release. It flashes only if feed updates changed the
-   package set, and is a no-op otherwise.
+3. **Weekly rebuild.** Early on Saturday, the `router-firmware` CronJob
+   ([`k8s/infrastructure/configs/maintenance/`](../k8s/infrastructure/configs/maintenance/README.md))
+   takes kured's lock and dispatches Deploy with `layers: firmware`. The run
+   rebuilds the image for the pinned release, and flashes only if feed
+   updates changed the package set. The CronJob, not the run, releases the
+   lock.
 
-`ROUTER_AUTO_FLASH` in `router-firmware.yaml` gates steps 2 and 3. It's
-`"true"`, so merges and the monthly rebuild flash unattended. Set it to
-`"false"` to have a push or the schedule only report the drift as a warning;
-a manual dispatch of Deploy still flashes.
+`ROUTER_AUTO_FLASH` in `router-firmware.yaml` gates step 2. It's `"true"`,
+so merges flash unattended. Set it to `"false"` to have a push only report
+the drift as a warning. A dispatch of Deploy, including the weekly one,
+always flashes.
 
 The job runs inside the Deploy run, after infra and before cluster, so a flash
 never overlaps other deploy work that needs the tunnel.

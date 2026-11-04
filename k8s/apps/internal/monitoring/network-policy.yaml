@@ -1,6 +1,6 @@
 # Grafana and Alertmanager UIs only through Traefik. Prometheus answers
-# Grafana plus kured and proxmox-reboot, which check for firing alerts
-# before rebooting.
+# Grafana plus kured, proxmox-reboot and router-firmware, which check for
+# firing alerts before rebooting or flashing.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -84,6 +84,12 @@ spec:
               - key: app.kubernetes.io/name
                 operator: In
                 values: [kured, proxmox-reboot]
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: maintenance
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: router-firmware
       ports:
         - port: 9090
           protocol: TCP

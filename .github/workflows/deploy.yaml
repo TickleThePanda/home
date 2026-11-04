@@ -23,13 +23,14 @@ name: Deploy
 # pays that once. See deploy-infra.yaml for layer ordering within it.
 #
 # Each layer is skipped when the push changed nothing under its own tree
-# (including its own workflow file), and runs on a manual workflow_dispatch.
+# (including its own workflow file), and runs on a workflow_dispatch that selects it.
 # Which Ansible layers run is decided inside deploy-infra.yaml.
 #
-# The monthly schedule runs only `firmware`: it rebuilds the image and
+# A dispatch with `layers: firmware` runs only `firmware`. The
+# maintenance/router-firmware CronJob dispatches one early every Saturday,
+# holding kured's lock for it (`lock` input). It rebuilds the image and
 # flashes it if feed updates changed the package set within the pinned
-# release (router/README.md). Midday on the 3rd, clear of the 02:00-06:00
-# London reboot window.
+# release (k8s/infrastructure/configs/maintenance/README.md).
 #
 # preflight exists because CI's only path to any of this is through the cluster
 # itself (cloudflared runs in-cluster) -- checking reachability first gives a
@@ -46,6 +47,8 @@ name: Deploy
 # not through the tunnel), but it still waits on preflight/infra/cluster
 # succeeding-or-skipping, same gate as cluster -- no reason to touch the
 # tunnel's own config while something upstream is already broken.
+
+run-name: ${{ inputs.layers == 'firmware' && 'Deploy router firmware' || '' }}
 
 on:
   push:
@@ -67,9 +70,17 @@ on:
       - .github/actions/validate-cluster/**
       - .github/actions/cloudflare-warp/**
       - '!**/*.md'
-  workflow_dispatch: {}
-  schedule:
-    - cron: '0 11 3 * *'
+  workflow_dispatch:
+    inputs:
+      layers:
+        description: Layers to deploy. `all` runs each one; `firmware` only the router firmware.
+        type: choice
+        options: [all, firmware]
+        default: all
+      lock:
+        description: Set by the maintenance/router-firmware CronJob, which holds kured's lock as router-firmware/<lock>.
+        type: string
+        default: ''
 
 # Never let two runs touch the cluster at once -- the infra job restarts k3s,
 # which takes down the tunnel the cluster job reaches the API through.
@@ -82,23 +93,23 @@ jobs:
     runs-on: ubuntu-26.04
     environment: prod
     outputs:
-      # Each layer runs when its filter matches, or on a manual dispatch.
-      # Folding the dispatch case in here keeps every downstream `if:` to a
-      # single expression. paths-filter finds nothing on a
+      # Each layer runs when its filter matches, or on a dispatch that
+      # selects it. Folding the dispatch case in here keeps every downstream
+      # `if:` to a single expression. paths-filter finds nothing on a
       # workflow_dispatch (it diffs HEAD against its own merge-base), which is
       # why that case has to be handled explicitly.
-      infra: ${{ steps.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' }}
-      firmware: ${{ steps.changes.outputs.firmware == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
-      cluster: ${{ steps.changes.outputs.cluster == 'true' || github.event_name == 'workflow_dispatch' }}
-      terraform: ${{ steps.changes.outputs.terraform == 'true' || github.event_name == 'workflow_dispatch' }}
+      infra: ${{ steps.changes.outputs.infra == 'true' || (github.event_name == 'workflow_dispatch' && inputs.layers == 'all') }}
+      firmware: ${{ steps.changes.outputs.firmware == 'true' || github.event_name == 'workflow_dispatch' }}
+      cluster: ${{ steps.changes.outputs.cluster == 'true' || (github.event_name == 'workflow_dispatch' && inputs.layers == 'all') }}
+      terraform: ${{ steps.changes.outputs.terraform == 'true' || (github.event_name == 'workflow_dispatch' && inputs.layers == 'all') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Markdown never triggers a deploy: `some-with-excludes` drops any file a
-      # `!` pattern matches. A scheduled run has no diff to filter.
+      # `!` pattern matches. A dispatch has no diff to filter.
       - name: Detect which layers changed
-        if: github.event_name != 'schedule'
+        if: github.event_name == 'push'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: changes
         with:
@@ -188,6 +199,8 @@ jobs:
       (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
       needs.preflight.outputs.firmware == 'true'
     uses: ./.github/workflows/router-firmware.yaml
+    with:
+      lock: ${{ inputs.lock }}
     secrets: inherit
 
   cluster:
