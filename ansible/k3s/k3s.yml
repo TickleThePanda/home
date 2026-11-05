@@ -244,12 +244,207 @@
                 groups:
                   claim: groups
                   prefix: "oidc:"
+            # Any GitHub workflow, in any repo, can get a token from this
+            # issuer. The audience and these rules are what keep them out.
+            - issuer:
+                url: https://token.actions.githubusercontent.com
+                audiences:
+                  - {{ k3s_github_oidc_audience }}
+              claimValidationRules:
+                - expression: claims.repository_id == "{{ k3s_github_oidc_repository_id }}"
+                  message: token is not from this repository
+                - expression: has(claims.environment) && claims.environment == "prod"
+                  message: token is not from the prod environment
+                - expression: claims.ref == "refs/heads/main"
+                  message: token is not from main
+              claimMappings:
+                username:
+                  expression: '"github:" + claims.sub'
           # k3s passes --anonymous-auth=false only when no authentication
           # config is set, so this file has to keep it off.
           anonymous:
             enabled: false
   roles:
     - role: k3s.orchestration.k3s_server
+  post_tasks:
+    # k3s applies whatever is in its manifests directory. This lives here
+    # rather than under k8s/ so a broken Flux or a bad prune can't lock CI out
+    # of the cluster it needs to fix.
+    - name: Write CI's ServiceAccount and RBAC
+      ansible.builtin.copy:
+        dest: /var/lib/rancher/k3s/server/manifests/ci-deploy.yaml
+        mode: "0600"
+        content: |
+          # Managed by ansible/k3s/k3s.yml.
+          #
+          # CI's GitHub token (k3s_github_oidc_* in group_vars/k3s_cluster.yml)
+          # can only mint a token for ci/ci-deploy. ci-deploy holds exactly
+          # what the workflows do with kubectl; a new kubectl call in a
+          # workflow fails Forbidden until its grant is added here.
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: ci
+          ---
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: ci-deploy
+            namespace: ci
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: ci-token-minter
+            namespace: ci
+          rules:
+            - apiGroups: [""]
+              resources: [serviceaccounts/token]
+              resourceNames: [ci-deploy]
+              verbs: [create]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: ci-token-minter
+            namespace: ci
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: ci-token-minter
+          subjects:
+            - apiGroup: rbac.authorization.k8s.io
+              kind: User
+              name: {{ k3s_github_oidc_username }}
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: ci-deploy
+          rules:
+            # deploy.yaml and router-firmware.yaml: API readiness.
+            - nonResourceURLs: [/readyz]
+              verbs: [get]
+            # deploy-infra.yaml: every node Ready, control-plane taint present.
+            - apiGroups: [""]
+              resources: [nodes]
+              verbs: [get, list]
+            # router-firmware.yaml: wait for every pod after a flash.
+            - apiGroups: [""]
+              resources: [pods]
+              verbs: [get, list, watch]
+            # deploy-cluster.yaml: Flux's CRDs are installed.
+            - apiGroups: [apiextensions.k8s.io]
+              resources: [customresourcedefinitions]
+              verbs: [get]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: ci-deploy
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: ci-deploy
+          subjects:
+            - kind: ServiceAccount
+              name: ci-deploy
+              namespace: ci
+          ---
+          # deploy-cluster.yaml and scripts/wait-flux-deploy.sh: check Flux is
+          # bootstrapped, trigger the reconcile, follow it, and check the pull
+          # token is read-only. Only these two Secrets are readable.
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: ci-deploy
+            namespace: flux-system
+          rules:
+            - apiGroups: [""]
+              resources: [secrets]
+              resourceNames: [sops-age, dockerhub-deploy-pull]
+              verbs: [get]
+            - apiGroups: [fluxcd.controlplane.io]
+              resources: [fluxinstances]
+              verbs: [get, list, watch]
+            - apiGroups: [kustomize.toolkit.fluxcd.io]
+              resources: [kustomizations]
+              verbs: [get, list, watch]
+            - apiGroups: [source.extensions.fluxcd.io]
+              resources: [artifactgenerators]
+              verbs: [get, list, watch]
+            - apiGroups: [source.toolkit.fluxcd.io]
+              resources: [externalartifacts]
+              verbs: [get, list, watch]
+            # `flux reconcile` sets an annotation.
+            - apiGroups: [source.toolkit.fluxcd.io]
+              resources: [ocirepositories]
+              verbs: [get, list, watch, patch]
+          ---
+          # router-firmware.yaml: take and release kured's lock.
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: ci-deploy
+            namespace: kube-system
+          rules:
+            - apiGroups: [apps]
+              resources: [daemonsets]
+              resourceNames: [kured]
+              verbs: [get, patch]
+          ---
+          # deploy.yaml: a cloudflared replica is Ready.
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: ci-deploy
+            namespace: cloudflared
+          rules:
+            - apiGroups: [apps]
+              resources: [deployments]
+              verbs: [get]
+          ---
+          # build--*.yml: `kubectl rollout restart` after pushing an image.
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: ci-deploy-rollout
+          rules:
+            - apiGroups: [apps]
+              resources: [deployments]
+              verbs: [get, patch]
+          {% for ns in ['flux-system', 'kube-system', 'cloudflared'] %}
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: ci-deploy
+            namespace: {{ ns }}
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: ci-deploy
+          subjects:
+            - kind: ServiceAccount
+              name: ci-deploy
+              namespace: ci
+          {% endfor %}
+          {% for ns in ['home', 'bind', 'audiobookshelf'] %}
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: ci-deploy-rollout
+            namespace: {{ ns }}
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: ci-deploy-rollout
+          subjects:
+            - kind: ServiceAccount
+              name: ci-deploy
+              namespace: ci
+          {% endfor %}
 
 - name: K3s agents (the Pi and the two worker VMs)
   hosts: agent

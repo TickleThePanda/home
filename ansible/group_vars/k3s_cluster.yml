@@ -73,8 +73,9 @@ server_config_yaml: |
   # on the server's own address (192.168.1.32:2381) -- plain HTTP,
   # unauthenticated by etcd's own design for this listener.
   etcd-expose-metrics: true
-  # Accepts Pocket ID tokens alongside client certs and ServiceAccount
-  # tokens. ansible/k3s/k3s.yml writes the file; see k3s_oidc_* below.
+  # Accepts Pocket ID and GitHub Actions tokens alongside client certs and
+  # ServiceAccount tokens. ansible/k3s/k3s.yml writes the file; see
+  # k3s_oidc_* and k3s_github_oidc_* below.
   kube-apiserver-arg:
     - authentication-config=/etc/rancher/k3s/authentication-config.yaml
 
@@ -92,3 +93,13 @@ k3s_oidc_client_id: 9ee12a8f-0a16-4583-abdd-dbe7abf27e16
 # know internal names, so a hosts entry points the issuer at the internal
 # Traefik. Its Let's Encrypt cert validates as normal.
 k3s_oidc_issuer_address: 192.168.1.19
+
+# GitHub Actions as an OIDC issuer, so CI holds no kubeconfig. A prod job on
+# main presents its GitHub token once to mint a token for the ci/ci-deploy
+# ServiceAccount, and that identity can do nothing else
+# (.github/actions/kube-context/). The SA's RBAC is in ansible/k3s/k3s.yml.
+k3s_github_oidc_audience: k3s-home
+# The numeric ID, not owner/name: it survives a rename or transfer, so a new
+# repo taking the old name can't inherit access.
+k3s_github_oidc_repository_id: "340186669"
+k3s_github_oidc_username: "github:repo:TickleThePanda/home:environment:prod"
