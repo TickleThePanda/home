@@ -29,7 +29,7 @@ collections:
   - name: community.proxmox
     version: "2.1.0"
   - name: community.openwrt
-    version: "1.10.0"
+    version: "1.11.0"
   - name: ansible.utils
     version: "6.1.1"
   - name: https://github.com/k3s-io/k3s-ansible.git
