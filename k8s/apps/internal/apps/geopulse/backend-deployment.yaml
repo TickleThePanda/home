@@ -27,7 +27,7 @@ spec:
       # AI-encrypted fields already stored.
       initContainers:
         - name: keygen
-          image: alpine:3.24.3
+          image: alpine:3.24.4
           command:
             - sh
             - -ec
