@@ -148,7 +148,7 @@ jobs:
           auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
 
       - name: Setup k8s context
-        uses: azure/k8s-set-context@8698eba2499e9012f0d5085f8798077cce4bc526 # v5.0.1
+        uses: azure/k8s-set-context@5f008dfddbbc9df61ba40a7aaa912c6033ba62fc # v5.0.2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
