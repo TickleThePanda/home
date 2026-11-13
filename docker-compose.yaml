@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   reverse-proxy:
-    image: traefik:v3.7.17
+    image: traefik:v3.7.18
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
