@@ -1,0 +1,16 @@
+# Public, through the Cloudflare tunnel's existing home.ticklethepanda.co.uk
+# hostname, so Proton can poll it. Only /calendar/ is routed; each feed's
+# path holds its secret token, and unknown tokens get 404.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: calendar-proxy
+spec:
+  entryPoints:
+    - ext-web
+  routes:
+    - kind: Rule
+      match: Host(`home.ticklethepanda.co.uk`) && PathPrefix(`/calendar/`)
+      services:
+        - name: calendar-proxy
+          port: 80

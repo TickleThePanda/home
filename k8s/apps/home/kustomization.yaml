@@ -13,3 +13,4 @@ resources:
   - ./root
   - ./geopulse-ingest
   - ./share
+  - ./calendar-proxy

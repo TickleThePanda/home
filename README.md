@@ -66,6 +66,10 @@ Source for the apps this repo builds and deploys. Each has its own
   `home.ticklethepanda.co.uk/share/<secret>/`. Upload and delete at
   `share.internal.ticklethepanda.co.uk` (tinyauth, owner's email only).
   Shares expire after 1, 7 or 30 days, or never.
+- `calendar-proxy` — serves filtered copies of iCalendar feeds (the work
+  Google calendar) at `home.ticklethepanda.co.uk/calendar/<secret>.ics`, small
+  enough for Proton Calendar's 1 MB limit. It drops cancelled, declined and
+  old events; feeds and their tokens are in its SOPS Secret.
 
 ### `ansible/proxmox`
 

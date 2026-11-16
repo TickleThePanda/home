@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calendar-proxy
+  labels:
+    app: calendar-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: calendar-proxy
+  template:
+    metadata:
+      labels:
+        app: calendar-proxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: calendar-proxy
+          image: ticklethepanda/calendar-proxy:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            # Holds the source feed (a few MB) and a parsed copy while filtering.
+            limits:
+              memory: 256Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          # Read per request: Secret edits apply without a restart.
+          volumeMounts:
+            - mountPath: /config
+              name: config
+              readOnly: true
+      volumes:
+        - name: config
+          secret:
+            secretName: calendar-proxy
