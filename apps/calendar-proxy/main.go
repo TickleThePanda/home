@@ -109,30 +109,55 @@ type server struct {
 	cache   map[string]*cached     // key: feed name + config hash
 	errors  map[string]int         // upstream failures per feed name
 	lastHit map[string]*cached     // latest result per feed name, for metrics
+	// requests counts feed requests by feed name ("unknown" for a bad
+	// token) and status code.
+	requests map[string]map[int]int
 }
 
-func main() {
-	s := &server{
-		configPath: envOr("CONFIG_FILE", "/config/config.yaml"),
+// Cache states for the request log: served from cache, refreshed from the
+// source, or the source failed and an older copy was served.
+const (
+	cacheHit   = "hit"
+	cacheMiss  = "miss"
+	cacheStale = "stale"
+)
+
+func newServer(configPath string) *server {
+	return &server{
+		configPath: configPath,
 		client:     &http.Client{Timeout: 60 * time.Second},
 		now:        time.Now,
 		feedMu:     map[string]*sync.Mutex{},
 		cache:      map[string]*cached{},
 		errors:     map[string]int{},
 		lastHit:    map[string]*cached{},
+		requests:   map[string]map[int]int{},
 	}
-	if _, _, err := loadConfig(s.configPath); err != nil {
-		slog.Error("config", "err", err)
-		os.Exit(1)
-	}
+}
+
+func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /calendar/{file}", s.serveFeed)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, "ok\n") })
 	mux.HandleFunc("GET /metrics", s.serveMetrics)
+	return mux
+}
 
+func main() {
+	s := newServer(envOr("CONFIG_FILE", "/config/config.yaml"))
+	cfg, _, err := loadConfig(s.configPath)
+	if err != nil {
+		slog.Error("config", "err", err)
+		os.Exit(1)
+	}
+	for i := range cfg.Feeds {
+		f := &cfg.Feeds[i]
+		pastDays, maxBytes := cfg.settings(f)
+		slog.Info("feed configured", "feed", f.Name, "past_days", pastDays, "max_bytes", maxBytes, "self_set", f.Self != "")
+	}
 	addr := envOr("ADDR", ":8080")
 	slog.Info("listening", "addr", addr)
-	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: addr, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second}
 	if err := srv.ListenAndServe(); err != nil {
 		slog.Error("serve", "err", err)
 		os.Exit(1)
@@ -146,9 +171,34 @@ func envOr(k, def string) string {
 	return def
 }
 
+// serveFeed serves /calendar/<token>.ics and logs one line per request.
+// The log names the feed, never the token.
 func (s *server) serveFeed(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	feedName, state, status, size := "unknown", "", http.StatusOK, 0
+	defer func() {
+		attrs := []any{"feed", feedName, "status", status, "bytes", size,
+			"duration", time.Since(start).Round(time.Millisecond),
+			"client", clientIP(r), "user_agent", r.UserAgent()}
+		if state != "" {
+			attrs = append(attrs, "cache", state)
+		}
+		level := slog.LevelInfo
+		if status >= 500 {
+			level = slog.LevelError
+		}
+		slog.Log(r.Context(), level, "request", attrs...)
+		s.mu.Lock()
+		if s.requests[feedName] == nil {
+			s.requests[feedName] = map[int]int{}
+		}
+		s.requests[feedName][status]++
+		s.mu.Unlock()
+	}()
+
 	token, ok := strings.CutSuffix(r.PathValue("file"), ".ics")
 	if !ok {
+		status = http.StatusNotFound
 		http.NotFound(w, r)
 		return
 	}
@@ -157,7 +207,8 @@ func (s *server) serveFeed(w http.ResponseWriter, r *http.Request) {
 	cfg, raw, err := loadConfig(s.configPath)
 	if err != nil {
 		slog.Error("config", "err", err)
-		http.Error(w, "config error", http.StatusInternalServerError)
+		status = http.StatusInternalServerError
+		http.Error(w, "config error", status)
 		return
 	}
 	var feed *Feed
@@ -167,29 +218,49 @@ func (s *server) serveFeed(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if feed == nil {
+		status = http.StatusNotFound
 		http.NotFound(w, r)
 		return
 	}
+	feedName = feed.Name
 
-	c, err := s.get(cfg, feed, raw)
+	var c *cached
+	c, state, err = s.get(cfg, feed, raw)
 	if err != nil {
 		slog.Error("feed unavailable", "feed", feed.Name, "err", err)
-		http.Error(w, "upstream calendar unavailable", http.StatusBadGateway)
+		status = http.StatusBadGateway
+		http.Error(w, "upstream calendar unavailable", status)
 		return
 	}
 	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
 	w.Header().Set("Cache-Control", "private, max-age=300")
 	w.Header().Set("ETag", c.etag)
 	if r.Header.Get("If-None-Match") == c.etag {
-		w.WriteHeader(http.StatusNotModified)
+		status = http.StatusNotModified
+		w.WriteHeader(status)
 		return
 	}
+	size = len(c.body)
 	w.Write(c.body)
 }
 
-// get returns the feed's cached result, refreshing it when older than
-// cacheTTL. A refresh failure falls back to the stale copy.
-func (s *server) get(cfg *Config, feed *Feed, rawConfig []byte) (*cached, error) {
+// clientIP is the caller's address as Cloudflare saw it, falling back to
+// the proxy chain and then the direct peer.
+func clientIP(r *http.Request) string {
+	if ip := r.Header.Get("Cf-Connecting-Ip"); ip != "" {
+		return ip
+	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ip, _, _ := strings.Cut(xff, ",")
+		return strings.TrimSpace(ip)
+	}
+	return r.RemoteAddr
+}
+
+// get returns the feed's cached result and where it came from (cacheHit,
+// cacheMiss or cacheStale), refreshing it when older than cacheTTL. A
+// refresh failure falls back to the stale copy.
+func (s *server) get(cfg *Config, feed *Feed, rawConfig []byte) (*cached, string, error) {
 	sum := sha256.Sum256(rawConfig)
 	key := feed.Name + "/" + hex.EncodeToString(sum[:8])
 
@@ -207,10 +278,13 @@ func (s *server) get(cfg *Config, feed *Feed, rawConfig []byte) (*cached, error)
 	c := s.cache[key]
 	s.mu.Unlock()
 	if c != nil && s.now().Sub(c.fetched) < cacheTTL {
-		return c, nil
+		return c, cacheHit, nil
 	}
 
-	fresh, err := s.refresh(cfg, feed)
+	s.mu.Lock()
+	prev := s.lastHit[feed.Name]
+	s.mu.Unlock()
+	fresh, err := s.refresh(cfg, feed, prev)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err != nil {
@@ -220,9 +294,9 @@ func (s *server) get(cfg *Config, feed *Feed, rawConfig []byte) (*cached, error)
 		}
 		if c != nil {
 			slog.Warn("refresh failed, serving stale copy", "feed", feed.Name, "age", s.now().Sub(c.fetched).Round(time.Second), "err", err)
-			return c, nil
+			return c, cacheStale, nil
 		}
-		return nil, err
+		return nil, "", err
 	}
 	for k := range s.cache {
 		if strings.HasPrefix(k, feed.Name+"/") {
@@ -231,11 +305,15 @@ func (s *server) get(cfg *Config, feed *Feed, rawConfig []byte) (*cached, error)
 	}
 	s.cache[key] = fresh
 	s.lastHit[feed.Name] = fresh
-	return fresh, nil
+	return fresh, cacheMiss, nil
 }
 
-func (s *server) refresh(cfg *Config, feed *Feed) (*cached, error) {
+// refresh fetches and filters the feed. prev, the last good result if any,
+// only feeds the log's "changed" flag.
+func (s *server) refresh(cfg *Config, feed *Feed, prev *cached) (*cached, error) {
+	fetchStart := time.Now()
 	src, err := s.fetch(feed.Source)
+	fetchTime := time.Since(fetchStart).Round(time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
@@ -245,8 +323,11 @@ func (s *server) refresh(cfg *Config, feed *Feed) (*cached, error) {
 	if err != nil {
 		return nil, fmt.Errorf("filter: %w", err)
 	}
-	attrs := []any{"feed", feed.Name, "in_bytes", st.InBytes, "out_bytes", st.OutBytes,
-		"kept", st.Kept, "dropped", st.Dropped, "past_days", st.PastDays}
+	sum := sha256.Sum256(out)
+	etag := `"` + hex.EncodeToString(sum[:16]) + `"`
+	attrs := []any{"feed", feed.Name, "fetch", fetchTime, "in_bytes", st.InBytes, "out_bytes", st.OutBytes,
+		"kept", st.Kept, "dropped", st.Dropped, "past_days", st.PastDays,
+		"changed", prev == nil || prev.etag != etag}
 	switch {
 	case st.OutBytes > maxBytes:
 		slog.Error("feed still over size limit", append(attrs, "max_bytes", maxBytes)...)
@@ -255,8 +336,7 @@ func (s *server) refresh(cfg *Config, feed *Feed) (*cached, error) {
 	default:
 		slog.Info("feed refreshed", attrs...)
 	}
-	sum := sha256.Sum256(out)
-	return &cached{body: out, etag: `"` + hex.EncodeToString(sum[:16]) + `"`, fetched: now, stats: st}, nil
+	return &cached{body: out, etag: etag, fetched: now, stats: st}, nil
 }
 
 // fetch GETs the source. Errors never include the URL, which is secret.
@@ -296,6 +376,11 @@ func (s *server) serveMetrics(w http.ResponseWriter, _ *http.Request) {
 			names = append(names, n)
 		}
 	}
+	for n := range s.requests {
+		if !slices.Contains(names, n) {
+			names = append(names, n)
+		}
+	}
 	slices.Sort(names)
 
 	metric := func(name, typ, help string, each func(feed string)) {
@@ -304,8 +389,20 @@ func (s *server) serveMetrics(w http.ResponseWriter, _ *http.Request) {
 			each(n)
 		}
 	}
+	metric("calendar_proxy_requests_total", "counter", "Feed requests, by status code.", func(n string) {
+		codes := make([]int, 0, len(s.requests[n]))
+		for c := range s.requests[n] {
+			codes = append(codes, c)
+		}
+		slices.Sort(codes)
+		for _, c := range codes {
+			fmt.Fprintf(w, "calendar_proxy_requests_total{feed=%q,code=\"%d\"} %d\n", n, c, s.requests[n][c])
+		}
+	})
 	metric("calendar_proxy_upstream_errors_total", "counter", "Failed source fetches or parses.", func(n string) {
-		fmt.Fprintf(w, "calendar_proxy_upstream_errors_total{feed=%q} %d\n", n, s.errors[n])
+		if _, ok := s.errors[n]; ok || s.lastHit[n] != nil {
+			fmt.Fprintf(w, "calendar_proxy_upstream_errors_total{feed=%q} %d\n", n, s.errors[n])
+		}
 	})
 	stat := func(n string) (Stats, bool) {
 		if c := s.lastHit[n]; c != nil {
