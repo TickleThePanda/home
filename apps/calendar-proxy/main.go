@@ -27,6 +27,8 @@ import (
 	"time"
 	_ "time/tzdata" // the image is FROM scratch
 
+	// Also for scratch: CA roots for fetching HTTPS sources.
+	_ "golang.org/x/crypto/x509roots/fallback"
 	"gopkg.in/yaml.v3"
 )
 

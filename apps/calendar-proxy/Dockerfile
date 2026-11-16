@@ -9,7 +9,5 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags=
 
 FROM scratch
 COPY --from=build /calendar-proxy /calendar-proxy
-# The image has no OS; this is the trust store for fetching HTTPS feeds.
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 USER 65532:65532
 ENTRYPOINT ["/calendar-proxy"]
