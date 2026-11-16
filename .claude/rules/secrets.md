@@ -7,7 +7,7 @@ paths:
 # Secrets
 
 Kubernetes Secrets are committed encrypted with SOPS + age, in files named
-`*.sops.yaml`. The `setup`, `setup-config`, `internal` and `flux-system`
+`*.sops.yaml`. The `setup`, `setup-config`, `home`, `internal` and `flux-system`
 Kustomizations decrypt them with the `sops-age` Secret in `flux-system`. `.sops.yaml` holds
 the public key and encrypts only `data` / `stringData`.
 
