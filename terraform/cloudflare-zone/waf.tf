@@ -10,6 +10,17 @@
 locals {
   on_host = "http.host eq \"${var.host}\""
 
+  # GB, the EU, and EFTA (CH, NO, IS, LI). Listed explicitly because
+  # ip.src.is_in_european_union needs a Business plan. CH also covers Proton's
+  # calendar fetchers, so the geo check applies to /calendar/ too. WARP egress
+  # is geolocated near the client; outside Europe, use the router's Tailscale
+  # exit node.
+  allowed_countries = [
+    "GB", "CH", "NO", "IS", "LI",
+    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+    "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+  ]
+
   # Scanner targets. Nothing served on this host (/, /share/, /calendar/)
   # uses these paths.
   probe_paths = [
@@ -25,11 +36,7 @@ locals {
   ]
 
   block_checks = {
-    # GB, the EU and the rest of Europe's EEA/EFTA. CH also covers Proton's
-    # calendar fetchers, so this applies to /calendar/ too. WARP egress is
-    # geolocated near the client; outside Europe, use the router's Tailscale
-    # exit node.
-    geo = "not ip.src.is_in_european_union and not ip.src.country in {\"GB\" \"CH\" \"NO\" \"IS\" \"LI\"}"
+    geo = "not ip.src.country in {${join(" ", [for c in local.allowed_countries : "\"${c}\""])}}"
     # Every route on this host is read-only.
     methods = "not http.request.method in {\"GET\" \"HEAD\"}"
     probes  = join(" or ", [for p in local.probe_paths : "lower(http.request.uri.path) contains \"${p}\""])
