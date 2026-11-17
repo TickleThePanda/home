@@ -25,6 +25,11 @@ locals {
   ]
 
   block_checks = {
+    # GB, the EU and the rest of Europe's EEA/EFTA. CH also covers Proton's
+    # calendar fetchers, so this applies to /calendar/ too. WARP egress is
+    # geolocated near the client; outside Europe, use the router's Tailscale
+    # exit node.
+    geo = "not ip.src.is_in_european_union and not ip.src.country in {\"GB\" \"CH\" \"NO\" \"IS\" \"LI\"}"
     # Every route on this host is read-only.
     methods = "not http.request.method in {\"GET\" \"HEAD\"}"
     probes  = join(" or ", [for p in local.probe_paths : "lower(http.request.uri.path) contains \"${p}\""])
