@@ -6,7 +6,7 @@ name: Deploy
 #   infra       deploy-infra.yaml -- ansible/, every layer: proxmox, node, k3s, router
 #   firmware    router-firmware.yaml -- router/, the gateway's firmware
 #   cluster     deploy-cluster.yaml -- k8s/, applied with kustomize
-#   terraform   deploy-terraform.yaml -- terraform/cloudflare-zero-trust/, applied last
+#   terraform   deploy-terraform.yaml -- terraform/cloudflare-{zero-trust,zone}/, applied last
 #
 # Each of infra/cluster/terraform is a separate file, called here via
 # `workflow_call` rather than inlined. This file's own paths-filter works at
@@ -58,6 +58,7 @@ on:
       - ansible/**
       - router/**
       - terraform/cloudflare-zero-trust/**
+      - terraform/cloudflare-zone/**
       - scripts/check-gather-subset.py
       - scripts/vendor.sh
       - scripts/check-versions.sh
@@ -137,6 +138,7 @@ jobs:
               - '!**/*.md'
             terraform:
               - 'terraform/cloudflare-zero-trust/**'
+              - 'terraform/cloudflare-zone/**'
               - '.github/workflows/deploy-terraform.yaml'
               - '!**/*.md'
 

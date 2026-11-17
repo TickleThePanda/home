@@ -88,7 +88,7 @@ Documentation and comments: simple, concise, practical.
 
 - `.github/workflows/deploy.yaml` runs on push to `main`, in order:
   `preflight` (pin guard, tunnel/API readiness), `infra` (all Ansible
-  layers), `firmware` (router), `cluster` (Flux), `terraform` (Cloudflare Zero Trust, last). Each
+  layers), `firmware` (router), `cluster` (Flux), `terraform` (Cloudflare Zero Trust and the `home.` zone security rules, last). Each
   layer is skipped when nothing under its tree changed.
 - Router firmware (`router/`) has its own workflow,
   `.github/workflows/router-firmware.yaml`, which `deploy.yaml` calls as its

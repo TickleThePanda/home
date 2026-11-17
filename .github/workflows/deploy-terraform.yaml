@@ -1,8 +1,11 @@
 name: Deploy - terraform
 
-# Called by deploy.yaml's `terraform` job, applying
-# terraform/cloudflare-zero-trust/. Doesn't need WARP -- Cloudflare's and
-# GCP's APIs are reached over the public internet, not through the tunnel.
+# Called by deploy.yaml's `terraform` job, applying each Terraform root:
+#   cloudflare-zero-trust  tunnel, Access, Gateway (CLOUDFLARE_API_TOKEN)
+#   cloudflare-zone        home. security rules (CLOUDFLARE_ZONE_API_TOKEN)
+# Each root has its own token, so neither can change the other's resources.
+# Doesn't need WARP -- Cloudflare's and GCP's APIs are reached over the
+# public internet, not through the tunnel.
 
 on:
   workflow_call: {}
@@ -11,12 +14,20 @@ jobs:
   terraform:
     runs-on: ubuntu-26.04
     environment: prod
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - root: cloudflare-zero-trust
+            token: CLOUDFLARE_API_TOKEN
+          - root: cloudflare-zone
+            token: CLOUDFLARE_ZONE_API_TOKEN
     permissions:
       contents: read
       id-token: write
     defaults:
       run:
-        working-directory: terraform/cloudflare-zero-trust
+        working-directory: terraform/${{ matrix.root }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,7 +49,7 @@ jobs:
 
       - name: terraform apply
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets[matrix.token] }}
         run: |
           terraform plan -input=false -out=tfplan
           terraform apply -input=false -auto-approve tfplan

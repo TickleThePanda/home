@@ -87,7 +87,7 @@ jobs:
       # Catches a provider bump that removes an attribute the config sets.
       - name: Validate the Terraform roots
         run: |
-          for root in terraform/cloudflare-zero-trust bootstrap/terraform; do
+          for root in terraform/cloudflare-zero-trust terraform/cloudflare-zone bootstrap/terraform; do
             terraform -chdir="$root" init -backend=false -input=false
             terraform -chdir="$root" validate
           done
