@@ -49,9 +49,9 @@ jobs:
       # Same release as the FluxInstance's distribution.version
       # (scripts/check-versions.sh checks they match).
       - name: Install the flux CLI
-        uses: fluxcd/flux2/action@3fa784edd773d56630bb9f62645e08f70c2cff0a # v2.10.0
+        uses: fluxcd/flux2/action@3fa784edd773d56630bb9f62645e08f70c2cff0a # v2.10.1
         with:
-          version: 2.10.0
+          version: 2.10.1
 
       # Flux manages k8s/cluster/ itself (sync/self.yaml); CI never applies
       # it. CI holds no age key, so it can't bootstrap Flux either -- a human
